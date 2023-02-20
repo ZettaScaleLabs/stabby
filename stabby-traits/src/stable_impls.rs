@@ -1,4 +1,5 @@
 use super::*;
+use type_layouts::Stable;
 
 macro_rules! same_as {
     ($t: ty) => {

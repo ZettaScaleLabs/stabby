@@ -23,12 +23,7 @@ pub fn holes(input: TokenStream) -> TokenStream {
 mod tyops;
 #[proc_macro]
 pub fn tyeval(tokens: TokenStream) -> TokenStream {
-    tyops::tyeval(&syn::parse(tokens).unwrap()).into()
-}
-
-#[proc_macro]
-pub fn tybound(tokens: TokenStream) -> TokenStream {
-    tyops::tybound(&syn::parse(tokens).unwrap()).into()
+    tyops::tyeval(&tokens.into()).into()
 }
 
 #[proc_macro_attribute]
@@ -40,7 +35,7 @@ pub fn stabby(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
         ident,
         generics,
         data,
-    } = syn::parse(tokens.clone()).unwrap();
+    } = syn::parse(tokens).unwrap();
     match data {
         syn::Data::Struct(data) => structs::stabby(attrs, vis, ident, generics, data, in_stabby),
         syn::Data::Enum(_) => panic!("stabby doesn't support enums YET"),

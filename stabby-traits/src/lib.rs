@@ -9,7 +9,6 @@ pub use stabby_macros::stabby;
 
 pub use type_layouts::*;
 pub use typenum::*;
-mod stable_impls;
 pub mod type_layouts;
 
 pub mod holes {
@@ -18,3 +17,5 @@ pub mod holes {
 pub(crate) mod stabby_traits {
     pub use super::holes;
 }
+
+// mod stable_impls;
