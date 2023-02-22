@@ -1,4 +1,4 @@
-use proc_macro2::Ident;
+use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Attribute, DataStruct, Generics, Visibility};
 
@@ -8,24 +8,16 @@ pub fn stabby(
     ident: Ident,
     generics: Generics,
     DataStruct { fields, .. }: DataStruct,
-    in_stabby: bool,
+    st: TokenStream,
 ) -> proc_macro2::TokenStream {
-    let st = if in_stabby {
-        quote!(::stabby_traits)
-    } else {
-        quote!(::stabby::stabby_traits)
-    };
-    match fields {
+    let unbound_generics = &generics.params;
+    let mut struct_as_tuples = quote!(());
+    let struct_code = match fields {
         syn::Fields::Named(fields) => {
             let fields = fields.named;
-            let unbound_generics = &generics.params;
-            let mut bounds = quote!();
             for field in &fields {
                 let ty = &field.ty;
-                bounds = quote! {
-                    #bounds
-                    #ty: #st::Stable,
-                };
+                struct_as_tuples = quote!(#st::Tuple2<#struct_as_tuples, #ty>)
             }
             quote! {
                 #(#attrs)*
@@ -33,29 +25,42 @@ pub fn stabby(
                 #vis struct #ident #generics {
                     #fields
                 }
+            }
+        }
+        syn::Fields::Unnamed(fields) => {
+            let fields = fields.unnamed;
+            for field in &fields {
+                let ty = &field.ty;
+                struct_as_tuples = quote!(#st::Tuple2<#struct_as_tuples, #ty>)
+            }
+            quote! {
+                #(#attrs)*
+                #[repr(C)]
+                #vis struct #ident #generics (#fields);
                 #[automatically_derived]
-                unsafe impl #generics #st::Stable for #ident <#unbound_generics> where #bounds {
-                    type Niches = #st::End<#st::U0>;
-                    type Align = #st::U0;
-                    type Size = #st::U0;
+                unsafe impl #generics #st::IStable for #ident <#unbound_generics> where #struct_as_tuples: #st::IStable {
+                    type IllegalValues = <#struct_as_tuples as #st::IStable>::IllegalValues;
+                    type UnusedBits =<#struct_as_tuples as #st::IStable>::UnusedBits;
+                    type Size = <#struct_as_tuples as #st::IStable>::Size;
+                    type Align = <#struct_as_tuples as #st::IStable>::Align;
                 }
             }
         }
-        syn::Fields::Unnamed(_) => {
-            panic!("stabby doesn't support tuple-like structs (nor does it intend to atm)")
-        }
         syn::Fields::Unit => {
-            let unbound_generics = &generics.params;
             quote! {
                 #(#attrs)*
                 #vis struct #ident #generics;
-                #[automatically_derived]
-                unsafe impl #generics #st::Stable for #ident <#unbound_generics> {
-                    type Niches = #st::End<#st::U0>;
-                    type Align = #st::U0;
-                    type Size = #st::U0;
-                }
             }
+        }
+    };
+    quote! {
+        #struct_code
+        #[automatically_derived]
+        unsafe impl #generics #st::IStable for #ident <#unbound_generics> where #struct_as_tuples: #st::IStable {
+            type IllegalValues = <#struct_as_tuples as #st::IStable>::IllegalValues;
+            type UnusedBits =<#struct_as_tuples as #st::IStable>::UnusedBits;
+            type Size = <#struct_as_tuples as #st::IStable>::Size;
+            type Align = <#struct_as_tuples as #st::IStable>::Align;
         }
     }
 }

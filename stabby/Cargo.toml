@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 stabby-macros = { path = "../stabby-macros/" }
-stabby-traits = { path = "../stabby-traits/" }
+stabby-traits = { path = "../stabby-traits/", features = ["std"] }

@@ -1,14 +1,22 @@
+/// An ABI stable equivalent of `&'a T`
 #[stabby_macros::stabby(in_stabby)]
 #[derive(Clone, Copy)]
 pub struct Slice<'a, T> {
     start: &'a T,
     len: usize,
 }
+/// An ABI stable equivalent of `&'a mut T`
 #[stabby_macros::stabby(in_stabby)]
 pub struct SliceMut<'a, T> {
     start: &'a mut T,
     len: usize,
 }
+
+#[stabby_macros::stabby(in_stabby)]
+fn f(_: &u8) -> &'static u8 {
+    &0
+}
+
 impl<'a, T> From<&'a [T]> for Slice<'a, T> {
     fn from(value: &'a [T]) -> Self {
         Self {

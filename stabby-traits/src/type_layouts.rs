@@ -1,126 +1,153 @@
+pub use ::typenum::*;
 use stabby_macros::tyeval;
+pub struct AssertStable<T: Stable>(pub core::marker::PhantomData<T>);
+impl<T: Stable> AssertStable<T> {
+    pub const fn assert() -> Self {
+        Self(core::marker::PhantomData)
+    }
+}
 
 use super::*;
 use core::ops::*;
-pub trait NicheSpec {}
-pub unsafe trait Stable {
-    type Niches: NicheSpec;
-    type Start;
-    type Size;
-    type Align;
+/// A trait to describe the layout of a type.
+///
+/// Every layout is assumed to start at the type's first byte.
+///
+/// # Safety
+/// Mis-implementing this trait can lead to memory corruption in sum tyoes
+pub unsafe trait IStable: Sized {
+    type Size: Unsigned;
+    type Align: Unsigned;
+    type IllegalValues;
+    type UnusedBits;
+    #[cfg(feature = "std")]
+    fn layout_test() {
+        assert_eq!(
+            core::mem::size_of::<Self>(),
+            Self::Size::USIZE,
+            "{}",
+            core::any::type_name::<Self>()
+        );
+        assert_eq!(
+            core::mem::align_of::<Self>(),
+            Self::Align::USIZE,
+            "{}",
+            core::any::type_name::<Self>()
+        );
+    }
 }
-pub trait StableExt: Stable {
-    type End;
+
+pub struct End;
+pub struct Array<Offset, T, Rest>(core::marker::PhantomData<(Offset, T, Rest)>);
+
+#[repr(C)]
+pub struct Tuple2<A, B> {
+    _0: A,
+    _1: B,
 }
-impl<T: Stable> StableExt for T
+
+unsafe impl<A: IStable, B: IStable> IStable for Tuple2<A, B>
 where
-    T::Start: Add<T::Size>,
+    A::Align: Max<B::Align>,
+    AlignedAfter<B, A::Size>: IStable,
+    A::UnusedBits: IArrayPush<<AlignedAfter<B, A::Size> as IStable>::UnusedBits>,
+    <A::Align as Max<B::Align>>::Output: Unsigned,
 {
-    type End = tyeval!(T::Start + T::Size);
-}
-pub struct Or<A, B>(core::marker::PhantomData<(A, B)>);
-impl<A: Shift<By>, B: Shift<By>, By> Shift<By> for Or<A, B> {
-    type Output = Or<<A as Shift<By>>::Output, <B as Shift<By>>::Output>;
-}
-
-pub struct Niche<Offset, Holes, And: NicheSpec>(core::marker::PhantomData<(Offset, Holes, And)>);
-impl<Offset, Holes, And: NicheSpec> NicheSpec for Niche<Offset, Holes, And> {}
-impl<Offset: Add<By>, By, Holes, And: NicheSpec + Shift<By>> Shift<By> for Niche<Offset, Holes, And>
-where
-    <And as Shift<By>>::Output: NicheSpec,
-{
-    type Output = Niche<tyeval!(Offset + By), Holes, <And as Shift<By>>::Output>;
+    type IllegalValues = End;
+    type UnusedBits =
+        <A::UnusedBits as IArrayPush<<AlignedAfter<B, A::Size> as IStable>::UnusedBits>>::Output;
+    type Size = <AlignedAfter<B, A::Size> as IStable>::Size;
+    type Align = <A::Align as Max<B::Align>>::Output;
 }
 
-pub struct End<Offset>(core::marker::PhantomData<Offset>);
-impl<Offset> NicheSpec for End<Offset> {}
-impl<Offset: Add<By>, By> Shift<By> for End<Offset> {
-    type Output = tyeval!(Offset + By);
-}
-
-pub struct Shifted<T, By>(core::marker::PhantomData<(T, By)>);
-pub trait Shift<By> {
+pub trait IArrayPush<T> {
     type Output;
 }
-unsafe impl<T: Stable, By> Stable for Shifted<T, By>
+impl<Arr> IArrayPush<Arr> for End {
+    type Output = Arr;
+}
+impl<Arr, Offset, T, Rest: IArrayPush<Arr>> IArrayPush<Arr> for Array<Offset, T, Rest> {
+    type Output = Array<Offset, T, <Rest as IArrayPush<Arr>>::Output>;
+}
+
+pub struct AlignedAfter<T, Start>(core::marker::PhantomData<(T, Start)>);
+macro_rules! same_as {
+    ($t: ty) => {
+        type Align = <$t as IStable>::Align;
+        type Size = <$t as IStable>::Size;
+        type UnusedBits = <$t as IStable>::UnusedBits;
+        type IllegalValues = <$t as IStable>::IllegalValues;
+    };
+}
+// Check if T::Align == 0
+unsafe impl<T: IStable, Start> IStable for AlignedAfter<T, Start>
 where
-    T::Niches: Shift<By>,
-    By: Rem<T::Align, Output = U0>,
-    <T::Niches as Shift<By>>::Output: NicheSpec,
-    T::Start: Add<By>,
+    T::Align: IsEqual<U0>,
+    (tyeval!(T::Align == U0), Self): IStable,
+{
+    same_as!((tyeval!(T::Align == U0), Self));
+}
+// T::Align == 0 => The layout doesn't change
+unsafe impl<T: IStable, Start> IStable for (B1, AlignedAfter<T, Start>) {
+    same_as!(T);
+}
+// T::Align != 0 => Check if Start == 0
+unsafe impl<T: IStable, Start> IStable for (B0, AlignedAfter<T, Start>)
+where
+    Start: IsEqual<U0>,
+    (tyeval!(Start == U0), Self): IStable,
+{
+    same_as!((tyeval!(Start == U0), Self));
+}
+// Start == 0 => The layout doesn't change
+unsafe impl<T: IStable, Start> IStable for (B1, (B0, AlignedAfter<T, Start>)) {
+    same_as!(T);
+}
+unsafe impl<T: IStable, Start> IStable for (B0, (B0, AlignedAfter<T, Start>))
+where
+    Start: Rem<T::Align>,
+    tyeval!(Start % T::Align): IsEqual<U0>,
+    (AlignedAfter<T, Start>, tyeval!((Start % T::Align) == U0)): IStable,
+{
+    same_as!((AlignedAfter<T, Start>, tyeval!((Start % T::Align) == U0)));
+}
+unsafe impl<T: IStable, Start> IStable for (AlignedAfter<T, Start>, B1)
+where
+    Start: Add<T::Size>,
+    T::UnusedBits: IShift<Start>,
+    T::IllegalValues: IShift<Start>,
+    tyeval!(Start + T::Size): Unsigned,
 {
     type Align = T::Align;
-    type Start = tyeval!(T::Start + By);
-    type Size = T::Size;
-    type Niches = <T::Niches as Shift<By>>::Output;
+    type Size = tyeval!(Start + T::Size);
+    type UnusedBits = <T::UnusedBits as IShift<Start>>::Output;
+    type IllegalValues = <T::IllegalValues as IShift<Start>>::Output;
 }
-
-pub trait After<T> {
-    type Output;
-}
-impl<A, B> After<A> for B {
-    type Output = SAfter<A, B>;
-}
-pub struct SAfter<A, B>(core::marker::PhantomData<(A, B)>);
-
-unsafe impl<A: StableExt, B: StableExt> Stable for SAfter<A, B>
+unsafe impl<T: IStable, Start> IStable for (AlignedAfter<T, Start>, B0)
 where
-    A::End: Rem<B::Align>,
-    tyeval!(A::End % B::Align): IsEqual<U0>,
-    (Self, tyeval!((A::End % B::Align) == U0)): Stable,
+    Start: Rem<T::Align> + Sub<U1> + Add<tyeval!(T::Align - (Start % T::Align))>,
+    T::Align: Sub<tyeval!(Start % T::Align)>,
+    tyeval!(Start + (T::Align - (Start % T::Align))): Add<T::Size>,
+    T::UnusedBits: IShift<tyeval!(Start + (T::Align - (Start % T::Align)))>,
+    T::IllegalValues: IShift<tyeval!(Start + (T::Align - (Start % T::Align)))>,
+    tyeval!((Start + (T::Align - (Start % T::Align))) + T::Size): Unsigned,
 {
-    type Align = <(Self, tyeval!((A::End % B::Align) == U0)) as Stable>::Align;
-    type Size = <(Self, tyeval!((A::End % B::Align) == U0)) as Stable>::Size;
-    type Start = <(Self, tyeval!((A::End % B::Align) == U0)) as Stable>::Start;
-    type Niches = <(Self, tyeval!((A::End % B::Align) == U0)) as Stable>::Niches;
-}
-
-unsafe impl<A: StableExt, B: StableExt> Stable for (SAfter<A, B>, B0)
-where
-    B::Start: Add<B::Size>,
-    A::End: Rem<B::Align> + Add<tyeval!(B::Align - (A::End % B::Align))>,
-    tyeval!(A::End + (B::Align - (A::End % B::Align))): Sub<U1>,
-    B::Align: Sub<tyeval!(A::End % B::Align)>,
-    tyeval!(B::Align - (A::End % B::Align)): Rem<B::Align>,
-    tyeval!(A::End % B::Align): IsEqual<U0, Output = B1>,
-{
-    type Align = B::Align;
-    type Size = B::Size;
-    type Start = tyeval!(A::End + (B::Align - (A::End % B::Align)));
-    type Niches = Niche<
-        tyeval!((A::End + (B::Align - (A::End % B::Align))) - U1),
-        FreeByte,
-        End<tyeval!(B::Start + B::Size)>,
+    type Align = T::Align;
+    type Size = tyeval!((Start + (T::Align - (Start % T::Align))) + T::Size);
+    type UnusedBits = Array<
+        tyeval!(Start - U1),
+        U255,
+        <T::UnusedBits as IShift<tyeval!(Start + (T::Align - (Start % T::Align)))>>::Output,
     >;
-}
-unsafe impl<A: StableExt, B: StableExt> Stable for (SAfter<A, B>, B1)
-where
-    B::Start: Add<B::Size>,
-    A::End: Rem<B::Align> + Add<B::Size>,
-    B::Align: Sub<tyeval!(A::End % B::Align)>,
-    tyeval!(B::Align - (A::End % B::Align)): Rem<B::Align>,
-    tyeval!(A::End % B::Align): IsEqual<U0, Output = B1>,
-{
-    type Align = B::Align;
-    type Size = B::Size;
-    type Start = A::End;
-    type Niches = End<tyeval!(A::End + B::Size)>;
+    type IllegalValues =
+        <T::IllegalValues as IShift<tyeval!(Start + (T::Align - (Start % T::Align)))>>::Output;
 }
 
-pub trait Ternary<A, B> {
+pub trait IShift<By> {
     type Output;
 }
-impl<A, B> Ternary<A, B> for B0 {
-    type Output = B;
-}
-impl<A, B> Ternary<A, B> for B1 {
-    type Output = A;
+impl<By> IShift<By> for End {
+    type Output = End;
 }
 
 pub type NonZeroHole = stabby_macros::holes!([1, 0, 0, 0]);
-pub type FreeByte = stabby_macros::holes!([
-    0xffffffffffffffff,
-    0xffffffffffffffff,
-    0xffffffffffffffff,
-    0xffffffffffffffff
-]);
