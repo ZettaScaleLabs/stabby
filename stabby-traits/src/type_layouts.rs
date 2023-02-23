@@ -1,3 +1,4 @@
+use crate::{holes, Stable};
 pub use ::typenum::*;
 use stabby_macros::tyeval;
 pub struct AssertStable<T: Stable>(pub core::marker::PhantomData<T>);
@@ -7,7 +8,38 @@ impl<T: Stable> AssertStable<T> {
     }
 }
 
-use super::*;
+pub trait ITypeEraseable<'a>: Deref {
+    type Output<U: 'a>: ITypeEraseable<'a> + 'a;
+    /// # Safety
+    /// This erases the type of a reference, and should not be triffled with
+    unsafe fn type_erase<U>(self) -> Self::Output<U>;
+}
+impl<'a, T> ITypeEraseable<'a> for &'a T {
+    type Output<U> = &'a U where U: 'a;
+    unsafe fn type_erase<U: 'a>(self) -> Self::Output<U> {
+        core::mem::transmute(self)
+    }
+}
+impl<'a, T> ITypeEraseable<'a> for &'a mut T {
+    type Output<U> = &'a mut U where U: 'a;
+    unsafe fn type_erase<U: 'a>(self) -> Self::Output<U> {
+        core::mem::transmute(self)
+    }
+}
+impl<'a, T: ITypeEraseable<'a>> ITypeEraseable<'a> for core::pin::Pin<T> {
+    type Output<U> = core::pin::Pin<T::Output<U>> where U: 'a;
+    unsafe fn type_erase<U: 'a>(self) -> Self::Output<U> {
+        core::pin::Pin::new_unchecked(core::pin::Pin::into_inner_unchecked(self).type_erase())
+    }
+}
+#[cfg(alloc)]
+impl<'a, T> ITypeEraseable<'a> for alloc::boxed::Box<T> {
+    type Output<U> = Box<U> where U: 'a;
+    unsafe fn type_erase<U: 'a>(self) -> Self::Output<U> {
+        core::mem::transmute(self)
+    }
+}
+
 use core::ops::*;
 /// A trait to describe the layout of a type.
 ///
@@ -20,20 +52,14 @@ pub unsafe trait IStable: Sized {
     type Align: Unsigned;
     type IllegalValues;
     type UnusedBits;
-    #[cfg(feature = "std")]
-    fn layout_test() {
-        assert_eq!(
-            core::mem::size_of::<Self>(),
-            Self::Size::USIZE,
-            "{}",
-            core::any::type_name::<Self>()
-        );
-        assert_eq!(
-            core::mem::align_of::<Self>(),
-            Self::Align::USIZE,
-            "{}",
-            core::any::type_name::<Self>()
-        );
+    type HasExactlyOneNiche;
+    fn size() -> usize {
+        let size = Self::Size::USIZE;
+        let align = Self::Align::USIZE;
+        size + ((align - (size % align)) % align)
+    }
+    fn align() -> usize {
+        Self::Align::USIZE
     }
 }
 
@@ -52,12 +78,57 @@ where
     AlignedAfter<B, A::Size>: IStable,
     A::UnusedBits: IArrayPush<<AlignedAfter<B, A::Size> as IStable>::UnusedBits>,
     <A::Align as Max<B::Align>>::Output: Unsigned,
+    A::HasExactlyOneNiche: SaturatingAdd<B::HasExactlyOneNiche>,
 {
     type IllegalValues = End;
     type UnusedBits =
         <A::UnusedBits as IArrayPush<<AlignedAfter<B, A::Size> as IStable>::UnusedBits>>::Output;
     type Size = <AlignedAfter<B, A::Size> as IStable>::Size;
     type Align = <A::Align as Max<B::Align>>::Output;
+    type HasExactlyOneNiche =
+        <A::HasExactlyOneNiche as SaturatingAdd<B::HasExactlyOneNiche>>::Output;
+}
+pub trait SaturatingAdder: SaturatingAdd<B0> + SaturatingAdd<B1> + SaturatingAdd<B2> {}
+impl<T: SaturatingAdd<B0> + SaturatingAdd<B1> + SaturatingAdd<B2>> SaturatingAdder for T {}
+pub trait SaturatingAdd<T> {
+    type Output;
+}
+pub struct B2;
+impl<T> SaturatingAdd<T> for B0 {
+    type Output = T;
+}
+impl SaturatingAdd<B0> for B1 {
+    type Output = B1;
+}
+impl SaturatingAdd<B1> for B1 {
+    type Output = B2;
+}
+impl SaturatingAdd<B2> for B1 {
+    type Output = B2;
+}
+impl<T> SaturatingAdd<T> for B2 {
+    type Output = B2;
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union Union<A: Copy, B: Copy> {
+    _0: A,
+    _1: B,
+}
+
+unsafe impl<A: IStable + Copy, B: IStable + Copy> IStable for Union<A, B>
+where
+    A::Align: Max<B::Align>,
+    A::Size: Max<B::Size>,
+    <A::Size as Max<B::Size>>::Output: Unsigned,
+    <A::Align as Max<B::Align>>::Output: Unsigned,
+{
+    type IllegalValues = End;
+    type UnusedBits = End;
+    type Size = <A::Size as Max<B::Size>>::Output;
+    type Align = <A::Align as Max<B::Align>>::Output;
+    type HasExactlyOneNiche = B0;
 }
 
 pub trait IArrayPush<T> {
@@ -77,6 +148,7 @@ macro_rules! same_as {
         type Size = <$t as IStable>::Size;
         type UnusedBits = <$t as IStable>::UnusedBits;
         type IllegalValues = <$t as IStable>::IllegalValues;
+        type HasExactlyOneNiche = <$t as IStable>::HasExactlyOneNiche;
     };
 }
 // Check if T::Align == 0
@@ -88,8 +160,12 @@ where
     same_as!((tyeval!(T::Align == U0), Self));
 }
 // T::Align == 0 => The layout doesn't change
-unsafe impl<T: IStable, Start> IStable for (B1, AlignedAfter<T, Start>) {
-    same_as!(T);
+unsafe impl<T: IStable, Start: Unsigned> IStable for (B1, AlignedAfter<T, Start>) {
+    type Align = <T as IStable>::Align;
+    type Size = Start;
+    type UnusedBits = End;
+    type IllegalValues = End;
+    type HasExactlyOneNiche = B0;
 }
 // T::Align != 0 => Check if Start == 0
 unsafe impl<T: IStable, Start> IStable for (B0, AlignedAfter<T, Start>)
@@ -122,6 +198,7 @@ where
     type Size = tyeval!(Start + T::Size);
     type UnusedBits = <T::UnusedBits as IShift<Start>>::Output;
     type IllegalValues = <T::IllegalValues as IShift<Start>>::Output;
+    type HasExactlyOneNiche = T::HasExactlyOneNiche;
 }
 unsafe impl<T: IStable, Start> IStable for (AlignedAfter<T, Start>, B0)
 where
@@ -141,6 +218,7 @@ where
     >;
     type IllegalValues =
         <T::IllegalValues as IShift<tyeval!(Start + (T::Align - (Start % T::Align)))>>::Output;
+    type HasExactlyOneNiche = B0;
 }
 
 pub trait IShift<By> {

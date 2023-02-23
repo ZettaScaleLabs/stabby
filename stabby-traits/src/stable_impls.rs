@@ -1,4 +1,4 @@
-use crate as stabby_traits;
+use crate::holes;
 use crate::type_layouts::*;
 
 macro_rules! same_as {
@@ -7,6 +7,7 @@ macro_rules! same_as {
         type Size = <$t as IStable>::Size;
         type UnusedBits = <$t as IStable>::UnusedBits;
         type IllegalValues = <$t as IStable>::IllegalValues;
+        type HasExactlyOneNiche = <$t as IStable>::HasExactlyOneNiche;
     };
 }
 macro_rules! nz_holes {
@@ -22,6 +23,7 @@ unsafe impl IStable for () {
     type Align = U0;
     type IllegalValues = End;
     type UnusedBits = End;
+    type HasExactlyOneNiche = B0;
 }
 
 unsafe impl IStable for bool {
@@ -30,6 +32,7 @@ unsafe impl IStable for bool {
     type IllegalValues =
         Array<U0, stabby_macros::holes!([0xfffffffc, 0xffffffff, 0xffffffff, 0xffffffff]), End>;
     type UnusedBits = End;
+    type HasExactlyOneNiche = B0;
 }
 
 unsafe impl IStable for u8 {
@@ -37,48 +40,56 @@ unsafe impl IStable for u8 {
     type IllegalValues = End;
     type Align = U1;
     type Size = U1;
+    type HasExactlyOneNiche = B0;
 }
 unsafe impl IStable for core::num::NonZeroU8 {
     type Align = U1;
     type Size = U1;
     type UnusedBits = End;
     type IllegalValues = nz_holes!(U0);
+    type HasExactlyOneNiche = B1;
 }
 unsafe impl IStable for u16 {
     type UnusedBits = End;
     type IllegalValues = End;
     type Align = U2;
     type Size = U2;
+    type HasExactlyOneNiche = B0;
 }
 unsafe impl IStable for core::num::NonZeroU16 {
     type IllegalValues = nz_holes!(U0, U1);
     type UnusedBits = End;
     type Align = U2;
     type Size = U2;
+    type HasExactlyOneNiche = B1;
 }
 unsafe impl IStable for u32 {
     type UnusedBits = End;
     type IllegalValues = End;
     type Align = U4;
     type Size = U4;
+    type HasExactlyOneNiche = B0;
 }
 unsafe impl IStable for core::num::NonZeroU32 {
     type IllegalValues = nz_holes!(U0, U1, U2, U3);
     type UnusedBits = End;
     type Align = U4;
     type Size = U4;
+    type HasExactlyOneNiche = B1;
 }
 unsafe impl IStable for u64 {
     type UnusedBits = End;
     type IllegalValues = End;
     type Align = U8;
     type Size = U8;
+    type HasExactlyOneNiche = B0;
 }
 unsafe impl IStable for core::num::NonZeroU64 {
     type UnusedBits = End;
     type IllegalValues = nz_holes!(U0, U1, U2, U3, U4, U5, U6, U7);
     type Align = U8;
     type Size = U8;
+    type HasExactlyOneNiche = B1;
 }
 
 // TODO: Support for 128bit types, which are going to be a bit more painful.
@@ -102,23 +113,6 @@ unsafe impl IStable for core::num::NonZeroUsize {
     same_as!(core::num::NonZeroU16);
     #[cfg(target_pointer_width = "8")]
     same_as!(core::num::NonZeroU8);
-}
-
-unsafe impl<T: IStable> IStable for *const T {
-    same_as!(usize);
-}
-unsafe impl<T: IStable> IStable for *mut T {
-    same_as!(usize);
-}
-
-unsafe impl<T: IStable> IStable for core::ptr::NonNull<T> {
-    same_as!(core::num::NonZeroUsize);
-}
-unsafe impl<T: IStable> IStable for &T {
-    same_as!(core::num::NonZeroUsize);
-}
-unsafe impl<T: IStable> IStable for &mut T {
-    same_as!(core::num::NonZeroUsize);
 }
 
 unsafe impl IStable for i8 {
@@ -158,6 +152,38 @@ unsafe impl<T: IStable> IStable for core::mem::ManuallyDrop<T> {
 }
 unsafe impl<T: IStable> IStable for core::mem::MaybeUninit<T> {
     same_as!(T);
+}
+
+unsafe impl<T: IStable> IStable for *const T {
+    same_as!(usize);
+}
+unsafe impl<T: IStable> IStable for *mut T {
+    same_as!(usize);
+}
+
+unsafe impl<T: IStable> IStable for core::ptr::NonNull<T> {
+    same_as!(core::num::NonZeroUsize);
+}
+unsafe impl<T: IStable> IStable for &T {
+    same_as!(core::num::NonZeroUsize);
+}
+unsafe impl<T: IStable> IStable for &mut T {
+    same_as!(core::num::NonZeroUsize);
+}
+
+pub struct HasExactlyOneNiche<A, B>(core::marker::PhantomData<(A, B)>);
+unsafe impl<T: IStable> IStable for Option<T>
+where
+    HasExactlyOneNiche<Option<T>, T::HasExactlyOneNiche>: IStable,
+{
+    same_as!(HasExactlyOneNiche<Option<T>, T::HasExactlyOneNiche>);
+}
+unsafe impl<T: IStable> IStable for HasExactlyOneNiche<Option<T>, B1> {
+    type Size = T::Size;
+    type Align = T::Align;
+    type IllegalValues = End;
+    type UnusedBits = End;
+    type HasExactlyOneNiche = B0;
 }
 
 #[cfg(feature = "alloc")]

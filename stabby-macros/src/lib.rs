@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::{DeriveInput, Expr, ExprArray, ExprLit, Lit};
 
 #[proc_macro]
@@ -18,16 +18,12 @@ pub fn holes(input: TokenStream) -> TokenStream {
             });
         }
     }
-    quote!(stabby_traits::holes::Holes<#(#bits,)*>).into()
+    quote!(holes::Holes<#(#bits,)*>).into()
 }
 mod tyops;
 #[proc_macro]
 pub fn tyeval(tokens: TokenStream) -> TokenStream {
     tyops::tyeval(&tokens.into()).into()
-}
-
-fn assert_stable(st: &impl ToTokens, ty: impl ToTokens) -> proc_macro2::TokenStream {
-    quote!(let _ = #st::AssertStable::<#ty>(::core::marker::PhantomData);)
 }
 
 #[proc_macro_attribute]
@@ -48,44 +44,21 @@ pub fn stabby(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     {
         match data {
             syn::Data::Struct(data) => structs::stabby(attrs, vis, ident, generics, data, st),
-            syn::Data::Enum(_) => panic!("stabby doesn't support enums YET"),
-            syn::Data::Union(_) => panic!("stabby doesn't support unions YET"),
+            syn::Data::Enum(data) => enums::stabby(attrs, vis, ident, generics, data, st),
+            syn::Data::Union(data) => unions::stabby(attrs, vis, ident, generics, data, st),
         }
-    } else if let Ok(syn::ItemFn {
-        attrs,
-        vis,
-        sig,
-        block,
-    }) = syn::parse(tokens)
-    {
-        let syn::Signature {
-            abi,
-            inputs,
-            output,
-            ..
-        } = &sig;
-        assert!(
-            abi.is_none(),
-            "stabby will attribute a stable ABI to your function on its own"
-        );
-        let mut stable_asserts = Vec::new();
-        if let syn::ReturnType::Type(_, ty) = output {
-            stable_asserts.push(assert_stable(&st, ty));
-        }
-        stable_asserts.extend(inputs.iter().map(|i| match i {
-            syn::FnArg::Receiver(_) => assert_stable(&st, quote!(Self)),
-            syn::FnArg::Typed(syn::PatType { ty, .. }) => assert_stable(&st, ty),
-        }));
-        quote! {
-            #(#attrs)*
-            #vis extern "C" #sig {
-                #(#stable_asserts)*
-                #block
-            }
-        }
+    } else if let Ok(fn_spec) = syn::parse(tokens.clone()) {
+        functions::stabby(fn_spec, st)
+    } else if let Ok(trait_spec) = syn::parse(tokens) {
+        traits::stabby(trait_spec, st)
     } else {
         panic!("Expected a type declaration, a trait declaration or a function declaration")
     }
     .into()
 }
+
+mod enums;
+mod functions;
 mod structs;
+mod traits;
+mod unions;
