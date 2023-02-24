@@ -4,7 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["std"]
+std = ["alloc"]
+alloc = []
 
 [dependencies]
 stabby-macros = { path = "../stabby-macros/" }
-stabby-traits = { path = "../stabby-traits/", features = ["std"] }
+typenum = "1.16.0"

@@ -33,9 +33,9 @@ pub struct WeirdStruct {
     utest: UTest,
 }
 
-#[stabby_macros::stabby(in_stabby)]
+// #[stabby_macros::stabby(in_stabby)]
 pub trait MyTrait {
-    fn do_stuff<'a>(&'a self) -> &'a Self;
+    fn do_stuff<'a>(&'a self, with: crate::Stable<&'a str>) -> &'a Self;
 }
 
 #[test]
@@ -43,8 +43,8 @@ fn layouts() {
     macro_rules! test {
     () => {};
     ($t: ty) => {
-        assert_eq!(core::mem::size_of::<$t>(), <$t as stabby_traits::Stable>::size(), "Size mismatch for {}", std::any::type_name::<$t>());
-        assert_eq!(core::mem::align_of::<$t>(), <$t as stabby_traits::Stable>::align(), "Align mismatch for {}", std::any::type_name::<$t>());
+        assert_eq!(core::mem::size_of::<$t>(), <$t as crate::type_layouts::IStable>::size(), "Size mismatch for {}", std::any::type_name::<$t>());
+        assert_eq!(core::mem::align_of::<$t>(), <$t as crate::type_layouts::IStable>::align(), "Align mismatch for {}", std::any::type_name::<$t>());
     };
     ($t: ty, $($tt: tt)*) => {
         test!($t);
@@ -57,21 +57,25 @@ fn layouts() {
         u16,
         u32,
         u64,
+        u128,
         usize,
         core::num::NonZeroU8,
         core::num::NonZeroU16,
         core::num::NonZeroU32,
         core::num::NonZeroU64,
+        core::num::NonZeroU128,
         core::num::NonZeroUsize,
         i8,
         i16,
         i32,
         i64,
+        i128,
         isize,
         core::num::NonZeroI8,
         core::num::NonZeroI16,
         core::num::NonZeroI32,
         core::num::NonZeroI64,
+        core::num::NonZeroI128,
         core::num::NonZeroIsize,
         &'static u8,
         &'static mut u8,
@@ -79,9 +83,9 @@ fn layouts() {
         crate::tuple::Tuple2<usize, usize>,
         crate::tuple::Tuple2<usize, u8>,
         crate::tuple::Tuple2<u8, usize>,
-        stabby_traits::type_layouts::Union<u8, usize>,
-        stabby_traits::type_layouts::Union<u8, ()>,
-        stabby_traits::type_layouts::Union<(), u8>,
+        crate::type_layouts::Union<u8, usize>,
+        crate::type_layouts::Union<u8, ()>,
+        crate::type_layouts::Union<(), u8>,
         UTest,
         Fields,
         crate::tuple::Tuple2<(), usize>,

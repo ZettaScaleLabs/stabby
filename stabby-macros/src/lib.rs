@@ -1,6 +1,8 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, Expr, ExprArray, ExprLit, Lit};
+use syn::{
+    ConstParam, DeriveInput, Expr, ExprArray, ExprLit, GenericParam, LifetimeDef, Lit, TypeParam,
+};
 
 #[proc_macro]
 pub fn holes(input: TokenStream) -> TokenStream {
@@ -18,8 +20,9 @@ pub fn holes(input: TokenStream) -> TokenStream {
             });
         }
     }
-    quote!(holes::Holes<#(#bits,)*>).into()
+    quote!(stabby::type_layouts::holes::Holes<#(#bits,)*>).into()
 }
+
 mod tyops;
 #[proc_macro]
 pub fn tyeval(tokens: TokenStream) -> TokenStream {
@@ -30,9 +33,9 @@ pub fn tyeval(tokens: TokenStream) -> TokenStream {
 pub fn stabby(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     let in_stabby = !attrs.is_empty();
     let st = if in_stabby {
-        quote!(::stabby_traits::type_layouts)
+        quote!(crate::type_layouts)
     } else {
-        quote!(::stabby::stabby_traits::type_layouts)
+        quote!(::stabby::type_layouts)
     };
     if let Ok(DeriveInput {
         attrs,
@@ -55,6 +58,38 @@ pub fn stabby(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
         panic!("Expected a type declaration, a trait declaration or a function declaration")
     }
     .into()
+}
+#[derive(Clone, Default)]
+pub(crate) struct SeparatedGenerics<'a> {
+    pub lifetimes: Vec<&'a syn::Lifetime>,
+    pub types: Vec<&'a syn::Ident>,
+    pub consts: Vec<&'a syn::Ident>,
+}
+impl quote::ToTokens for SeparatedGenerics<'_> {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        for l in &self.lifetimes {
+            tokens.extend(quote!(#l,));
+        }
+        for l in &self.types {
+            tokens.extend(quote!(#l,));
+        }
+        for l in &self.consts {
+            tokens.extend(quote!(#l,));
+        }
+    }
+}
+pub(crate) fn unbound_generics<'a>(
+    generics: impl IntoIterator<Item = &'a GenericParam>,
+) -> SeparatedGenerics<'a> {
+    let mut this = SeparatedGenerics::default();
+    for g in generics {
+        match g {
+            GenericParam::Type(TypeParam { ident, .. }) => this.types.push(ident),
+            GenericParam::Lifetime(LifetimeDef { lifetime, .. }) => this.lifetimes.push(lifetime),
+            GenericParam::Const(ConstParam { ident, .. }) => this.consts.push(ident),
+        }
+    }
+    this
 }
 
 mod enums;

@@ -1,6 +1,9 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{PatType, Receiver, Signature, TraitItemMethod, TraitItemType};
+use syn::{
+    PatType, Path, PathArguments, PathSegment, Receiver, Signature, TraitItemMethod, TraitItemType,
+    Type, TypeArray, TypeGroup, TypeParen, TypePath, TypePtr, TypeReference,
+};
 
 pub fn stabby(
     syn::ItemTrait {
@@ -19,7 +22,7 @@ pub fn stabby(
     st: TokenStream,
 ) -> TokenStream {
     let mut vtable_fields: Vec<TokenStream> = Vec::new();
-    // let mut assoc_types = Vec::new();
+    let self_ty = quote!(());
     for item in &items {
         match item {
             syn::TraitItem::Method(method) => {
@@ -56,14 +59,20 @@ pub fn stabby(
                         mutability,
                         ..
                     }) => {
-                        quote!(&#mutability Self)
+                        quote!(&#mutability #self_ty)
                     }
-                    syn::FnArg::Typed(PatType { ty, .. }) => {
-                        quote!(#ty)
-                    }
+                    syn::FnArg::Typed(PatType { ty, .. }) => replace_self::<false>(ty, &self_ty),
                     _ => panic!("fn (self, ...) is not trait safe"),
                 });
-                vtable_fields.push(quote!(#ident: extern "C" #unsafety fn (#(#inputs),*) #output,))
+                let output = match output {
+                    syn::ReturnType::Default => quote!(),
+                    syn::ReturnType::Type(_, ty) => {
+                        let ty = replace_self::<true>(ty, &self_ty);
+                        quote!(-> #ty)
+                    }
+                };
+                let field = quote!(#ident: extern "C" #unsafety fn (#(#inputs),*) #output,);
+                vtable_fields.push(field)
             }
             syn::TraitItem::Type(ty) => {
                 let TraitItemType {
@@ -87,10 +96,10 @@ pub fn stabby(
     }
     let vtident = quote::format_ident!("Vt{ident}");
     let hasvtident = quote::format_ident!("HasVt{ident}");
-    let unbound_generics = &generics.params;
+    let unbound_generics = crate::unbound_generics(&generics.params);
     quote! {
-        pub struct #vtident <  #unbound_generics > {
-            drop: extern "C" fn (&mut Self),
+        pub struct #vtident <  #unbound_generics> {
+            drop: extern "C" fn (&mut ()),
             #(#vtable_fields)*
         }
         pub trait #hasvtident #generics : #ident < #unbound_generics > {
@@ -101,5 +110,80 @@ pub fn stabby(
         #vis #unsafety #auto_token #trait_token #ident #generics #colon_token #supertraits {
             #(#items)*
         }
+    }
+}
+
+fn replace_self<const OUTPUT_TYPE: bool>(elem: &Type, self_ty: &TokenStream) -> TokenStream {
+    match elem {
+        Type::Path(TypePath {
+            qself: None,
+            path: Path {
+                leading_colon,
+                segments,
+            },
+        }) => {
+            let segments = segments
+                .iter()
+                .map(|PathSegment { ident, arguments }| -> TokenStream {
+                    let ident = if *ident == "Self" {
+                        quote!(#self_ty)
+                    } else {
+                        quote!(#ident)
+                    };
+                    let arguments = match arguments {
+                        PathArguments::None => quote!(),
+                        PathArguments::AngleBracketed(_) => todo!(),
+                        PathArguments::Parenthesized(_) => todo!(),
+                    };
+                    quote!(#ident #arguments)
+                });
+            quote!(#leading_colon #(#segments)::*)
+        }
+        Type::Path(TypePath {
+            qself: Some(qself),
+            path,
+        }) => {
+            todo!("{}", quote!(#path))
+        }
+        Type::BareFn(_) => todo!("stabby doesn't support bare functions in method parameters yet"),
+        Type::Group(TypeGroup { elem, .. }) => {
+            let elem = replace_self::<OUTPUT_TYPE>(elem, self_ty);
+            quote!(#elem)
+        }
+        Type::Paren(TypeParen { elem, .. }) => {
+            let elem = replace_self::<OUTPUT_TYPE>(elem, self_ty);
+            quote!((#elem))
+        }
+        Type::Ptr(TypePtr {
+            const_token,
+            mutability,
+            elem,
+            ..
+        }) => {
+            let elem = replace_self::<OUTPUT_TYPE>(elem, self_ty);
+            quote!(* #const_token #mutability #elem)
+        }
+        Type::Reference(TypeReference {
+            mutability, elem, ..
+        }) => {
+            let elem = replace_self::<OUTPUT_TYPE>(elem, self_ty);
+            let lifetime = if OUTPUT_TYPE {
+                quote!('static)
+            } else {
+                quote!()
+            };
+            quote!(& #lifetime #mutability #elem)
+        }
+        Type::Array(TypeArray { elem, len, .. }) => {
+            let elem = replace_self::<OUTPUT_TYPE>(elem, self_ty);
+            quote!([#elem; #len])
+        }
+        Type::Macro(_) | Type::Never(_) | Type::Verbatim(_) => quote!(#elem),
+        Type::Infer(_) => panic!("type inference is not available in trait definitions"),
+        Type::ImplTrait(_) => panic!("generic methods are not trait object safe"),
+        Type::Slice(_) => panic!("slices are not ABI stable"),
+        Type::TraitObject(_) => panic!("trait objects are not ABI stable"),
+        Type::Tuple(_) => panic!("tuples are not ABI stable"),
+        _ => panic!("unknown element type in {}", quote!(#elem)),
     }
 }

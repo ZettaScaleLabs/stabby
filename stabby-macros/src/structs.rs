@@ -10,14 +10,16 @@ pub fn stabby(
     DataStruct { fields, .. }: DataStruct,
     st: TokenStream,
 ) -> proc_macro2::TokenStream {
-    let unbound_generics = &generics.params;
-    let mut layout = quote!(());
+    let unbound_generics = crate::unbound_generics(&generics.params);
+    let mut layout = None;
     let struct_code = match fields {
         syn::Fields::Named(fields) => {
             let fields = fields.named;
             for field in &fields {
                 let ty = &field.ty;
-                layout = quote!(#st::Tuple2<#layout, #ty>)
+                layout = Some(
+                    layout.map_or_else(|| quote!(#ty), |layout| quote!(#st::Tuple2<#layout, #ty>)),
+                )
             }
             quote! {
                 #(#attrs)*
@@ -31,7 +33,9 @@ pub fn stabby(
             let fields = fields.unnamed;
             for field in &fields {
                 let ty = &field.ty;
-                layout = quote!(#st::Tuple2<#layout, #ty>)
+                layout = Some(
+                    layout.map_or_else(|| quote!(#ty), |layout| quote!(#st::Tuple2<#layout, #ty>)),
+                )
             }
             quote! {
                 #(#attrs)*
@@ -54,6 +58,7 @@ pub fn stabby(
             }
         }
     };
+    let layout = layout.unwrap_or_else(|| quote!(()));
     quote! {
         #struct_code
         #[automatically_derived]

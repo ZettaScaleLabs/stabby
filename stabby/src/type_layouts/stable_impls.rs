@@ -1,4 +1,3 @@
-use crate::holes;
 use crate::type_layouts::*;
 
 macro_rules! same_as {
@@ -19,6 +18,20 @@ macro_rules! nz_holes {
     };
 }
 unsafe impl IStable for () {
+    type Size = U0;
+    type Align = U0;
+    type IllegalValues = End;
+    type UnusedBits = End;
+    type HasExactlyOneNiche = B0;
+}
+unsafe impl<T> IStable for core::marker::PhantomData<T> {
+    type Size = U0;
+    type Align = U0;
+    type IllegalValues = End;
+    type UnusedBits = End;
+    type HasExactlyOneNiche = B0;
+}
+unsafe impl IStable for core::marker::PhantomPinned {
     type Size = U0;
     type Align = U0;
     type IllegalValues = End;
@@ -93,6 +106,24 @@ unsafe impl IStable for core::num::NonZeroU64 {
 }
 
 // TODO: Support for 128bit types, which are going to be a bit more painful.
+unsafe impl IStable for u128 {
+    type UnusedBits = End;
+    type IllegalValues = End;
+    type Size = U16;
+    type HasExactlyOneNiche = B0;
+    #[cfg(any(target_arch = "x86_64", target_arch = "arm"))]
+    type Align = U8;
+    #[cfg(any(target_arch = "aarch64"))]
+    type Align = U16;
+}
+unsafe impl IStable for core::num::NonZeroU128 {
+    type UnusedBits = End;
+    type IllegalValues =
+        nz_holes!(U0, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15);
+    type Size = U16;
+    type HasExactlyOneNiche = B1;
+    type Align = <u128 as IStable>::Align;
+}
 
 unsafe impl IStable for usize {
     #[cfg(target_pointer_width = "64")]
@@ -139,7 +170,12 @@ unsafe impl IStable for i64 {
 unsafe impl IStable for core::num::NonZeroI64 {
     same_as!(core::num::NonZeroU64);
 }
-
+unsafe impl IStable for i128 {
+    same_as!(u128);
+}
+unsafe impl IStable for core::num::NonZeroI128 {
+    same_as!(core::num::NonZeroU128);
+}
 unsafe impl IStable for isize {
     same_as!(usize);
 }
@@ -169,6 +205,9 @@ unsafe impl<T: IStable> IStable for &T {
 }
 unsafe impl<T: IStable> IStable for &mut T {
     same_as!(core::num::NonZeroUsize);
+}
+unsafe impl<T: IStable> IStable for core::pin::Pin<T> {
+    same_as!(T);
 }
 
 pub struct HasExactlyOneNiche<A, B>(core::marker::PhantomData<(A, B)>);

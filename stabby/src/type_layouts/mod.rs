@@ -1,46 +1,23 @@
-use crate::{holes, Stable};
+use crate as stabby;
 pub use ::typenum::*;
+use core::ops::*;
+
+use stabby_macros::holes;
 use stabby_macros::tyeval;
-pub struct AssertStable<T: Stable>(pub core::marker::PhantomData<T>);
-impl<T: Stable> AssertStable<T> {
+
+pub mod holes {
+    include!(concat!(env!("OUT_DIR"), "/holes.rs"));
+}
+pub mod fatptr;
+mod stable_impls;
+
+pub struct AssertStable<T: IStable>(pub core::marker::PhantomData<T>);
+impl<T: IStable> AssertStable<T> {
     pub const fn assert() -> Self {
         Self(core::marker::PhantomData)
     }
 }
 
-pub trait ITypeEraseable<'a>: Deref {
-    type Output<U: 'a>: ITypeEraseable<'a> + 'a;
-    /// # Safety
-    /// This erases the type of a reference, and should not be triffled with
-    unsafe fn type_erase<U>(self) -> Self::Output<U>;
-}
-impl<'a, T> ITypeEraseable<'a> for &'a T {
-    type Output<U> = &'a U where U: 'a;
-    unsafe fn type_erase<U: 'a>(self) -> Self::Output<U> {
-        core::mem::transmute(self)
-    }
-}
-impl<'a, T> ITypeEraseable<'a> for &'a mut T {
-    type Output<U> = &'a mut U where U: 'a;
-    unsafe fn type_erase<U: 'a>(self) -> Self::Output<U> {
-        core::mem::transmute(self)
-    }
-}
-impl<'a, T: ITypeEraseable<'a>> ITypeEraseable<'a> for core::pin::Pin<T> {
-    type Output<U> = core::pin::Pin<T::Output<U>> where U: 'a;
-    unsafe fn type_erase<U: 'a>(self) -> Self::Output<U> {
-        core::pin::Pin::new_unchecked(core::pin::Pin::into_inner_unchecked(self).type_erase())
-    }
-}
-#[cfg(alloc)]
-impl<'a, T> ITypeEraseable<'a> for alloc::boxed::Box<T> {
-    type Output<U> = Box<U> where U: 'a;
-    unsafe fn type_erase<U: 'a>(self) -> Self::Output<U> {
-        core::mem::transmute(self)
-    }
-}
-
-use core::ops::*;
 /// A trait to describe the layout of a type.
 ///
 /// Every layout is assumed to start at the type's first byte.
@@ -61,6 +38,11 @@ pub unsafe trait IStable: Sized {
     fn align() -> usize {
         Self::Align::USIZE
     }
+}
+
+pub trait IStabilize {
+    type Stable: IStable;
+    fn stable(self) -> Self::Stable;
 }
 
 pub struct End;
@@ -228,4 +210,4 @@ impl<By> IShift<By> for End {
     type Output = End;
 }
 
-pub type NonZeroHole = stabby_macros::holes!([1, 0, 0, 0]);
+pub type NonZeroHole = holes!([1, 0, 0, 0]);
