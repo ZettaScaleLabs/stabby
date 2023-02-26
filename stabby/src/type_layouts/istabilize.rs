@@ -1,5 +1,10 @@
 use crate::type_layouts::*;
 
+pub trait IStabilize {
+    type Stable: IStable;
+    fn stable(self) -> Self::Stable;
+}
+
 impl<'a, T: IStable> IStabilize for &'a [T] {
     type Stable = crate::slice::Slice<'a, T>;
     fn stable(self) -> Self::Stable {

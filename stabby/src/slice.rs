@@ -1,7 +1,8 @@
+use crate as stabby;
 use core::ops::{Deref, DerefMut};
 
 /// An ABI stable equivalent of `&'a T`
-#[stabby_macros::stabby(in_stabby)]
+#[stabby::stabby]
 #[derive(Clone, Copy)]
 pub struct Slice<'a, T> {
     start: &'a T,
@@ -36,7 +37,7 @@ impl<'a, T> Deref for Slice<'a, T> {
 }
 
 /// An ABI stable equivalent of `&'a mut T`
-#[stabby_macros::stabby(in_stabby)]
+#[stabby::stabby]
 pub struct SliceMut<'a, T> {
     pub(crate) start: &'a mut T,
     pub(crate) len: usize,

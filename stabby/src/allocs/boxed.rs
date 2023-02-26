@@ -1,8 +1,9 @@
+use crate as stabby;
 use crate::slice::SliceMut;
 use crate::str::StrMut;
 use core::ops::{Deref, DerefMut};
 
-#[stabby_macros::stabby(in_stabby)]
+#[stabby::stabby]
 pub struct BoxedSlice<T> {
     start: &'static mut (),
     len: usize,
@@ -57,7 +58,7 @@ impl<T> Drop for BoxedSlice<T> {
     }
 }
 
-#[stabby_macros::stabby(in_stabby)]
+#[stabby::stabby]
 #[derive(Clone)]
 pub struct BoxedStr {
     inner: BoxedSlice<u8>,

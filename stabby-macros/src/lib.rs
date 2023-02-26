@@ -1,4 +1,5 @@
 use proc_macro::TokenStream;
+use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::{
     ConstParam, DeriveInput, Expr, ExprArray, ExprLit, GenericParam, LifetimeDef, Lit, TypeParam,
@@ -30,12 +31,15 @@ pub fn tyeval(tokens: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn stabby(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
-    let in_stabby = !attrs.is_empty();
-    let st = if in_stabby {
-        quote!(crate::type_layouts)
-    } else {
-        quote!(::stabby::type_layouts)
+pub fn stabby(_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
+    let st = match proc_macro_crate::crate_name("stabby")
+        .expect("Couldn't find `stabby` in your dependencies")
+    {
+        proc_macro_crate::FoundCrate::Itself => quote!(crate::type_layouts),
+        proc_macro_crate::FoundCrate::Name(crate_name) => {
+            let crate_name = Ident::new(&crate_name, Span::call_site());
+            quote!(#crate_name::type_layouts)
+        }
     };
     if let Ok(DeriveInput {
         attrs,
@@ -60,12 +64,12 @@ pub fn stabby(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     .into()
 }
 #[derive(Clone, Default)]
-pub(crate) struct SeparatedGenerics<'a> {
-    pub lifetimes: Vec<&'a syn::Lifetime>,
-    pub types: Vec<&'a syn::Ident>,
-    pub consts: Vec<&'a syn::Ident>,
+pub(crate) struct SeparatedGenerics {
+    pub lifetimes: Vec<proc_macro2::TokenStream>,
+    pub types: Vec<proc_macro2::TokenStream>,
+    pub consts: Vec<proc_macro2::TokenStream>,
 }
-impl quote::ToTokens for SeparatedGenerics<'_> {
+impl quote::ToTokens for SeparatedGenerics {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         for l in &self.lifetimes {
             tokens.extend(quote!(#l,));
@@ -80,13 +84,32 @@ impl quote::ToTokens for SeparatedGenerics<'_> {
 }
 pub(crate) fn unbound_generics<'a>(
     generics: impl IntoIterator<Item = &'a GenericParam>,
-) -> SeparatedGenerics<'a> {
+) -> SeparatedGenerics {
     let mut this = SeparatedGenerics::default();
     for g in generics {
         match g {
-            GenericParam::Type(TypeParam { ident, .. }) => this.types.push(ident),
-            GenericParam::Lifetime(LifetimeDef { lifetime, .. }) => this.lifetimes.push(lifetime),
-            GenericParam::Const(ConstParam { ident, .. }) => this.consts.push(ident),
+            GenericParam::Type(TypeParam { ident, .. }) => this.types.push(quote!(#ident)),
+            GenericParam::Lifetime(LifetimeDef { lifetime, .. }) => {
+                this.lifetimes.push(quote!(#lifetime))
+            }
+            GenericParam::Const(ConstParam { ident, .. }) => this.consts.push(quote!(#ident)),
+        }
+    }
+    this
+}
+pub(crate) fn generics_without_defaults<'a>(
+    generics: impl IntoIterator<Item = &'a GenericParam>,
+) -> SeparatedGenerics {
+    let mut this = SeparatedGenerics::default();
+    for g in generics {
+        match g {
+            GenericParam::Type(TypeParam { ident, bounds, .. }) => {
+                this.types.push(quote!(#ident: #bounds))
+            }
+            GenericParam::Lifetime(LifetimeDef {
+                lifetime, bounds, ..
+            }) => this.lifetimes.push(quote!(#lifetime: #bounds)),
+            GenericParam::Const(ConstParam { ident, .. }) => this.consts.push(quote!(#ident)),
         }
     }
     this

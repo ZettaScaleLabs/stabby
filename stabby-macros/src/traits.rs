@@ -1,8 +1,8 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
-    PatType, Path, PathArguments, PathSegment, Receiver, Signature, TraitItemMethod, TraitItemType,
-    Type, TypeArray, TypeGroup, TypeParen, TypePath, TypePtr, TypeReference,
+    PatType, Path, PathArguments, PathSegment, QSelf, Receiver, Signature, TraitItemMethod,
+    TraitItemType, Type, TypeArray, TypeGroup, TypeParen, TypePath, TypePtr, TypeReference,
 };
 
 pub fn stabby(
@@ -140,10 +140,10 @@ fn replace_self<const OUTPUT_TYPE: bool>(elem: &Type, self_ty: &TokenStream) -> 
             quote!(#leading_colon #(#segments)::*)
         }
         Type::Path(TypePath {
-            qself: Some(qself),
+            qself: Some(QSelf { ty, position, .. }),
             path,
         }) => {
-            todo!("{}", quote!(#path))
+            todo!("{}", quote!(#ty as #path))
         }
         Type::BareFn(_) => todo!("stabby doesn't support bare functions in method parameters yet"),
         Type::Group(TypeGroup { elem, .. }) => {

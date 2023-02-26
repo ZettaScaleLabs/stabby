@@ -1,23 +1,25 @@
-#[stabby_macros::stabby(in_stabby)]
+use crate as stabby;
+
+#[stabby::stabby]
 pub union UTest {
     u8: u8,
     usize: usize,
 }
 
-#[stabby_macros::stabby(in_stabby)]
+#[stabby::stabby]
 #[repr(u32)]
 pub enum NoFields {
     _A,
     _B,
 }
-#[stabby_macros::stabby(in_stabby)]
+#[stabby::stabby]
 #[repr(u8)]
 pub enum Fields {
     _A(usize),
     _B,
 }
 
-#[stabby_macros::stabby(in_stabby)]
+#[stabby::stabby]
 pub struct WeirdStructBadLayout {
     fields: Fields,
     no_fields: NoFields,
@@ -25,17 +27,16 @@ pub struct WeirdStructBadLayout {
     u32: u32,
 }
 
-#[stabby_macros::stabby(in_stabby)]
+#[stabby::stabby]
 pub struct WeirdStruct {
     fields: Fields,
     no_fields: NoFields,
     u32: u32,
     utest: UTest,
 }
-
-// #[stabby_macros::stabby(in_stabby)]
-pub trait MyTrait {
-    fn do_stuff<'a>(&'a self, with: crate::Stable<&'a str>) -> &'a Self;
+pub struct Fat<P, Vt> {
+    ptr: P,
+    vt: Vt,
 }
 
 #[test]
