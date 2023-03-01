@@ -1,6 +1,6 @@
-use crate as stabby;
 use crate::slice::SliceMut;
 use crate::str::StrMut;
+use crate::{self as stabby, type_layouts::IntoDyn};
 use core::ops::{Deref, DerefMut};
 
 #[stabby::stabby]
@@ -92,5 +92,34 @@ impl From<Box<str>> for BoxedStr {
 impl From<BoxedStr> for Box<str> {
     fn from(value: BoxedStr) -> Self {
         unsafe { Box::from_raw(&mut *value.leak()) }
+    }
+}
+
+impl stabby::type_layouts::IPtr for Box<()> {
+    unsafe fn as_ref<U>(&self) -> &U {
+        let this: &() = self;
+        core::mem::transmute(this)
+    }
+}
+impl stabby::type_layouts::IPtrMut for Box<()> {
+    unsafe fn as_mut<U>(&mut self) -> &mut U {
+        let this: &mut () = self;
+        core::mem::transmute(this)
+    }
+}
+impl stabby::type_layouts::IPtrOwned for Box<()> {
+    fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ())) {
+        unsafe {
+            (drop)(this);
+            core::mem::ManuallyDrop::drop(this);
+        }
+    }
+}
+
+impl<T> IntoDyn for Box<T> {
+    type Anonymized = Box<()>;
+    type Target = T;
+    fn anonimize(self) -> Self::Anonymized {
+        unsafe { core::mem::transmute(self) }
     }
 }

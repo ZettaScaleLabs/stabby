@@ -7,10 +7,12 @@ use stabby_macros::holes;
 pub mod holes {
     include!(concat!(env!("OUT_DIR"), "/holes.rs"));
 }
+pub use fatptr::*;
+mod fatptr;
 pub use istabilize::IStabilize;
 mod istabilize;
 mod stable_impls;
-mod vtable;
+pub mod vtable;
 
 pub struct AssertStable<T: IStable>(pub core::marker::PhantomData<T>);
 impl<T: IStable> AssertStable<T> {

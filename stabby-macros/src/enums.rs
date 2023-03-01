@@ -44,8 +44,8 @@ pub fn stabby(
     ident: Ident,
     generics: Generics,
     data: DataEnum,
-    st: TokenStream,
 ) -> TokenStream {
+    let st = crate::tl_mod();
     let unbound_generics = &generics.params;
     let mut repr = None;
     let repr_ident = quote::format_ident!("repr");

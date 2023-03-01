@@ -231,4 +231,10 @@ mod cfgalloc {
     unsafe impl<T: IStable> IStable for crate::alloc::boxed::Box<T> {
         same_as!(core::ptr::NonNull<T>);
     }
+    unsafe impl<T: IStable> IStable for crate::alloc::sync::Arc<T> {
+        same_as!(core::ptr::NonNull<T>);
+    }
+    unsafe impl<T: IStable> IStable for crate::alloc::sync::Weak<T> {
+        same_as!(core::ptr::NonNull<T>);
+    }
 }

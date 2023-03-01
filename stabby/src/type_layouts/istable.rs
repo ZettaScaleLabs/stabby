@@ -35,7 +35,7 @@ where
     <A::Align as Max<B::Align>>::Output: Unsigned,
     A::HasExactlyOneNiche: SaturatingAdd<B::HasExactlyOneNiche>,
 {
-    type IllegalValues = End;
+    type IllegalValues = End; // TODO
     type UnusedBits =
         <A::UnusedBits as IArrayPush<<AlignedAfter<B, A::Size> as IStable>::UnusedBits>>::Output;
     type Size = <AlignedAfter<B, A::Size> as IStable>::Size;

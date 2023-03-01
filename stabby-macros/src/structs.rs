@@ -1,4 +1,4 @@
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::Ident;
 use quote::quote;
 use syn::{Attribute, DataStruct, Generics, Visibility};
 
@@ -8,10 +8,10 @@ pub fn stabby(
     ident: Ident,
     generics: Generics,
     DataStruct { fields, .. }: DataStruct,
-    st: TokenStream,
 ) -> proc_macro2::TokenStream {
-    let unbound_generics = crate::unbound_generics(&generics.params);
-    let generics_without_defaults = crate::generics_without_defaults(&generics.params);
+    let st = crate::tl_mod();
+    let unbound_generics = crate::utils::unbound_generics(&generics.params);
+    let generics_without_defaults = crate::utils::generics_without_defaults(&generics.params);
     let mut layout = None;
     let struct_code = match fields {
         syn::Fields::Named(fields) => {
@@ -42,14 +42,6 @@ pub fn stabby(
                 #(#attrs)*
                 #[repr(C)]
                 #vis struct #ident #generics (#fields);
-                #[automatically_derived]
-                unsafe impl <#generics_without_defaults> #st::IStable for #ident <#unbound_generics> where #layout: #st::IStable {
-                    type IllegalValues = <#layout as #st::IStable>::IllegalValues;
-                    type UnusedBits =<#layout as #st::IStable>::UnusedBits;
-                    type Size = <#layout as #st::IStable>::Size;
-                    type Align = <#layout as #st::IStable>::Align;
-                    type HasExactlyOneNiche = <#layout as #st::IStable>::HasExactlyOneNiche;
-                }
             }
         }
         syn::Fields::Unit => {

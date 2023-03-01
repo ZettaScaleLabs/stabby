@@ -9,10 +9,7 @@ pub mod type_layouts;
 pub type Stable<Source: type_layouts::IStabilize> = Source::Stable;
 
 #[cfg(feature = "alloc")]
-mod allocs {
-    pub mod boxed;
-    pub mod vec {}
-}
+mod allocs;
 #[cfg(feature = "alloc")]
 pub use allocs::*;
 pub mod slice;

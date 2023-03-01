@@ -1,6 +1,7 @@
 use quote::{quote, ToTokens};
 
-pub fn stabby(fn_spec: syn::ItemFn, st: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+pub fn stabby(fn_spec: syn::ItemFn) -> proc_macro2::TokenStream {
+    let st = crate::tl_mod();
     fn assert_stable(st: &impl ToTokens, ty: impl ToTokens) -> proc_macro2::TokenStream {
         quote!(let _ = #st::AssertStable::<#ty>(::core::marker::PhantomData);)
     }

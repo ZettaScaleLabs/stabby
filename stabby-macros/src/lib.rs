@@ -2,8 +2,86 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::{
-    ConstParam, DeriveInput, Expr, ExprArray, ExprLit, GenericParam, LifetimeDef, Lit, TypeParam,
+    parse::Parser, DeriveInput, Expr, ExprArray, ExprLit, Lit, Token, TraitBound, TypeParamBound,
 };
+
+pub(crate) fn tl_mod() -> proc_macro2::TokenStream {
+    match proc_macro_crate::crate_name("stabby")
+        .expect("Couldn't find `stabby` in your dependencies")
+    {
+        proc_macro_crate::FoundCrate::Itself => quote!(crate::type_layouts),
+        proc_macro_crate::FoundCrate::Name(crate_name) => {
+            let crate_name = Ident::new(&crate_name, Span::call_site());
+            quote!(#crate_name::type_layouts)
+        }
+    }
+}
+
+#[proc_macro_attribute]
+pub fn stabby(_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
+    if let Ok(DeriveInput {
+        attrs,
+        vis,
+        ident,
+        generics,
+        data,
+    }) = syn::parse(tokens.clone())
+    {
+        match data {
+            syn::Data::Struct(data) => structs::stabby(attrs, vis, ident, generics, data),
+            syn::Data::Enum(data) => enums::stabby(attrs, vis, ident, generics, data),
+            syn::Data::Union(data) => unions::stabby(attrs, vis, ident, generics, data),
+        }
+    } else if let Ok(fn_spec) = syn::parse(tokens.clone()) {
+        functions::stabby(fn_spec)
+    } else if let Ok(trait_spec) = syn::parse(tokens) {
+        traits::stabby(trait_spec)
+    } else {
+        panic!("Expected a type declaration, a trait declaration or a function declaration")
+    }
+    .into()
+}
+
+// #[proc_macro]
+// pub fn vtable(tokens: TokenStream) -> TokenStream {
+//     let st = tl_mod();
+//     let bounds =
+//         syn::punctuated::Punctuated::<TypeParamBound, syn::token::Add>::parse_separated_nonempty
+//             .parse(tokens)
+//             .unwrap();
+//     let mut is_send = false;
+//     let mut is_sync = false;
+//     for bound in bounds {
+//         match &bound {
+//             TypeParamBound::Trait(TraitBound {
+//                 paren_token,
+//                 modifier,
+//                 lifetimes,
+//                 path,
+//             }) => {
+//                 if let Some(i) = path.get_ident() {
+//                     if i == "Send" {
+//                         is_send = true;
+//                         continue;
+//                     }
+//                     if i == "Sync" {
+//                         is_sync = true;
+//                         continue;
+//                     }
+//                 }
+//             }
+//             TypeParamBound::Lifetime(_) => todo!(),
+//         }
+//     }
+//     todo!()
+// }
+
+mod enums;
+mod functions;
+mod structs;
+mod traits;
+mod unions;
+pub(crate) mod utils;
 
 #[proc_macro]
 pub fn holes(input: TokenStream) -> TokenStream {
@@ -29,94 +107,3 @@ mod tyops;
 pub fn tyeval(tokens: TokenStream) -> TokenStream {
     tyops::tyeval(&tokens.into()).into()
 }
-
-#[proc_macro_attribute]
-pub fn stabby(_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
-    let st = match proc_macro_crate::crate_name("stabby")
-        .expect("Couldn't find `stabby` in your dependencies")
-    {
-        proc_macro_crate::FoundCrate::Itself => quote!(crate::type_layouts),
-        proc_macro_crate::FoundCrate::Name(crate_name) => {
-            let crate_name = Ident::new(&crate_name, Span::call_site());
-            quote!(#crate_name::type_layouts)
-        }
-    };
-    if let Ok(DeriveInput {
-        attrs,
-        vis,
-        ident,
-        generics,
-        data,
-    }) = syn::parse(tokens.clone())
-    {
-        match data {
-            syn::Data::Struct(data) => structs::stabby(attrs, vis, ident, generics, data, st),
-            syn::Data::Enum(data) => enums::stabby(attrs, vis, ident, generics, data, st),
-            syn::Data::Union(data) => unions::stabby(attrs, vis, ident, generics, data, st),
-        }
-    } else if let Ok(fn_spec) = syn::parse(tokens.clone()) {
-        functions::stabby(fn_spec, st)
-    } else if let Ok(trait_spec) = syn::parse(tokens) {
-        traits::stabby(trait_spec, st)
-    } else {
-        panic!("Expected a type declaration, a trait declaration or a function declaration")
-    }
-    .into()
-}
-#[derive(Clone, Default)]
-pub(crate) struct SeparatedGenerics {
-    pub lifetimes: Vec<proc_macro2::TokenStream>,
-    pub types: Vec<proc_macro2::TokenStream>,
-    pub consts: Vec<proc_macro2::TokenStream>,
-}
-impl quote::ToTokens for SeparatedGenerics {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        for l in &self.lifetimes {
-            tokens.extend(quote!(#l,));
-        }
-        for l in &self.types {
-            tokens.extend(quote!(#l,));
-        }
-        for l in &self.consts {
-            tokens.extend(quote!(#l,));
-        }
-    }
-}
-pub(crate) fn unbound_generics<'a>(
-    generics: impl IntoIterator<Item = &'a GenericParam>,
-) -> SeparatedGenerics {
-    let mut this = SeparatedGenerics::default();
-    for g in generics {
-        match g {
-            GenericParam::Type(TypeParam { ident, .. }) => this.types.push(quote!(#ident)),
-            GenericParam::Lifetime(LifetimeDef { lifetime, .. }) => {
-                this.lifetimes.push(quote!(#lifetime))
-            }
-            GenericParam::Const(ConstParam { ident, .. }) => this.consts.push(quote!(#ident)),
-        }
-    }
-    this
-}
-pub(crate) fn generics_without_defaults<'a>(
-    generics: impl IntoIterator<Item = &'a GenericParam>,
-) -> SeparatedGenerics {
-    let mut this = SeparatedGenerics::default();
-    for g in generics {
-        match g {
-            GenericParam::Type(TypeParam { ident, bounds, .. }) => {
-                this.types.push(quote!(#ident: #bounds))
-            }
-            GenericParam::Lifetime(LifetimeDef {
-                lifetime, bounds, ..
-            }) => this.lifetimes.push(quote!(#lifetime: #bounds)),
-            GenericParam::Const(ConstParam { ident, .. }) => this.consts.push(quote!(#ident)),
-        }
-    }
-    this
-}
-
-mod enums;
-mod functions;
-mod structs;
-mod traits;
-mod unions;

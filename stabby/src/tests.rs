@@ -34,24 +34,25 @@ pub struct WeirdStruct {
     u32: u32,
     utest: UTest,
 }
-pub struct Fat<P, Vt> {
-    ptr: P,
-    vt: Vt,
+
+#[stabby::stabby]
+fn somefunc(_: u8) -> u8 {
+    0
 }
 
 #[test]
 fn layouts() {
     macro_rules! test {
-    () => {};
-    ($t: ty) => {
-        assert_eq!(core::mem::size_of::<$t>(), <$t as crate::type_layouts::IStable>::size(), "Size mismatch for {}", std::any::type_name::<$t>());
-        assert_eq!(core::mem::align_of::<$t>(), <$t as crate::type_layouts::IStable>::align(), "Align mismatch for {}", std::any::type_name::<$t>());
-    };
-    ($t: ty, $($tt: tt)*) => {
-        test!($t);
-        test!($($tt)*);
-    };
-}
+        () => {};
+        ($t: ty) => {
+            assert_eq!(core::mem::size_of::<$t>(), <$t as crate::type_layouts::IStable>::size(), "Size mismatch for {}", std::any::type_name::<$t>());
+            assert_eq!(core::mem::align_of::<$t>(), <$t as crate::type_layouts::IStable>::align(), "Align mismatch for {}", std::any::type_name::<$t>());
+        };
+        ($t: ty, $($tt: tt)*) => {
+            test!($t);
+            test!($($tt)*);
+        };
+    }
 
     test!(
         u8,

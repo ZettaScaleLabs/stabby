@@ -7,8 +7,8 @@ pub fn stabby(
     ident: Ident,
     generics: Generics,
     data: DataUnion,
-    st: TokenStream,
 ) -> TokenStream {
+    let st = crate::tl_mod();
     let DataUnion {
         union_token: _,
         fields,

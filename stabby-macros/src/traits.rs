@@ -1,115 +1,130 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{
     PatType, Path, PathArguments, PathSegment, QSelf, Receiver, Signature, TraitItemMethod,
     TraitItemType, Type, TypeArray, TypeGroup, TypeParen, TypePath, TypePtr, TypeReference,
 };
 
-pub fn stabby(
-    syn::ItemTrait {
-        attrs,
-        vis,
-        unsafety,
-        auto_token,
-        trait_token,
-        ident,
-        generics,
-        colon_token,
-        supertraits,
-        brace_token: _,
-        items,
-    }: syn::ItemTrait,
-    st: TokenStream,
-) -> TokenStream {
-    let mut vtable_fields: Vec<TokenStream> = Vec::new();
-    let self_ty = quote!(());
-    for item in &items {
-        match item {
-            syn::TraitItem::Method(method) => {
-                let TraitItemMethod {
-                    sig:
-                        Signature {
-                            asyncness,
-                            unsafety,
-                            ident,
-                            generics,
-                            inputs,
-                            variadic,
-                            output,
-                            ..
-                        },
-                    ..
-                } = method;
-                if asyncness.is_some() {
-                    panic!("stabby doesn't support async functions");
-                }
-                if variadic.is_some() {
-                    panic!("stabby doesn't support variadics");
-                }
-                if generics
-                    .params
-                    .iter()
-                    .any(|g| !matches!(g, syn::GenericParam::Lifetime(_)))
-                {
-                    panic!("generic methods are not trait object safe")
-                }
-                let inputs = inputs.iter().map(|input| match input {
-                    syn::FnArg::Receiver(Receiver {
-                        reference: Some(_),
-                        mutability,
+struct DynTraitDescription<'a> {
+    ident: &'a Ident,
+    vis: &'a syn::Visibility,
+    generics: &'a syn::Generics,
+    functions: Vec<DynTraitFn<'a>>,
+}
+struct DynTraitFn<'a> {
+    ident: &'a Ident,
+    generics: &'a syn::Generics,
+    abi: TokenStream,
+    unsafety: Option<syn::token::Unsafe>,
+    inputs: Vec<TokenStream>,
+    output: Option<TokenStream>,
+}
+impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
+    fn from(
+        syn::ItemTrait {
+            vis,
+            ident,
+            generics,
+            supertraits,
+            brace_token: _,
+            items,
+            ..
+        }: &'a syn::ItemTrait,
+    ) -> Self {
+        let mut this = DynTraitDescription {
+            ident,
+            vis,
+            generics,
+            functions: Vec::new(),
+        };
+        let self_ty = quote!(());
+        for item in items {
+            match item {
+                syn::TraitItem::Method(method) => {
+                    let TraitItemMethod {
+                        sig:
+                            Signature {
+                                asyncness,
+                                unsafety,
+                                ident,
+                                generics,
+                                inputs,
+                                variadic,
+                                output,
+                                abi,
+                                ..
+                            },
                         ..
-                    }) => {
-                        quote!(&#mutability #self_ty)
+                    } = method;
+                    if asyncness.is_some() {
+                        panic!("stabby doesn't support async functions");
                     }
-                    syn::FnArg::Typed(PatType { ty, .. }) => replace_self::<false>(ty, &self_ty),
-                    _ => panic!("fn (self, ...) is not trait safe"),
-                });
-                let output = match output {
-                    syn::ReturnType::Default => quote!(),
-                    syn::ReturnType::Type(_, ty) => {
-                        let ty = replace_self::<true>(ty, &self_ty);
-                        quote!(-> #ty)
+                    if variadic.is_some() {
+                        panic!("stabby doesn't support variadics");
                     }
-                };
-                let field = quote!(#ident: extern "C" #unsafety fn (#(#inputs),*) #output,);
-                vtable_fields.push(field)
+                    if generics
+                        .params
+                        .iter()
+                        .any(|g| !matches!(g, syn::GenericParam::Lifetime(_)))
+                    {
+                        panic!("generic methods are not trait object safe")
+                    }
+                    let inputs = inputs.iter().map(|input| match input {
+                        syn::FnArg::Receiver(Receiver {
+                            reference: Some(_),
+                            mutability,
+                            ..
+                        }) => {
+                            quote!(&#mutability #self_ty)
+                        }
+                        syn::FnArg::Typed(PatType { ty, .. }) => {
+                            replace_self::<false>(ty, &self_ty)
+                        }
+                        _ => panic!("fn (self, ...) is not trait safe"),
+                    });
+                    let output = match output {
+                        syn::ReturnType::Default => None,
+                        syn::ReturnType::Type(_, ty) => Some(replace_self::<true>(ty, &self_ty)),
+                    };
+                    this.functions.push(DynTraitFn {
+                        ident,
+                        generics,
+                        unsafety: *unsafety,
+                        abi: quote!(#abi),
+                        inputs: inputs.collect(),
+                        output,
+                    })
+                }
+                syn::TraitItem::Type(ty) => {
+                    let TraitItemType {
+                        // attrs,
+                        // ident,
+                        // generics,
+                        // colon_token,
+                        // bounds,
+                        // default,
+                        ..
+                    } = ty;
+                    todo!("stabby doesn't support associated types YET")
+                }
+                syn::TraitItem::Const(_) => panic!("associated consts are not trait object safe"),
+                syn::TraitItem::Macro(_) => panic!("sabby can't see through macros in traits"),
+                syn::TraitItem::Verbatim(tt) => {
+                    panic!("stabby failed to parse this token stream {}", tt)
+                }
+                _ => panic!("unexpected element in trait"),
             }
-            syn::TraitItem::Type(ty) => {
-                let TraitItemType {
-                    // attrs,
-                    // ident,
-                    // generics,
-                    // colon_token,
-                    // bounds,
-                    // default,
-                    ..
-                } = ty;
-                todo!("stabby doesn't support associated types YET")
-            }
-            syn::TraitItem::Const(_) => panic!("associated consts are not trait object safe"),
-            syn::TraitItem::Macro(_) => panic!("sabby can't see through macros in traits"),
-            syn::TraitItem::Verbatim(tt) => {
-                panic!("stabby failed to parse this token stream {}", tt)
-            }
-            _ => panic!("unexpected element in trait"),
         }
+        this
     }
-    let vtident = quote::format_ident!("Vt{ident}");
-    let hasvtident = quote::format_ident!("HasVt{ident}");
-    let unbound_generics = crate::unbound_generics(&generics.params);
+}
+
+pub fn stabby(item_trait: syn::ItemTrait) -> TokenStream {
+    let st = crate::tl_mod();
+    let description: DynTraitDescription = (&item_trait).into();
+    let vtident = quote::format_ident!("Vt{ident}", ident = item_trait.ident);
     quote! {
-        pub struct #vtident <  #unbound_generics> {
-            drop: extern "C" fn (&mut ()),
-            #(#vtable_fields)*
-        }
-        pub trait #hasvtident #generics : #ident < #unbound_generics > {
-            const VTABLE: #vtident <  #unbound_generics >;
-            fn vtable(&self) -> &'static #vtident <  #unbound_generics > {&Self::VTABLE}
-        }
-        #(#attrs)*
-        #vis #unsafety #auto_token #trait_token #ident #generics #colon_token #supertraits {
-            #(#items)*
-        }
+        #item_trait
     }
 }
 
