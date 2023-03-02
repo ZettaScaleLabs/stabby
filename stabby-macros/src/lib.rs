@@ -1,9 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::quote;
-use syn::{
-    parse::Parser, DeriveInput, Expr, ExprArray, ExprLit, Lit, Token, TraitBound, TypeParamBound,
-};
+use syn::{parse::Parser, DeriveInput, Expr, ExprArray, ExprLit, Lit, TypeParamBound};
 
 pub(crate) fn tl_mod() -> proc_macro2::TokenStream {
     match proc_macro_crate::crate_name("stabby")
@@ -42,39 +40,22 @@ pub fn stabby(_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     .into()
 }
 
-// #[proc_macro]
-// pub fn vtable(tokens: TokenStream) -> TokenStream {
-//     let st = tl_mod();
-//     let bounds =
-//         syn::punctuated::Punctuated::<TypeParamBound, syn::token::Add>::parse_separated_nonempty
-//             .parse(tokens)
-//             .unwrap();
-//     let mut is_send = false;
-//     let mut is_sync = false;
-//     for bound in bounds {
-//         match &bound {
-//             TypeParamBound::Trait(TraitBound {
-//                 paren_token,
-//                 modifier,
-//                 lifetimes,
-//                 path,
-//             }) => {
-//                 if let Some(i) = path.get_ident() {
-//                     if i == "Send" {
-//                         is_send = true;
-//                         continue;
-//                     }
-//                     if i == "Sync" {
-//                         is_sync = true;
-//                         continue;
-//                     }
-//                 }
-//             }
-//             TypeParamBound::Lifetime(_) => todo!(),
-//         }
-//     }
-//     todo!()
-// }
+#[proc_macro]
+pub fn vtable(tokens: TokenStream) -> TokenStream {
+    let st = tl_mod();
+    let bounds =
+        syn::punctuated::Punctuated::<TypeParamBound, syn::token::Add>::parse_separated_nonempty
+            .parse(tokens)
+            .unwrap();
+    let mut vt = quote!(#st::vtable::VtDrop);
+    for bound in bounds {
+        match &bound {
+            TypeParamBound::Trait(t) => vt = quote!(< dyn #t as #st::vtable::CompoundVt >::Vt<#vt>),
+            TypeParamBound::Lifetime(_) => todo!(),
+        }
+    }
+    vt.into()
+}
 
 mod enums;
 mod functions;

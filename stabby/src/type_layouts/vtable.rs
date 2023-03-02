@@ -23,6 +23,10 @@ pub struct VTable<Head, Tail = VtDrop> {
     tail: Tail,
 }
 
+pub trait CompoundVt {
+    type Vt<T>;
+}
+
 impl<T, Head: Copy + 'static, Tail: Copy + 'static> IConstConstructor<VTable<Head, Tail>> for T
 where
     T: IConstConstructor<Head> + IConstConstructor<Tail>,
@@ -110,6 +114,9 @@ impl<T> IConstConstructor<VtDrop> for T {
 #[stabby::stabby]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct VtSend<T>(T);
+impl CompoundVt for dyn Send {
+    type Vt<T> = VtSend<T>;
+}
 impl<Tail: TransitiveDeref<Vt, N>, Vt, N> TransitiveDeref<Vt, T<N>> for VtSend<Tail> {
     fn tderef(&self) -> &Vt {
         self.0.tderef()
@@ -130,6 +137,9 @@ impl<T: IConstConstructor<Vt> + Send, Vt: Copy + 'static> IConstConstructor<VtSe
 #[stabby::stabby]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct VtSync<T>(T);
+impl CompoundVt for dyn Sync {
+    type Vt<T> = VtSync<T>;
+}
 impl<T: IConstConstructor<Vt> + Sync, Vt: Copy + 'static> IConstConstructor<VtSync<Vt>> for T {
     const VTABLE: &'static VtSync<Vt> = &VtSync(*T::VTABLE);
 }

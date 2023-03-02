@@ -120,7 +120,7 @@ impl<P: IPtrOwned, Vt: HasDropVt + 'static> Dyn<P, Vt> {
 
     /// Downcasts the reference based on vtable equality.
     /// This implies that this downcast will always yield `None` when attempting to downcast values constructed accross an FFI.
-    pub fn downcast<T: IConstConstructor<Vt>>(&self) -> Option<&T>
+    pub fn downcast_ref<T: IConstConstructor<Vt>>(&self) -> Option<&T>
     where
         Vt: PartialEq + Copy,
     {
@@ -184,14 +184,25 @@ pub trait MyTrait {
 }
 
 #[stabby::stabby]
-#[derive(Clone, Copy)]
 pub struct VtMyTrait<Output> {
     do_stuff: for<'a, 'b> extern "C" fn(&'a (), &'b Output) -> &'a u8,
     gen_stuff: extern "C" fn(&mut ()) -> Output,
 }
+impl<Output> CompoundVt for dyn MyTrait<Output = Output> {
+    type Vt<T> = VTable<VtMyTrait<Output>, T>;
+}
+impl<Output> Clone for VtMyTrait<Output> {
+    fn clone(&self) -> Self {
+        Self {
+            do_stuff: self.do_stuff,
+            gen_stuff: self.gen_stuff,
+        }
+    }
+}
+impl<Output> Copy for VtMyTrait<Output> {}
 impl<T: MyTrait> IConstConstructor<VtMyTrait<T::Output>> for T
 where
-    T::Output: Copy + 'static,
+    T::Output: 'static,
 {
     const VTABLE: &'static VtMyTrait<T::Output> = &unsafe {
         VtMyTrait {
@@ -271,7 +282,10 @@ impl MyTrait for u16 {
 // MYTRAIT2
 
 pub trait MyTrait2 {
-    extern "C" fn do_stuff2(&self) -> &Self;
+    extern "C" fn do_stuff2(&self) -> u8;
+}
+impl CompoundVt for dyn MyTrait2 {
+    type Vt<T> = VTable<VtMyTrait2, T>;
 }
 #[stabby::stabby]
 #[derive(Clone, Copy)]
@@ -289,7 +303,7 @@ impl PartialEq for VtMyTrait2 {
 impl<T: MyTrait2> IConstConstructor<VtMyTrait2> for T {
     const VTABLE: &'static VtMyTrait2 = &VtMyTrait2 {
         do_stuff: unsafe {
-            core::mem::transmute(<T as MyTrait2>::do_stuff2 as extern "C" fn(&Self) -> &Self)
+            core::mem::transmute(<T as MyTrait2>::do_stuff2 as extern "C" fn(&Self) -> u8)
         },
     };
 }
@@ -297,22 +311,23 @@ impl<T: MyTrait2> IConstConstructor<VtMyTrait2> for T {
 // IMPL
 
 impl MyTrait2 for u8 {
-    extern "C" fn do_stuff2(&self) -> &Self {
-        self
+    extern "C" fn do_stuff2(&self) -> u8 {
+        *self
     }
 }
 impl MyTrait2 for u16 {
-    extern "C" fn do_stuff2(&self) -> &Self {
-        self
+    extern "C" fn do_stuff2(&self) -> u8 {
+        (*self) as u8
     }
 }
 
 #[test]
 fn test() {
     let boxed = Box::new(6u8);
-    let mut dyned = Dyn::<_, VtSend<VTable<VtMyTrait<u8>>>>::from(boxed);
-    assert_eq!(dyned.downcast::<u8>(), Some(&6));
+    let mut dyned =
+        Dyn::<_, stabby::vtable!(MyTrait2 + MyTrait<Output = u8> + Send + Sync)>::from(boxed);
+    assert_eq!(dyned.downcast_ref::<u8>(), Some(&6));
     assert_eq!(dyned.do_stuff(&0), &6);
     assert_eq!(dyned.gen_stuff(), 6);
-    assert!(dyned.downcast::<u16>().is_none());
+    assert!(dyned.downcast_ref::<u16>().is_none());
 }

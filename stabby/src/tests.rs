@@ -13,7 +13,7 @@ pub enum NoFields {
     _B,
 }
 #[stabby::stabby]
-#[repr(u8)]
+#[repr(C)]
 pub enum Fields {
     _A(usize),
     _B,

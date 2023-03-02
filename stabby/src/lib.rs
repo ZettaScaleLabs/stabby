@@ -2,7 +2,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-pub use stabby_macros::stabby;
+pub use stabby_macros::{stabby, vtable};
 
 pub mod type_layouts;
 #[allow(type_alias_bounds)]

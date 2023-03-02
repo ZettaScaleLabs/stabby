@@ -10,13 +10,15 @@ struct DynTraitDescription<'a> {
     vis: &'a syn::Visibility,
     generics: &'a syn::Generics,
     functions: Vec<DynTraitFn<'a>>,
+    mut_functions: Vec<DynTraitFn<'a>>,
 }
 struct DynTraitFn<'a> {
     ident: &'a Ident,
     generics: &'a syn::Generics,
     abi: TokenStream,
     unsafety: Option<syn::token::Unsafe>,
-    inputs: Vec<TokenStream>,
+    receiver: Receiver,
+    inputs: Vec<Type>,
     output: Option<TokenStream>,
 }
 impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
@@ -25,7 +27,6 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
             vis,
             ident,
             generics,
-            supertraits,
             brace_token: _,
             items,
             ..
@@ -36,6 +37,7 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
             vis,
             generics,
             functions: Vec::new(),
+            mut_functions: Vec::new(),
         };
         let self_ty = quote!(());
         for item in items {
@@ -69,28 +71,42 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
                     {
                         panic!("generic methods are not trait object safe")
                     }
-                    let inputs = inputs.iter().map(|input| match input {
-                        syn::FnArg::Receiver(Receiver {
-                            reference: Some(_),
+                    let mut inputs = inputs.iter();
+                    let receiver = match inputs.next() {
+                        Some(syn::FnArg::Receiver(Receiver {
+                            reference: Some(reference),
                             mutability,
+                            self_token,
                             ..
-                        }) => {
-                            quote!(&#mutability #self_ty)
-                        }
-                        syn::FnArg::Typed(PatType { ty, .. }) => {
-                            replace_self::<false>(ty, &self_ty)
-                        }
-                        _ => panic!("fn (self, ...) is not trait safe"),
+                        })) => Receiver {
+                            reference: Some(reference.clone()),
+                            mutability: *mutability,
+                            self_token: *self_token,
+                            attrs: Vec::new(),
+                        },
+                        _ => panic!(
+                            "methods must take &self or &mut self as first arg to be trait safe"
+                        ),
+                    };
+                    let inputs = inputs.map(|input| match input {
+                        syn::FnArg::Typed(PatType { ty, .. }) => ty.as_ref().clone(),
+                        _ => panic!("Receivers are only legal in first argument position"),
                     });
                     let output = match output {
                         syn::ReturnType::Default => None,
                         syn::ReturnType::Type(_, ty) => Some(replace_self::<true>(ty, &self_ty)),
                     };
-                    this.functions.push(DynTraitFn {
+                    (if receiver.mutability.is_some() {
+                        &mut this.mut_functions
+                    } else {
+                        &mut this.functions
+                    })
+                    .push(DynTraitFn {
                         ident,
                         generics,
                         unsafety: *unsafety,
                         abi: quote!(#abi),
+                        receiver,
                         inputs: inputs.collect(),
                         output,
                     })
@@ -118,12 +134,26 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
         this
     }
 }
-
+impl DynTraitFn<'_> {}
+impl<'a> DynTraitDescription<'a> {
+    fn vtid(&self) -> Ident {
+        quote::format_ident!("_vt{}", self.ident)
+    }
+    fn vtable(&self) -> TokenStream {
+        let vtid = self.vtid();
+        quote! {}
+    }
+}
 pub fn stabby(item_trait: syn::ItemTrait) -> TokenStream {
     let st = crate::tl_mod();
     let description: DynTraitDescription = (&item_trait).into();
-    let vtident = quote::format_ident!("Vt{ident}", ident = item_trait.ident);
+    let vtid = description.vtid();
+    let vtable = description.vtable();
     quote! {
+        #vtable
+        impl <todo!()> #st::vtable::CompoundVt for dyn todo!() {
+            type Vt<T> = #st::vtable::VTable<#vtid, T>
+        }
         #item_trait
     }
 }

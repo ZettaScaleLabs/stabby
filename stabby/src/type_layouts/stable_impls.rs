@@ -189,6 +189,9 @@ unsafe impl<T: IStable> IStable for core::mem::ManuallyDrop<T> {
 unsafe impl<T: IStable> IStable for core::mem::MaybeUninit<T> {
     same_as!(T);
 }
+unsafe impl<T: IStable> IStable for core::cell::UnsafeCell<T> {
+    same_as!(T);
+}
 
 unsafe impl<T: IStable> IStable for *const T {
     same_as!(usize);
@@ -196,9 +199,44 @@ unsafe impl<T: IStable> IStable for *const T {
 unsafe impl<T: IStable> IStable for *mut T {
     same_as!(usize);
 }
-
 unsafe impl<T: IStable> IStable for core::ptr::NonNull<T> {
     same_as!(core::num::NonZeroUsize);
+}
+unsafe impl<T: IStable> IStable for core::sync::atomic::AtomicPtr<T> {
+    same_as!(*mut T);
+}
+unsafe impl IStable for core::sync::atomic::AtomicBool {
+    same_as!(bool);
+}
+unsafe impl IStable for core::sync::atomic::AtomicI8 {
+    same_as!(i8);
+}
+unsafe impl IStable for core::sync::atomic::AtomicI16 {
+    same_as!(i16);
+}
+unsafe impl IStable for core::sync::atomic::AtomicI32 {
+    same_as!(i32);
+}
+unsafe impl IStable for core::sync::atomic::AtomicI64 {
+    same_as!(i64);
+}
+unsafe impl IStable for core::sync::atomic::AtomicIsize {
+    same_as!(isize);
+}
+unsafe impl IStable for core::sync::atomic::AtomicU8 {
+    same_as!(u8);
+}
+unsafe impl IStable for core::sync::atomic::AtomicU16 {
+    same_as!(u16);
+}
+unsafe impl IStable for core::sync::atomic::AtomicU32 {
+    same_as!(u32);
+}
+unsafe impl IStable for core::sync::atomic::AtomicU64 {
+    same_as!(u64);
+}
+unsafe impl IStable for core::sync::atomic::AtomicUsize {
+    same_as!(usize);
 }
 unsafe impl<T: IStable> IStable for &T {
     same_as!(core::num::NonZeroUsize);
