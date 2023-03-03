@@ -1,4 +1,4 @@
-use crate::type_layouts::*;
+use crate::abi::*;
 
 pub trait IStabilize {
     type Stable: IStable;

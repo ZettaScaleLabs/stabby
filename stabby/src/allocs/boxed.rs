@@ -1,6 +1,6 @@
 use crate::slice::SliceMut;
 use crate::str::StrMut;
-use crate::{self as stabby, type_layouts::IntoDyn};
+use crate::{self as stabby, abi::IntoDyn};
 use core::ops::{Deref, DerefMut};
 
 #[stabby::stabby]
@@ -95,19 +95,19 @@ impl From<BoxedStr> for Box<str> {
     }
 }
 
-impl stabby::type_layouts::IPtr for Box<()> {
+impl stabby::abi::IPtr for Box<()> {
     unsafe fn as_ref<U>(&self) -> &U {
         let this: &() = self;
         core::mem::transmute(this)
     }
 }
-impl stabby::type_layouts::IPtrMut for Box<()> {
+impl stabby::abi::IPtrMut for Box<()> {
     unsafe fn as_mut<U>(&mut self) -> &mut U {
         let this: &mut () = self;
         core::mem::transmute(this)
     }
 }
-impl stabby::type_layouts::IPtrOwned for Box<()> {
+impl stabby::abi::IPtrOwned for Box<()> {
     fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ())) {
         unsafe {
             (drop)(this);

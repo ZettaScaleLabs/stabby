@@ -7,10 +7,10 @@ pub(crate) fn tl_mod() -> proc_macro2::TokenStream {
     match proc_macro_crate::crate_name("stabby")
         .expect("Couldn't find `stabby` in your dependencies")
     {
-        proc_macro_crate::FoundCrate::Itself => quote!(crate::type_layouts),
+        proc_macro_crate::FoundCrate::Itself => quote!(crate::abi),
         proc_macro_crate::FoundCrate::Name(crate_name) => {
             let crate_name = Ident::new(&crate_name, Span::call_site());
-            quote!(#crate_name::type_layouts)
+            quote!(#crate_name::abi)
         }
     }
 }
@@ -66,6 +66,7 @@ pub(crate) mod utils;
 
 #[proc_macro]
 pub fn holes(input: TokenStream) -> TokenStream {
+    let st = tl_mod();
     let ExprArray { elems: holes, .. } = syn::parse::<ExprArray>(input).unwrap();
     assert_eq!(holes.len(), 4);
     let mut bits = Vec::with_capacity(256);
@@ -80,7 +81,7 @@ pub fn holes(input: TokenStream) -> TokenStream {
             });
         }
     }
-    quote!(stabby::type_layouts::holes::Holes<#(#bits,)*>).into()
+    quote!(#st::holes::Holes<#(#bits,)*>).into()
 }
 
 mod tyops;

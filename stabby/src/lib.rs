@@ -4,9 +4,9 @@ extern crate alloc;
 
 pub use stabby_macros::{stabby, vtable};
 
-pub mod type_layouts;
+pub mod abi;
 #[allow(type_alias_bounds)]
-pub type Stable<Source: type_layouts::IStabilize> = Source::Stable;
+pub type Stable<Source: abi::IStabilize> = Source::Stable;
 
 #[cfg(feature = "alloc")]
 mod allocs;
@@ -15,7 +15,7 @@ pub use allocs::*;
 pub mod slice;
 pub mod str;
 pub mod tuple {
-    pub use crate::type_layouts::Tuple2;
+    pub use crate::abi::Tuple2;
 }
 // #[cfg(test)]
 mod tests;

@@ -1,13 +1,13 @@
-use crate::{self as stabby, type_layouts::IntoDyn};
+use crate::{self as stabby, abi::IntoDyn};
 use alloc::sync::*;
 
-impl stabby::type_layouts::IPtr for Arc<()> {
+impl stabby::abi::IPtr for Arc<()> {
     unsafe fn as_ref<U>(&self) -> &U {
         let this: &() = self;
         core::mem::transmute(this)
     }
 }
-impl stabby::type_layouts::IPtrOwned for Arc<()> {
+impl stabby::abi::IPtrOwned for Arc<()> {
     fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ())) {
         // Increment the weak count to guarantee the allocation won't be freed
         let weak = Arc::downgrade(this);

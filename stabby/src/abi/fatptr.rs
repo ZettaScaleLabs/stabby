@@ -1,5 +1,5 @@
 use crate as stabby;
-use crate::type_layouts::vtable::*;
+use crate::abi::vtable::*;
 
 pub trait IPtr {
     /// # Safety
@@ -218,42 +218,34 @@ where
 }
 impl<Output> PartialEq for VtMyTrait<Output> {
     fn eq(&self, other: &Self) -> bool {
-        core::ptr::eq(
-            self.do_stuff as *const for<'a, 'b> extern "C" fn(&'a (), &'b Output) -> &'a u8,
-            other.do_stuff as *const _,
-        ) && core::ptr::eq(
-            self.gen_stuff as *const extern "C" fn(&mut ()) -> Output,
-            other.gen_stuff as *const _,
-        )
+        core::ptr::eq(self.do_stuff as *const (), other.do_stuff as *const _)
+            && core::ptr::eq(self.gen_stuff as *const (), other.gen_stuff as *const _)
     }
 }
 pub trait DynMyTrait<N, Output> {
-    type Output;
-    extern "C" fn do_stuff<'a>(&'a self, with: &Self::Output) -> &'a u8;
+    extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8;
 }
 impl<Vt: TransitiveDeref<VtMyTrait<Output>, N>, Output, N> DynMyTrait<N, Output>
     for DynRef<'_, Vt>
 {
-    type Output = Output;
-    extern "C" fn do_stuff<'a>(&'a self, with: &Self::Output) -> &'a u8 {
+    extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8 {
         (self.vtable.tderef().do_stuff)(self.ptr, with)
     }
 }
 impl<P: IPtrOwned, Vt: HasDropVt + TransitiveDeref<VtMyTrait<Output>, N>, Output, N>
     DynMyTrait<N, Output> for Dyn<P, Vt>
 {
-    type Output = Output;
-    extern "C" fn do_stuff<'a>(&'a self, with: &Self::Output) -> &'a u8 {
+    extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8 {
         (self.vtable.tderef().do_stuff)(unsafe { self.ptr.as_ref() }, with)
     }
 }
 pub trait DynMutMyTrait<N, Output>: DynMyTrait<N, Output> {
-    extern "C" fn gen_stuff(&mut self) -> Self::Output;
+    extern "C" fn gen_stuff(&mut self) -> Output;
 }
 impl<P: IPtrOwned + IPtrMut, Vt: HasDropVt + TransitiveDeref<VtMyTrait<Output>, N>, Output, N>
     DynMutMyTrait<N, Output> for Dyn<P, Vt>
 {
-    extern "C" fn gen_stuff(&mut self) -> Self::Output {
+    extern "C" fn gen_stuff(&mut self) -> Output {
         (self.vtable.tderef().gen_stuff)(unsafe { self.ptr.as_mut() })
     }
 }
@@ -294,10 +286,7 @@ pub struct VtMyTrait2 {
 }
 impl PartialEq for VtMyTrait2 {
     fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(
-            self.do_stuff as *const extern "C" fn(),
-            other.do_stuff as *const extern "C" fn(),
-        )
+        std::ptr::eq(self.do_stuff as *const (), other.do_stuff as *const _)
     }
 }
 impl<T: MyTrait2> IConstConstructor<VtMyTrait2> for T {
@@ -330,4 +319,11 @@ fn test() {
     assert_eq!(dyned.do_stuff(&0), &6);
     assert_eq!(dyned.gen_stuff(), 6);
     assert!(dyned.downcast_ref::<u16>().is_none());
+}
+
+#[stabby::stabby]
+pub trait MyTrait3<Hi: Clone> {
+    type Output;
+    extern "C" fn do_stuff<'a>(&'a self, with: Hi) -> &'a u8;
+    extern "C" fn gen_stuff(&mut self) -> Self::Output;
 }

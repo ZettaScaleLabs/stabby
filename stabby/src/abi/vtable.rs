@@ -122,9 +122,7 @@ impl<Tail: TransitiveDeref<Vt, N>, Vt, N> TransitiveDeref<Vt, T<N>> for VtSend<T
         self.0.tderef()
     }
 }
-impl<Head, Tail> From<crate::type_layouts::vtable::VtSend<VTable<Head, Tail>>>
-    for VTable<Head, Tail>
-{
+impl<Head, Tail> From<crate::abi::vtable::VtSend<VTable<Head, Tail>>> for VTable<Head, Tail> {
     fn from(value: VtSend<VTable<Head, Tail>>) -> Self {
         value.0
     }
@@ -148,23 +146,21 @@ impl<Tail: TransitiveDeref<Vt, N>, Vt, N> TransitiveDeref<Vt, T<N>> for VtSync<T
         self.0.tderef()
     }
 }
-impl<Head, Tail> From<crate::type_layouts::vtable::VtSync<VtSend<VTable<Head, Tail>>>>
+impl<Head, Tail> From<crate::abi::vtable::VtSync<VtSend<VTable<Head, Tail>>>>
     for VTable<Head, Tail>
 {
     fn from(value: VtSync<VtSend<VTable<Head, Tail>>>) -> Self {
         value.0 .0
     }
 }
-impl<Head, Tail> From<crate::type_layouts::vtable::VtSync<VtSend<VTable<Head, Tail>>>>
+impl<Head, Tail> From<crate::abi::vtable::VtSync<VtSend<VTable<Head, Tail>>>>
     for VtSend<VTable<Head, Tail>>
 {
     fn from(value: VtSync<VtSend<VTable<Head, Tail>>>) -> Self {
         value.0
     }
 }
-impl<Head, Tail> From<crate::type_layouts::vtable::VtSync<VTable<Head, Tail>>>
-    for VTable<Head, Tail>
-{
+impl<Head, Tail> From<crate::abi::vtable::VtSync<VTable<Head, Tail>>> for VTable<Head, Tail> {
     fn from(value: VtSync<VTable<Head, Tail>>) -> Self {
         value.0
     }

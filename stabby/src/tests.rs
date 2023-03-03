@@ -45,8 +45,8 @@ fn layouts() {
     macro_rules! test {
         () => {};
         ($t: ty) => {
-            assert_eq!(core::mem::size_of::<$t>(), <$t as crate::type_layouts::IStable>::size(), "Size mismatch for {}", std::any::type_name::<$t>());
-            assert_eq!(core::mem::align_of::<$t>(), <$t as crate::type_layouts::IStable>::align(), "Align mismatch for {}", std::any::type_name::<$t>());
+            assert_eq!(core::mem::size_of::<$t>(), <$t as crate::abi::IStable>::size(), "Size mismatch for {}", std::any::type_name::<$t>());
+            assert_eq!(core::mem::align_of::<$t>(), <$t as crate::abi::IStable>::align(), "Align mismatch for {}", std::any::type_name::<$t>());
         };
         ($t: ty, $($tt: tt)*) => {
             test!($t);
@@ -85,9 +85,9 @@ fn layouts() {
         crate::tuple::Tuple2<usize, usize>,
         crate::tuple::Tuple2<usize, u8>,
         crate::tuple::Tuple2<u8, usize>,
-        crate::type_layouts::Union<u8, usize>,
-        crate::type_layouts::Union<u8, ()>,
-        crate::type_layouts::Union<(), u8>,
+        crate::abi::Union<u8, usize>,
+        crate::abi::Union<u8, ()>,
+        crate::abi::Union<(), u8>,
         UTest,
         Fields,
         crate::tuple::Tuple2<(), usize>,
