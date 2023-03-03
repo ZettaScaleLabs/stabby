@@ -2,8 +2,8 @@ use crate as stabby;
 
 /// Implementation detail for stabby's version of dyn traits.
 /// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
-pub trait IConstConstructor<Vt: 'static + Copy> {
-    const VTABLE: &'static Vt;
+pub trait IConstConstructor<'a, Vt: 'a + Copy> {
+    const VTABLE: &'a Vt;
 }
 
 /// Implementation detail for stabby's version of dyn traits.
@@ -27,17 +27,17 @@ pub trait CompoundVt {
     type Vt<T>;
 }
 
-impl<T, Head: Copy + 'static, Tail: Copy + 'static> IConstConstructor<VTable<Head, Tail>> for T
+impl<'a, T, Head: Copy + 'a, Tail: Copy + 'a> IConstConstructor<'a, VTable<Head, Tail>> for T
 where
-    T: IConstConstructor<Head> + IConstConstructor<Tail>,
+    T: IConstConstructor<'a, Head> + IConstConstructor<'a, Tail>,
 {
-    const VTABLE: &'static VTable<Head, Tail> = &VTable {
+    const VTABLE: &'a VTable<Head, Tail> = &VTable {
         head: *T::VTABLE,
         tail: *T::VTABLE,
     };
 }
-impl<T> IConstConstructor<()> for T {
-    const VTABLE: &'static () = &();
+impl<'a, T> IConstConstructor<'a, ()> for T {
+    const VTABLE: &'a () = &();
 }
 impl<Head, Tail> TransitiveDeref<Head, H> for VTable<Head, Tail> {
     fn tderef(&self) -> &Head {
@@ -97,8 +97,8 @@ impl PartialEq for VtDrop {
         )
     }
 }
-impl<T> IConstConstructor<VtDrop> for T {
-    const VTABLE: &'static VtDrop = &VtDrop {
+impl<'a, T> IConstConstructor<'a, VtDrop> for T {
+    const VTABLE: &'a VtDrop = &VtDrop {
         drop: unsafe {
             core::mem::transmute({
                 unsafe extern "C" fn drop<T>(this: &mut T) {
@@ -127,8 +127,10 @@ impl<Head, Tail> From<crate::abi::vtable::VtSend<VTable<Head, Tail>>> for VTable
         value.0
     }
 }
-impl<T: IConstConstructor<Vt> + Send, Vt: Copy + 'static> IConstConstructor<VtSend<Vt>> for T {
-    const VTABLE: &'static VtSend<Vt> = &VtSend(*T::VTABLE);
+impl<'a, T: IConstConstructor<'a, Vt> + Send, Vt: Copy + 'a> IConstConstructor<'a, VtSend<Vt>>
+    for T
+{
+    const VTABLE: &'a VtSend<Vt> = &VtSend(*T::VTABLE);
 }
 
 /// A marker for vtables for types that are `Sync`
@@ -138,8 +140,10 @@ pub struct VtSync<T>(T);
 impl CompoundVt for dyn Sync {
     type Vt<T> = VtSync<T>;
 }
-impl<T: IConstConstructor<Vt> + Sync, Vt: Copy + 'static> IConstConstructor<VtSync<Vt>> for T {
-    const VTABLE: &'static VtSync<Vt> = &VtSync(*T::VTABLE);
+impl<'a, T: IConstConstructor<'a, Vt> + Sync, Vt: Copy + 'a> IConstConstructor<'a, VtSync<Vt>>
+    for T
+{
+    const VTABLE: &'a VtSync<Vt> = &VtSync(*T::VTABLE);
 }
 impl<Tail: TransitiveDeref<Vt, N>, Vt, N> TransitiveDeref<Vt, T<N>> for VtSync<Tail> {
     fn tderef(&self) -> &Vt {

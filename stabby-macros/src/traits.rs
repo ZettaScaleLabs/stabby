@@ -1,4 +1,4 @@
-use std::{collections::HashSet, ops::Deref};
+use std::ops::Deref;
 
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
@@ -226,7 +226,7 @@ impl DynTraitFn<'_> {
 }
 impl<'a> DynTraitDescription<'a> {
     fn vtid(&self) -> Ident {
-        quote::format_ident!("_stvt_{}", self.ident)
+        quote::format_ident!("StabbyVtable{}", self.ident)
     }
     fn vt_generics<const BOUNDED: bool>(&self) -> TokenStream {
         let mut generics = quote!();
@@ -258,6 +258,7 @@ impl<'a> DynTraitDescription<'a> {
         generics
     }
     fn vtable(&self) -> TokenStream {
+        let st = crate::tl_mod();
         let vtid = self.vtid();
         let vis = self.vis;
         let vt_generics = self.vt_generics::<true>();
@@ -273,12 +274,16 @@ impl<'a> DynTraitDescription<'a> {
             .iter()
             .chain(&self.mut_functions)
             .map(|f| f.field_signature(&self.self_dependent_types));
-        // panic!(
-        //     "{}",
         quote! {
             #vis struct #vtid < #vt_generics > {
                 #(#fn_ids: #fn_fts,)*
             }
+            // impl<'stabby_vt_lt, #vt_generics > #st::vtable::IConstConstructor<'stabby_vt_lt, #vtid < #nbvt_generics >> for T: todo!() {
+            //     const VTABLE: &'stabby_vt_lt todo!() = &todo!();
+            // }
+            // impl <todo!()> #st::vtable::CompoundVt for dyn todo!() {
+            //     type Vt<T> = #st::vtable::VTable<#vtid <todo!()>, T>;
+            // }
             impl< #vt_generics > Clone for #vtid < #nbvt_generics > {
                 fn clone(&self) -> Self {
                     Self {
@@ -287,18 +292,50 @@ impl<'a> DynTraitDescription<'a> {
                 }
             }
             impl< #vt_generics > Copy for #vtid < #nbvt_generics > {}
+            impl< #vt_generics > core::cmp::PartialEq for #vtid < #nbvt_generics > {
+                fn eq(&self, other: &Self) -> bool {
+                    #(core::ptr::eq(self.#fn_ids as *const (), other.#fn_ids as *const _) &&)* true
+                }
+            }
+            // pub trait DynMyTrait<N, Output> {
+            //     extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8;
+            // }
+            // impl<Vt: TransitiveDeref<VtMyTrait<Output>, N>, Output, N> DynMyTrait<N, Output>
+            //     for DynRef<'_, Vt>
+            // {
+            //     extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8 {
+            //         (self.vtable.tderef().do_stuff)(self.ptr, with)
+            //     }
+            // }
+            // impl<'c, P: IPtrOwned, Vt: HasDropVt + TransitiveDeref<VtMyTrait<Output>, N>, Output, N>
+            //     DynMyTrait<N, Output> for Dyn<'c, P, Vt>
+            // {
+            //     extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8 {
+            //         (self.vtable.tderef().do_stuff)(unsafe { self.ptr.as_ref() }, with)
+            //     }
+            // }
+            // pub trait DynMutMyTrait<N, Output>: DynMyTrait<N, Output> {
+            //     extern "C" fn gen_stuff(&mut self) -> Output;
+            // }
+            // impl<
+            //         'a,
+            //         P: IPtrOwned + IPtrMut,
+            //         Vt: HasDropVt + TransitiveDeref<VtMyTrait<Output>, N>,
+            //         Output,
+            //         N,
+            //     > DynMutMyTrait<N, Output> for Dyn<'a, P, Vt>
+            // {
+            //     extern "C" fn gen_stuff(&mut self) -> Output {
+            //         (self.vtable.tderef().gen_stuff)(unsafe { self.ptr.as_mut() })
+            //     }
+            // }
         }
-        // )
     }
 }
 pub fn stabby(item_trait: syn::ItemTrait) -> TokenStream {
     let st = crate::tl_mod();
     let description: DynTraitDescription = (&item_trait).into();
-    let vtid = description.vtid();
     let vtable = description.vtable();
-    // impl <todo!()> #st::vtable::CompoundVt for dyn todo!() {
-    //     type Vt<T> = #st::vtable::VTable<#vtid <todo!()>, T>;
-    // }
     quote! {
         #item_trait
         #vtable
