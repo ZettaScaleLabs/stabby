@@ -330,10 +330,14 @@ fn test() {
 pub trait MyTrait3<Hi: core::ops::Deref> {
     type A;
     type B: for<'a> core::ops::Add<&'a Self::A>;
-    extern "C" fn do_stuff<'a>(
-        &'a self,
-        a: &'a Self::A,
-        b: Self::B,
-    ) -> <Self::B as core::ops::Add<&'a Self::A>>::Output;
+    // extern "C" fn do_stuff<'a>(
+    //     &'a self,
+    //     a: &'a Self::A,
+    //     b: Self::B,
+    // ) -> <Self::B as core::ops::Add<&'a Self::A>>::Output;
     extern "C" fn gen_stuff(&mut self, with: Hi) -> Self::A;
+    extern "C" fn test<'a>(
+        &'a self,
+        this: Dyn<'a, Box<()>, stabby::vtable!(MyTrait2 + MyTrait<Output = u8> + Send + Sync)>,
+    );
 }

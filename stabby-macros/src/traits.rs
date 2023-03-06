@@ -1,9 +1,9 @@
 use std::ops::Deref;
 
 use proc_macro2::{Ident, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{
-    token::{Const, Mut, Unsafe},
+    token::{Colon2, Const, Mut, Unsafe},
     Abi, AngleBracketedGenericArguments, BoundLifetimes, Expr, Lifetime,
     ParenthesizedGenericArguments, PatType, Path, PathArguments, PathSegment, QSelf, Receiver,
     Signature, TraitItemMethod, TraitItemType, Type, TypeArray, TypeBareFn, TypeGroup, TypeParen,
@@ -32,7 +32,7 @@ impl SelfDependentTypes {
         self.iter().position(|t| quote!(#t).to_string() == tystr)
     }
     fn unselfed(&self, ty: &Ty) -> TokenStream {
-        todo!()
+        quote!(#ty)
         // let Some(i) = self.find(ty) else {return quote!(#ty)};
         // let t = quote::format_ident!("_stabby_unselfed_{i}");
         // quote!(#t)
@@ -349,6 +349,7 @@ impl<'a> DynTraitDescription<'a> {
 enum Ty {
     Never,
     Unit,
+    SelfReferencial(Box<Self>),
     Reference {
         lifetime: Option<Lifetime>,
         mutability: Option<Mut>,
@@ -370,12 +371,18 @@ enum Ty {
         inputs: Vec<Self>,
         output: Box<Self>,
     },
+    Path {
+        leading_colon: Option<Colon2>,
+        segment: Ident,
+        next: Option<Box<Self>>,
+    },
 }
 impl quote::ToTokens for Ty {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
             Ty::Never => tokens.extend(quote!(!)),
             Ty::Unit => tokens.extend(quote!(())),
+            Ty::SelfReferencial(ty) => ty.to_tokens(tokens),
             Ty::Reference {
                 lifetime,
                 mutability,
@@ -393,18 +400,42 @@ impl quote::ToTokens for Ty {
                 abi,
                 inputs,
                 output,
-            } => todo!(),
+            } => tokens.extend(
+                quote!(#lifetimes #unsafety # abi fn(#(#inputs,)*) -> #output
+                ),
+            ),
+            Ty::Path {
+                leading_colon,
+                segment,
+                next,
+            } => {
+                let mut t = quote!(#leading_colon #segment);
+                if let Some(next) = next {
+                    t.extend(quote!(::#next))
+                }
+                tokens.extend(t)
+            }
         }
     }
 }
 impl<'a> From<&'a Type> for Ty {
     fn from(value: &'a Type) -> Self {
         match value {
-            Type::Path(TypePath { qself: None, path }) => todo!(),
+            Type::Path(TypePath {
+                qself: None,
+                path:
+                    Path {
+                        leading_colon,
+                        segments,
+                    },
+            }) => Self::Path {
+                leading_colon: leading_colon.clone(),
+                segments: segments.iter().map(|s| s.ident.clone()).collect(),
+            },
             Type::Path(TypePath {
                 qself: Some(qself),
                 path,
-            }) => todo!(),
+            }) => todo!("{}", quote!(#value)),
             Type::BareFn(TypeBareFn {
                 lifetimes,
                 unsafety,
