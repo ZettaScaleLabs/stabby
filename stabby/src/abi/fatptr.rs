@@ -328,7 +328,12 @@ fn test() {
 
 #[stabby::stabby]
 pub trait MyTrait3<Hi: core::ops::Deref> {
-    type Output;
-    extern "C" fn do_stuff<'a>(&'a self, with: Hi) -> &'a u8;
-    extern "C" fn gen_stuff(&mut self) -> Self::Output;
+    type A;
+    type B: for<'a> core::ops::Add<&'a Self::A>;
+    extern "C" fn do_stuff<'a>(
+        &'a self,
+        a: &'a Self::A,
+        b: Self::B,
+    ) -> <Self::B as core::ops::Add<&'a Self::A>>::Output;
+    extern "C" fn gen_stuff(&mut self, with: Hi) -> Self::A;
 }

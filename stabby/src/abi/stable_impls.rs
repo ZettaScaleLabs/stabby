@@ -276,3 +276,25 @@ mod cfgalloc {
         same_as!(core::ptr::NonNull<T>);
     }
 }
+
+macro_rules! fnstable {
+    (-> $o: ident) => {
+        unsafe impl<$o: IStable > IStable for extern "C" fn() -> $o {
+            same_as!(core::num::NonZeroUsize);
+        }
+        unsafe impl<$o: IStable > IStable for unsafe extern "C" fn() -> $o {
+            same_as!(core::num::NonZeroUsize);
+        }
+    };
+    ($t: ident, $($tt: ident, )* -> $o: ident) => {
+        unsafe impl< $o , $t, $($tt,)* > IStable for extern "C" fn($t, $($tt,)*) -> $o
+        where $o : IStable, $t: IStable, $($tt: IStable,)* {
+            same_as!(core::num::NonZeroUsize);
+        }
+        unsafe impl< $o : IStable, $t: IStable, $($tt: IStable,)* > IStable for unsafe extern "C" fn($t, $($tt,)*) -> $o {
+            same_as!(core::num::NonZeroUsize);
+        }
+        fnstable!($($tt,)* -> $o);
+    };
+}
+fnstable!(I15, I14, I13, I12, I11, I10, I9, I8, I7, I6, I5, I4, I3, I2, I1, -> Output);

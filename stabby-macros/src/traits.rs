@@ -3,30 +3,39 @@ use std::ops::Deref;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{
-    AngleBracketedGenericArguments, ParenthesizedGenericArguments, PatType, Path, PathArguments,
-    PathSegment, QSelf, Receiver, Signature, TraitItemMethod, TraitItemType, Type, TypeArray,
-    TypeGroup, TypeParen, TypePath, TypePtr, TypeReference,
+    token::{Const, Mut, Unsafe},
+    Abi, AngleBracketedGenericArguments, BoundLifetimes, Expr, Lifetime,
+    ParenthesizedGenericArguments, PatType, Path, PathArguments, PathSegment, QSelf, Receiver,
+    Signature, TraitItemMethod, TraitItemType, Type, TypeArray, TypeBareFn, TypeGroup, TypeParen,
+    TypePath, TypePtr, TypeReference, TypeTuple,
 };
 #[derive(Clone, Default)]
 struct SelfDependentTypes {
     inner: Vec<Type>,
 }
 impl SelfDependentTypes {
-    fn extend<'a>(&mut self, it: impl Iterator<Item = &'a Type>) {
+    fn push(&mut self, ty: Type) -> bool {
+        if self.find(&ty).is_none() {
+            self.inner.push(ty);
+            true
+        } else {
+            false
+        }
+    }
+    fn extend(&mut self, it: impl Iterator<Item = Type>) {
         for ty in it {
-            if self.find(ty).is_none() {
-                self.inner.push(ty.clone())
-            }
+            self.push(ty);
         }
     }
     fn find(&self, ty: &Type) -> Option<usize> {
         let tystr = quote!(#ty).to_string();
         self.iter().position(|t| quote!(#t).to_string() == tystr)
     }
-    fn unselfed(&self, ty: &Type) -> TokenStream {
-        let Some(i) = self.find(ty) else {return quote!(#ty)};
-        let t = quote::format_ident!("_stabby_unselfed_{i}");
-        quote!(#t)
+    fn unselfed(&self, ty: &Ty) -> TokenStream {
+        todo!()
+        // let Some(i) = self.find(ty) else {return quote!(#ty)};
+        // let t = quote::format_ident!("_stabby_unselfed_{i}");
+        // quote!(#t)
     }
     fn unselfed_iter(&self) -> impl Iterator<Item = Ident> {
         (0..self.inner.len()).map(|i| quote::format_ident!("_stabby_unselfed_{i}"))
@@ -52,8 +61,8 @@ struct DynTraitFn<'a> {
     abi: TokenStream,
     unsafety: Option<syn::token::Unsafe>,
     receiver: Receiver,
-    inputs: Vec<Type>,
-    output: syn::ReturnType,
+    inputs: Vec<Ty>,
+    output: Option<Ty>,
 }
 impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
     fn from(
@@ -123,7 +132,7 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
                         ),
                     };
                     let inputs = inputs.map(|input| match input {
-                        syn::FnArg::Typed(PatType { ty, .. }) => ty.as_ref().clone(),
+                        syn::FnArg::Typed(PatType { ty, .. }) => ty.as_ref().into(),
                         _ => panic!("Receivers are only legal in first argument position"),
                     });
                     (if receiver.mutability.is_some() {
@@ -138,7 +147,11 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
                         abi: quote!(#abi),
                         receiver,
                         inputs: inputs.collect(),
-                        output: output.clone(),
+                        output: if let syn::ReturnType::Type(_, ty) = output {
+                            Some(ty.as_ref().into())
+                        } else {
+                            None
+                        },
                     })
                 }
                 syn::TraitItem::Type(ty) => {
@@ -170,12 +183,15 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
     }
 }
 impl DynTraitFn<'_> {
-    fn self_dependent_types(&self) -> impl Iterator<Item = &Type> {
-        let output = match &self.output {
-            syn::ReturnType::Type(_, t) if t.is_assoc() => Some(t.as_ref()),
-            _ => None,
-        };
-        self.inputs.iter().filter(|t| t.is_assoc()).chain(output)
+    fn self_dependent_types(&self) -> Vec<Type> {
+        let mut sdts = self
+            .output
+            .as_ref()
+            .map_or(Vec::new(), |t| t.self_dependent_types());
+        for input in &self.inputs {
+            sdts.extend_from_slice(&input.self_dependent_types());
+        }
+        sdts
     }
     fn ptr_signature(&self) -> TokenStream {
         let Self {
@@ -194,6 +210,7 @@ impl DynTraitFn<'_> {
         } = self else {unreachable!()};
         let forgen = (!generics.params.is_empty()).then(|| quote!(for));
         let receiver = quote!(& #lt #mutability Self);
+        let output = output.as_ref().map(|ty| quote!(-> #ty));
         quote!(#forgen #generics #abi #unsafety fn(#receiver, #(#inputs),*) #output)
     }
     fn field_signature(&self, sdts: &SelfDependentTypes) -> TokenStream {
@@ -213,13 +230,10 @@ impl DynTraitFn<'_> {
         } = self else {unreachable!()};
         let receiver = quote!(& #lt #mutability ());
         let inputs = inputs.iter().map(|ty| sdts.unselfed(ty));
-        let output = match output {
-            syn::ReturnType::Default => None,
-            syn::ReturnType::Type(_, ty) => {
-                let unselfed = sdts.unselfed(ty);
-                Some(quote!(-> #unselfed))
-            }
-        };
+        let output = output.as_ref().map(|ty| {
+            let ty = sdts.unselfed(ty);
+            quote!(-> #ty)
+        });
         let forgen = (!generics.params.is_empty()).then(|| quote!(for));
         quote!(#forgen #generics #abi #unsafety fn(#receiver, #(#inputs),*) #output)
     }
@@ -332,76 +346,172 @@ impl<'a> DynTraitDescription<'a> {
         }
     }
 }
+enum Ty {
+    Never,
+    Unit,
+    Reference {
+        lifetime: Option<Lifetime>,
+        mutability: Option<Mut>,
+        elem: Box<Self>,
+    },
+    Ptr {
+        const_token: Option<Const>,
+        mutability: Option<Mut>,
+        elem: Box<Self>,
+    },
+    Array {
+        elem: Box<Self>,
+        len: Expr,
+    },
+    BareFn {
+        lifetimes: Option<BoundLifetimes>,
+        unsafety: Option<Unsafe>,
+        abi: Option<Abi>,
+        inputs: Vec<Self>,
+        output: Box<Self>,
+    },
+}
+impl quote::ToTokens for Ty {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            Ty::Never => tokens.extend(quote!(!)),
+            Ty::Unit => tokens.extend(quote!(())),
+            Ty::Reference {
+                lifetime,
+                mutability,
+                elem,
+            } => tokens.extend(quote!(& #lifetime #mutability #elem)),
+            Ty::Ptr {
+                const_token,
+                mutability,
+                elem,
+            } => tokens.extend(quote!(*#const_token #mutability #elem)),
+            Ty::Array { elem, len } => tokens.extend(quote!([#elem;#len])),
+            Ty::BareFn {
+                lifetimes,
+                unsafety,
+                abi,
+                inputs,
+                output,
+            } => todo!(),
+        }
+    }
+}
+impl<'a> From<&'a Type> for Ty {
+    fn from(value: &'a Type) -> Self {
+        match value {
+            Type::Path(TypePath { qself: None, path }) => todo!(),
+            Type::Path(TypePath {
+                qself: Some(qself),
+                path,
+            }) => todo!(),
+            Type::BareFn(TypeBareFn {
+                lifetimes,
+                unsafety,
+                abi,
+                inputs,
+                variadic: None,
+                output,
+                ..
+            }) => Self::BareFn {
+                lifetimes: lifetimes.clone(),
+                unsafety: *unsafety,
+                abi: abi.clone(),
+                inputs: inputs.iter().map(|i| (&i.ty).into()).collect(),
+                output: Box::new(match output {
+                    syn::ReturnType::Default => Self::Unit,
+                    syn::ReturnType::Type(_, ty) => ty.as_ref().into(),
+                }),
+            },
+            Type::Group(TypeGroup { elem, .. }) => elem.as_ref().into(),
+            Type::Paren(TypeParen { .. }) => todo!("Type::Paren not supported yet"),
+            Type::Array(TypeArray { elem, len, .. }) => Self::Array {
+                elem: Box::new(elem.as_ref().into()),
+                len: len.clone(),
+            },
+            Type::Ptr(TypePtr {
+                const_token,
+                mutability,
+                elem,
+                ..
+            }) => Self::Ptr {
+                const_token: *const_token,
+                mutability: *mutability,
+                elem: Box::new(elem.as_ref().into()),
+            },
+            Type::Reference(TypeReference {
+                lifetime,
+                mutability,
+                elem,
+                ..
+            }) => Self::Reference {
+                mutability: *mutability,
+                lifetime: lifetime.clone(),
+                elem: Box::new(elem.as_ref().into()),
+            },
+            Type::Tuple(TypeTuple { elems, .. }) if elems.is_empty() => Self::Unit,
+            Type::Never(_) => Self::Never,
+            Type::BareFn(TypeBareFn {
+                variadic: Some(_), ..
+            }) => panic!("stabby doesn't support variadic functions"),
+            Type::Verbatim(t) => panic!("stabby couldn't parse {t}"),
+            Type::Macro(_) => panic!("stabby couldn't see through a macro in type position"),
+            Type::Infer(_) => panic!("type inference is not available in trait definitions"),
+            Type::ImplTrait(_) => panic!("generic methods are not trait object safe"),
+            Type::Slice(_) => panic!("slices are not ABI stable"),
+            Type::TraitObject(_) => panic!("trait objects are not ABI stable"),
+            Type::Tuple(_) => panic!("tuples are not ABI stable"),
+            _ => {
+                panic!("unknown element type in {}", quote!(#value))
+            }
+        }
+    }
+}
+impl Ty {
+    fn self_dependent_types(&self) -> Vec<Type> {
+        // match self.inner {
+        //     Type::Path(TypePath {
+        //         qself,
+        //         path: Path { segments, .. },
+        //     }) => {
+        //         let sdts = Vec::new();
+
+        //         sdts
+        //     }
+        //     Type::BareFn(TypeBareFn { inputs, output, .. }) => {
+        //         let mut sdts = match output {
+        //             syn::ReturnType::Default => Vec::new(),
+        //             syn::ReturnType::Type(_, ty) => Ty::from(ty.as_ref()).self_dependent_types(),
+        //         };
+        //         for syn::BareFnArg { ty, .. } in inputs {
+        //             sdts.extend_from_slice(&Ty::from(ty).self_dependent_types());
+        //         }
+        //         sdts
+        //     }
+        //     Type::Paren(TypeParen { elem, .. })
+        //     | Type::Ptr(TypePtr { elem, .. })
+        //     | Type::Reference(TypeReference { elem, .. })
+        //     | Type::Array(TypeArray { elem, .. })
+        //     | Type::Group(TypeGroup { elem, .. }) => Ty::from(elem.as_ref()).self_dependent_types(),
+        //     Type::Macro(_) | Type::Never(_) | Type::Verbatim(_) => Vec::new(),
+        //     Type::Infer(_) => panic!("type inference is not available in trait definitions"),
+        //     Type::ImplTrait(_) => panic!("generic methods are not trait object safe"),
+        //     Type::Slice(_) => panic!("slices are not ABI stable"),
+        //     Type::TraitObject(_) => panic!("trait objects are not ABI stable"),
+        //     Type::Tuple(_) => panic!("tuples are not ABI stable"),
+        //     _ => {
+        //         let elem = self.inner;
+        //         panic!("unknown element type in {}", quote!(#elem))
+        //     }
+        // }
+        Vec::new()
+    }
+}
 pub fn stabby(item_trait: syn::ItemTrait) -> TokenStream {
-    let st = crate::tl_mod();
     let description: DynTraitDescription = (&item_trait).into();
     let vtable = description.vtable();
     quote! {
         #item_trait
         #vtable
-    }
-}
-
-trait IsAssoc {
-    fn is_assoc(&self) -> bool;
-}
-impl IsAssoc for Type {
-    fn is_assoc(&self) -> bool {
-        is_assoc(self)
-    }
-}
-fn is_assoc(elem: &Type) -> bool {
-    match elem {
-        Type::Path(TypePath {
-            qself,
-            path: Path { segments, .. },
-        }) => {
-            qself
-                .as_ref()
-                .map_or(false, |QSelf { ty, .. }| ty.is_assoc())
-                || segments.iter().any(|PathSegment { ident, arguments }| {
-                    if *ident == "Self" {
-                        return true;
-                    }
-                    match arguments {
-                        PathArguments::None => false,
-                        PathArguments::AngleBracketed(AngleBracketedGenericArguments {
-                            args,
-                            ..
-                        }) => args.iter().any(|arg| match arg {
-                            syn::GenericArgument::Type(elem) => is_assoc(elem),
-                            syn::GenericArgument::Lifetime(_)
-                            | syn::GenericArgument::Const(_)
-                            | syn::GenericArgument::Binding(_)
-                            | syn::GenericArgument::Constraint(_) => false,
-                        }),
-                        PathArguments::Parenthesized(ParenthesizedGenericArguments {
-                            inputs,
-                            output,
-                            ..
-                        }) => {
-                            if let syn::ReturnType::Type(_, elem) = output {
-                                if is_assoc(elem) {
-                                    return true;
-                                }
-                            }
-                            inputs.iter().any(is_assoc)
-                        }
-                    }
-                })
-        }
-        Type::BareFn(_) => todo!("stabby doesn't support bare functions in method parameters yet"),
-        Type::Paren(TypeParen { elem, .. })
-        | Type::Ptr(TypePtr { elem, .. })
-        | Type::Reference(TypeReference { elem, .. })
-        | Type::Array(TypeArray { elem, .. })
-        | Type::Group(TypeGroup { elem, .. }) => is_assoc(elem),
-        Type::Macro(_) | Type::Never(_) | Type::Verbatim(_) => false,
-        Type::Infer(_) => panic!("type inference is not available in trait definitions"),
-        Type::ImplTrait(_) => panic!("generic methods are not trait object safe"),
-        Type::Slice(_) => panic!("slices are not ABI stable"),
-        Type::TraitObject(_) => panic!("trait objects are not ABI stable"),
-        Type::Tuple(_) => panic!("tuples are not ABI stable"),
-        _ => panic!("unknown element type in {}", quote!(#elem)),
     }
 }
