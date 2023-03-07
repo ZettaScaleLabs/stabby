@@ -1,20 +1,22 @@
 use std::ops::Deref;
 
 use proc_macro2::{Ident, TokenStream};
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::{
-    token::{Colon2, Const, Mut, Unsafe},
-    Abi, AngleBracketedGenericArguments, BoundLifetimes, Expr, Lifetime,
-    ParenthesizedGenericArguments, PatType, Path, PathArguments, PathSegment, QSelf, Receiver,
-    Signature, TraitItemMethod, TraitItemType, Type, TypeArray, TypeBareFn, TypeGroup, TypeParen,
-    TypePath, TypePtr, TypeReference, TypeTuple,
+    spanned::Spanned,
+    token::{Const, Mut, Unsafe},
+    Abi, AngleBracketedGenericArguments, BoundLifetimes, Expr, Lifetime, PatType, Path,
+    PathArguments, PathSegment, Receiver, Signature, TraitItemMethod, TraitItemType, Type,
+    TypeArray, TypeBareFn, TypeGroup, TypeParen, TypePath, TypePtr, TypeReference, TypeTuple,
 };
+
+use crate::utils::{IGenerics, Unbound};
 #[derive(Clone, Default)]
 struct SelfDependentTypes {
-    inner: Vec<Type>,
+    inner: Vec<Ty>,
 }
 impl SelfDependentTypes {
-    fn push(&mut self, ty: Type) -> bool {
+    fn push(&mut self, ty: Ty) -> bool {
         if self.find(&ty).is_none() {
             self.inner.push(ty);
             true
@@ -22,27 +24,107 @@ impl SelfDependentTypes {
             false
         }
     }
-    fn extend(&mut self, it: impl Iterator<Item = Type>) {
+    fn extend(&mut self, it: impl Iterator<Item = Ty>) {
         for ty in it {
             self.push(ty);
         }
     }
-    fn find(&self, ty: &Type) -> Option<usize> {
+    fn find(&self, ty: &Ty) -> Option<usize> {
         let tystr = quote!(#ty).to_string();
         self.iter().position(|t| quote!(#t).to_string() == tystr)
     }
-    fn unselfed(&self, ty: &Ty) -> TokenStream {
-        quote!(#ty)
-        // let Some(i) = self.find(ty) else {return quote!(#ty)};
-        // let t = quote::format_ident!("_stabby_unselfed_{i}");
-        // quote!(#t)
+    fn unselfed(&self, elem: &Ty) -> Ty {
+        match elem {
+            Ty::Never => Ty::Never,
+            Ty::Unit => Ty::Unit,
+            Ty::SelfReferencial(ty) => {
+                let Some(n) = self.find(ty) else {panic!("Couldn't find type {ty}")};
+                Ty::Path {
+                    segment: Self::unselfed_n(n),
+                    arguments: Arguments::None,
+                    next: None,
+                }
+            }
+            Ty::Reference {
+                lifetime,
+                mutability,
+                elem,
+            } => Ty::Reference {
+                lifetime: lifetime.clone(),
+                mutability: *mutability,
+                elem: Box::new(self.unselfed(elem)),
+            },
+            Ty::Ptr {
+                const_token,
+                mutability,
+                elem,
+            } => Ty::Ptr {
+                const_token: *const_token,
+                mutability: *mutability,
+                elem: Box::new(self.unselfed(elem)),
+            },
+            Ty::Array { elem, len } => Ty::Array {
+                elem: Box::new(self.unselfed(elem)),
+                len: len.clone(),
+            },
+            Ty::BareFn {
+                lifetimes,
+                unsafety,
+                abi,
+                inputs,
+                output,
+            } => Ty::BareFn {
+                lifetimes: lifetimes.clone(),
+                unsafety: *unsafety,
+                abi: abi.clone(),
+                inputs: inputs.iter().map(|elem| self.unselfed(elem)).collect(),
+                output: Box::new(self.unselfed(output)),
+            },
+            Ty::Path {
+                segment,
+                arguments,
+                next,
+            } => Ty::Path {
+                segment: segment.clone(),
+                arguments: match arguments {
+                    Arguments::None => Arguments::None,
+                    Arguments::AngleBracketed { generics } => Arguments::AngleBracketed {
+                        generics: generics
+                            .iter()
+                            .map(|g| match g {
+                                GenericArgument::Type(ty) => {
+                                    GenericArgument::Type(self.unselfed(ty))
+                                }
+                                g => g.clone(),
+                            })
+                            .collect(),
+                    },
+                },
+                next: next.as_ref().map(|elem| Box::new(self.unselfed(elem))),
+            },
+            Ty::LeadingColon { next } => Ty::LeadingColon {
+                next: Box::new(self.unselfed(next)),
+            },
+            Ty::Qualified {
+                target,
+                as_trait,
+                next,
+            } => Ty::Qualified {
+                target: Box::new(self.unselfed(target)),
+                as_trait: Box::new(self.unselfed(as_trait)),
+                next: Box::new(self.unselfed(next)),
+            },
+        }
     }
     fn unselfed_iter(&self) -> impl Iterator<Item = Ident> {
-        (0..self.inner.len()).map(|i| quote::format_ident!("_stabby_unselfed_{i}"))
+        (0..self.inner.len()).map(Self::unselfed_n)
+    }
+    fn unselfed_n(i: usize) -> Ident {
+        quote::format_ident!("_stabby_unselfed_{i}")
     }
 }
 impl Deref for SelfDependentTypes {
-    type Target = [Type];
+    type Target = [Ty];
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
@@ -54,6 +136,12 @@ struct DynTraitDescription<'a> {
     functions: Vec<DynTraitFn<'a>>,
     mut_functions: Vec<DynTraitFn<'a>>,
     self_dependent_types: SelfDependentTypes,
+    bounds: Vec<DynTraitBound>,
+}
+struct DynTraitBound {
+    target: Ty,
+    lifetimes: Option<BoundLifetimes>,
+    bound: Result<Ty, Lifetime>,
 }
 struct DynTraitFn<'a> {
     ident: &'a Ident,
@@ -81,6 +169,7 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
             generics,
             functions: Vec::new(),
             mut_functions: Vec::new(),
+            bounds: Default::default(),
             self_dependent_types: Default::default(),
         };
         for item in items {
@@ -156,14 +245,64 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
                 }
                 syn::TraitItem::Type(ty) => {
                     let TraitItemType {
-                        // attrs,
-                        // ident,
-                        // generics,
-                        // colon_token,
-                        // bounds,
-                        // default,
+                        ident,
+                        generics,
+                        bounds,
                         ..
                     } = ty;
+                    let ty = Ty::Path {
+                        segment: ident.clone(),
+                        arguments: if generics.params.is_empty() {
+                            Arguments::None
+                        } else {
+                            Arguments::AngleBracketed {
+                                generics: generics
+                                    .params
+                                    .iter()
+                                    .map(|g| match g {
+                                        syn::GenericParam::Lifetime(_) => todo!("GALs are not supported YET"),
+                                        syn::GenericParam::Type(_)
+                                        | syn::GenericParam::Const(_) => {
+                                            panic!("stabby dyn-traits do not support GATs, except for lifetimes")
+                                        }
+                                    })
+                                    .collect(),
+                            }
+                        },
+                        next: None,
+                    };
+                    for bound in bounds {
+                        let target = Ty::SelfReferencial(Box::new(ty.clone()));
+                        match bound {
+                            syn::TypeParamBound::Trait(syn::TraitBound {
+                                lifetimes,
+                                path:
+                                    syn::Path {
+                                        leading_colon,
+                                        segments,
+                                    },
+                                ..
+                            }) => {
+                                let mut bound = Ty::from_iter(segments.iter());
+                                if leading_colon.is_some() {
+                                    bound = Ty::LeadingColon {
+                                        next: Box::new(bound),
+                                    };
+                                }
+                                this.bounds.push(DynTraitBound {
+                                    target,
+                                    lifetimes: lifetimes.clone(),
+                                    bound: Ok(bound),
+                                })
+                            }
+                            syn::TypeParamBound::Lifetime(l) => this.bounds.push(DynTraitBound {
+                                target,
+                                lifetimes: None,
+                                bound: Err(l.clone()),
+                            }),
+                        }
+                    }
+                    this.self_dependent_types.push(ty);
                 }
                 syn::TraitItem::Const(_) => panic!("associated consts are not trait object safe"),
                 syn::TraitItem::Macro(_) => panic!("sabby can't see through macros in traits"),
@@ -183,13 +322,13 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
     }
 }
 impl DynTraitFn<'_> {
-    fn self_dependent_types(&self) -> Vec<Type> {
+    fn self_dependent_types(&self) -> Vec<Ty> {
         let mut sdts = self
             .output
             .as_ref()
             .map_or(Vec::new(), |t| t.self_dependent_types());
         for input in &self.inputs {
-            sdts.extend_from_slice(&input.self_dependent_types());
+            input.rec_self_dependent_types(&mut sdts);
         }
         sdts
     }
@@ -277,36 +416,99 @@ impl<'a> DynTraitDescription<'a> {
         let vis = self.vis;
         let vt_generics = self.vt_generics::<true>();
         let nbvt_generics = self.vt_generics::<false>();
+        let vt_bounds = self
+            .bounds
+            .iter()
+            .map(
+                |DynTraitBound {
+                     target,
+                     lifetimes,
+                     bound,
+                 }| {
+                    let target = self.self_dependent_types.unselfed(target);
+                    match bound {
+                        Ok(bound) => {
+                            let bound = self.self_dependent_types.unselfed(bound);
+                            quote!(#target: #lifetimes #bound,)
+                        }
+                        Err(l) => quote!(#target: #l),
+                    }
+                },
+            )
+            .collect::<Vec<_>>();
         let fn_ids = self
             .functions
             .iter()
             .chain(&self.mut_functions)
             .map(|f| f.ident)
             .collect::<Vec<_>>();
+        let fn_ptrs = self
+            .functions
+            .iter()
+            .chain(&self.mut_functions)
+            .map(|f| f.ptr_signature());
         let fn_fts = self
             .functions
             .iter()
             .chain(&self.mut_functions)
             .map(|f| f.field_signature(&self.self_dependent_types));
+        let trait_id = self.ident;
+        let trait_generics = &self.generics.params;
+        let trait_lts = trait_generics.lifetimes().collect::<Vec<_>>();
+        let trait_types = trait_generics.types().collect::<Vec<_>>();
+        let trait_consts = trait_generics.consts().collect::<Vec<_>>();
+        let unbound_trait_lts = trait_generics.lifetimes().unbound().collect::<Vec<_>>();
+        let unbound_trait_types = trait_generics.types().unbound().collect::<Vec<_>>();
+        let unbound_trait_consts = trait_generics.consts().unbound().collect::<Vec<_>>();
+        let dyntrait_types = self
+            .self_dependent_types
+            .unselfed_iter()
+            .collect::<Vec<_>>();
+        let trait_to_vt_bindings = self
+            .self_dependent_types
+            .iter()
+            .enumerate()
+            .map(|(n, gen)| {
+                let binding = SelfDependentTypes::unselfed_n(n);
+                quote!(#gen = #binding)
+            })
+            .collect::<Vec<_>>();
         quote! {
-            #vis struct #vtid < #vt_generics > {
+            #vis struct #vtid < #vt_generics > where #(#vt_bounds)* {
                 #(#fn_ids: #fn_fts,)*
             }
-            // impl<'stabby_vt_lt, #vt_generics > #st::vtable::IConstConstructor<'stabby_vt_lt, #vtid < #nbvt_generics >> for T: todo!() {
-            //     const VTABLE: &'stabby_vt_lt todo!() = &todo!();
+            // impl<'stabby_vt_lt, #(#trait_lts,)*
+            //     StabbyTraitImplementor: 'stabby_vt_lt + #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)* >, #(#trait_types,)*
+            //     #(#trait_consts,)*
+            //  >
+            //     #st::vtable::IConstConstructor<'stabby_vt_lt, #vtid < #nbvt_generics >>
+            //     for StabbyTraitImplementor
+            // {
+            //     const VTABLE: &'stabby_vt_lt #vtid < #nbvt_generics > = & #vtid {
+            //         #(#fn_ids: unsafe {core::mem::transmute(Self::#fn_ids as #fn_ptrs)},)*
+            //     };
             // }
-            // impl <todo!()> #st::vtable::CompoundVt for dyn todo!() {
-            //     type Vt<T> = #st::vtable::VTable<#vtid <todo!()>, T>;
-            // }
-            impl< #vt_generics > Clone for #vtid < #nbvt_generics > {
+
+            impl<
+                'stabby_vt_lt, #(#trait_lts,)*
+                #(#dyntrait_types,)*
+                #(#trait_types,)*
+                #(#trait_consts,)*
+            > #st::vtable::CompoundVt for dyn #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)* #(#trait_to_vt_bindings,)* > where #(#vt_bounds)* {
+                type Vt<StabbyNextVtable> = #st::vtable::VTable<#vtid <#(#unbound_trait_lts,)*
+                #(#dyntrait_types,)*
+                #(#unbound_trait_types,)*>, StabbyNextVtable>;
+            }
+
+            impl< #vt_generics > Clone for #vtid < #nbvt_generics > where #(#vt_bounds)* {
                 fn clone(&self) -> Self {
                     Self {
                         #(#fn_ids: self.#fn_ids,)*
                     }
                 }
             }
-            impl< #vt_generics > Copy for #vtid < #nbvt_generics > {}
-            impl< #vt_generics > core::cmp::PartialEq for #vtid < #nbvt_generics > {
+            impl< #vt_generics > Copy for #vtid < #nbvt_generics > where #(#vt_bounds)* {}
+            impl< #vt_generics > core::cmp::PartialEq for #vtid < #nbvt_generics > where #(#vt_bounds)*{
                 fn eq(&self, other: &Self) -> bool {
                     #(core::ptr::eq(self.#fn_ids as *const (), other.#fn_ids as *const _) &&)* true
                 }
@@ -346,6 +548,7 @@ impl<'a> DynTraitDescription<'a> {
         }
     }
 }
+#[derive(Clone)]
 enum Ty {
     Never,
     Unit,
@@ -372,29 +575,74 @@ enum Ty {
         output: Box<Self>,
     },
     Path {
-        leading_colon: Option<Colon2>,
         segment: Ident,
+        arguments: Arguments,
         next: Option<Box<Self>>,
     },
+    LeadingColon {
+        next: Box<Self>,
+    },
+    Qualified {
+        target: Box<Self>,
+        as_trait: Box<Self>,
+        next: Box<Self>,
+    },
+}
+impl core::fmt::Display for Ty {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", quote!(#self))
+    }
+}
+#[derive(Clone)]
+enum Arguments {
+    None,
+    AngleBracketed { generics: Vec<GenericArgument> },
+}
+#[derive(Clone)]
+enum GenericArgument {
+    Lifetime(syn::Lifetime),
+    Type(Ty),
+    Const(syn::Expr),
+    Binding(syn::Binding),
+    Constraint(syn::Constraint),
+}
+impl quote::ToTokens for GenericArgument {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            GenericArgument::Lifetime(l) => l.to_tokens(tokens),
+            GenericArgument::Type(ty) => ty.to_tokens(tokens),
+            GenericArgument::Const(l) => l.to_tokens(tokens),
+            GenericArgument::Binding(l) => l.to_tokens(tokens),
+            GenericArgument::Constraint(l) => l.to_tokens(tokens),
+        }
+    }
+}
+impl quote::ToTokens for Arguments {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            Arguments::None => {}
+            Arguments::AngleBracketed { generics } => tokens.extend(quote!(::<#(#generics,)*>)),
+        }
+    }
 }
 impl quote::ToTokens for Ty {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
-            Ty::Never => tokens.extend(quote!(!)),
-            Ty::Unit => tokens.extend(quote!(())),
-            Ty::SelfReferencial(ty) => ty.to_tokens(tokens),
-            Ty::Reference {
+            Self::Never => tokens.extend(quote!(!)),
+            Self::Unit => tokens.extend(quote!(())),
+            Self::SelfReferencial(ty) => tokens.extend(quote!(Self::#ty)),
+            Self::Reference {
                 lifetime,
                 mutability,
                 elem,
             } => tokens.extend(quote!(& #lifetime #mutability #elem)),
-            Ty::Ptr {
+            Self::Ptr {
                 const_token,
                 mutability,
                 elem,
             } => tokens.extend(quote!(*#const_token #mutability #elem)),
-            Ty::Array { elem, len } => tokens.extend(quote!([#elem;#len])),
-            Ty::BareFn {
+            Self::Array { elem, len } => tokens.extend(quote!([#elem;#len])),
+            Self::BareFn {
                 lifetimes,
                 unsafety,
                 abi,
@@ -404,16 +652,98 @@ impl quote::ToTokens for Ty {
                 quote!(#lifetimes #unsafety # abi fn(#(#inputs,)*) -> #output
                 ),
             ),
-            Ty::Path {
-                leading_colon,
+            Self::Path {
                 segment,
+                arguments,
                 next,
             } => {
-                let mut t = quote!(#leading_colon #segment);
+                let mut t = quote!(#segment #arguments);
                 if let Some(next) = next {
                     t.extend(quote!(::#next))
                 }
                 tokens.extend(t)
+            }
+            Self::LeadingColon { next } => tokens.extend(quote!(::#next)),
+            Self::Qualified {
+                target,
+                as_trait,
+                next,
+            } => tokens.extend(quote!(<#target as #as_trait>::#next)),
+        }
+    }
+}
+impl Ty {
+    fn from_iter<'a, T: Iterator<Item = &'a PathSegment> + ExactSizeIterator>(mut iter: T) -> Self {
+        let PathSegment { ident, arguments } = iter.next().unwrap();
+        if *ident == "Self" {
+            return Self::SelfReferencial(Box::new(Self::from_iter(iter)));
+        }
+        let arguments = match arguments {
+            PathArguments::None => Arguments::None,
+            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
+                let mut generics = Vec::new();
+                for arg in args {
+                    generics.push(match arg {
+                        syn::GenericArgument::Lifetime(l) => GenericArgument::Lifetime(l.clone()),
+                        syn::GenericArgument::Type(ty) => GenericArgument::Type(Self::from(ty)),
+                        syn::GenericArgument::Const(c) => GenericArgument::Const(c.clone()),
+                        syn::GenericArgument::Binding(b) => GenericArgument::Binding(b.clone()),
+                        syn::GenericArgument::Constraint(c) => {
+                            GenericArgument::Constraint(c.clone())
+                        }
+                    })
+                }
+                Arguments::AngleBracketed { generics }
+            }
+            PathArguments::Parenthesized(_) => todo!(),
+        };
+        Self::Path {
+            segment: ident.clone(),
+            arguments,
+            next: (iter.len() != 0).then(move || Box::new(Self::from_iter(iter))),
+        }
+    }
+    fn rec_self_dependent_types(&self, sdts: &mut Vec<Ty>) {
+        match self {
+            Ty::SelfReferencial(ty) => sdts.push(ty.as_ref().clone()),
+            Ty::Never | Ty::Unit => {}
+            Ty::LeadingColon { next: elem }
+            | Ty::Reference { elem, .. }
+            | Ty::Ptr { elem, .. }
+            | Ty::Array { elem, .. } => elem.rec_self_dependent_types(sdts),
+            Ty::BareFn { inputs, output, .. } => {
+                output.rec_self_dependent_types(sdts);
+                for i in inputs {
+                    i.rec_self_dependent_types(sdts);
+                }
+            }
+            Ty::Path {
+                segment,
+                arguments,
+                next,
+            } => {
+                match arguments {
+                    Arguments::None => {}
+                    Arguments::AngleBracketed { generics } => {
+                        for g in generics {
+                            if let GenericArgument::Type(ty) = g {
+                                ty.rec_self_dependent_types(sdts);
+                            }
+                        }
+                    }
+                }
+                if let Some(next) = next {
+                    next.rec_self_dependent_types(sdts)
+                }
+            }
+            Ty::Qualified {
+                target,
+                as_trait,
+                next,
+            } => {
+                target.rec_self_dependent_types(sdts);
+                as_trait.rec_self_dependent_types(sdts);
+                next.rec_self_dependent_types(sdts);
             }
         }
     }
@@ -428,14 +758,27 @@ impl<'a> From<&'a Type> for Ty {
                         leading_colon,
                         segments,
                     },
-            }) => Self::Path {
-                leading_colon: leading_colon.clone(),
-                segments: segments.iter().map(|s| s.ident.clone()).collect(),
-            },
+            }) => {
+                let this = Self::from_iter(segments.iter());
+                if leading_colon.is_some() {
+                    Self::LeadingColon {
+                        next: Box::new(this),
+                    }
+                } else {
+                    this
+                }
+            }
             Type::Path(TypePath {
-                qself: Some(qself),
+                qself: Some(syn::QSelf { ty, position, .. }),
                 path,
-            }) => todo!("{}", quote!(#value)),
+            }) => {
+                let mut iter = path.segments.iter();
+                Self::Qualified {
+                    target: Box::new(ty.as_ref().into()),
+                    as_trait: Box::new(Self::from_iter(iter.by_ref().take(*position))),
+                    next: Box::new(Self::from_iter(iter)),
+                }
+            }
             Type::BareFn(TypeBareFn {
                 lifetimes,
                 unsafety,
@@ -486,7 +829,9 @@ impl<'a> From<&'a Type> for Ty {
                 variadic: Some(_), ..
             }) => panic!("stabby doesn't support variadic functions"),
             Type::Verbatim(t) => panic!("stabby couldn't parse {t}"),
-            Type::Macro(_) => panic!("stabby couldn't see through a macro in type position"),
+            Type::Macro(_) => panic!(
+                "stabby couldn't see through a macro in type position. Try using a type alias :)"
+            ),
             Type::Infer(_) => panic!("type inference is not available in trait definitions"),
             Type::ImplTrait(_) => panic!("generic methods are not trait object safe"),
             Type::Slice(_) => panic!("slices are not ABI stable"),
@@ -499,43 +844,10 @@ impl<'a> From<&'a Type> for Ty {
     }
 }
 impl Ty {
-    fn self_dependent_types(&self) -> Vec<Type> {
-        // match self.inner {
-        //     Type::Path(TypePath {
-        //         qself,
-        //         path: Path { segments, .. },
-        //     }) => {
-        //         let sdts = Vec::new();
-
-        //         sdts
-        //     }
-        //     Type::BareFn(TypeBareFn { inputs, output, .. }) => {
-        //         let mut sdts = match output {
-        //             syn::ReturnType::Default => Vec::new(),
-        //             syn::ReturnType::Type(_, ty) => Ty::from(ty.as_ref()).self_dependent_types(),
-        //         };
-        //         for syn::BareFnArg { ty, .. } in inputs {
-        //             sdts.extend_from_slice(&Ty::from(ty).self_dependent_types());
-        //         }
-        //         sdts
-        //     }
-        //     Type::Paren(TypeParen { elem, .. })
-        //     | Type::Ptr(TypePtr { elem, .. })
-        //     | Type::Reference(TypeReference { elem, .. })
-        //     | Type::Array(TypeArray { elem, .. })
-        //     | Type::Group(TypeGroup { elem, .. }) => Ty::from(elem.as_ref()).self_dependent_types(),
-        //     Type::Macro(_) | Type::Never(_) | Type::Verbatim(_) => Vec::new(),
-        //     Type::Infer(_) => panic!("type inference is not available in trait definitions"),
-        //     Type::ImplTrait(_) => panic!("generic methods are not trait object safe"),
-        //     Type::Slice(_) => panic!("slices are not ABI stable"),
-        //     Type::TraitObject(_) => panic!("trait objects are not ABI stable"),
-        //     Type::Tuple(_) => panic!("tuples are not ABI stable"),
-        //     _ => {
-        //         let elem = self.inner;
-        //         panic!("unknown element type in {}", quote!(#elem))
-        //     }
-        // }
-        Vec::new()
+    fn self_dependent_types(&self) -> Vec<Ty> {
+        let mut sdts = Vec::new();
+        self.rec_self_dependent_types(&mut sdts);
+        sdts
     }
 }
 pub fn stabby(item_trait: syn::ItemTrait) -> TokenStream {

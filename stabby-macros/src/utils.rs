@@ -1,5 +1,5 @@
 use quote::quote;
-use syn::{ConstParam, GenericParam, LifetimeDef, TypeParam};
+use syn::{ConstParam, GenericParam, Lifetime, LifetimeDef, TypeParam};
 
 #[derive(Clone, Default)]
 pub(crate) struct SeparatedGenerics {
@@ -51,4 +51,82 @@ pub(crate) fn generics_without_defaults<'a>(
         }
     }
     this
+}
+
+pub trait IGenerics<'a> {
+    type Lifetimes: Iterator<Item = &'a LifetimeDef>;
+    fn lifetimes(self) -> Self::Lifetimes;
+    type Types: Iterator<Item = &'a TypeParam>;
+    fn types(self) -> Self::Types;
+    type Consts: Iterator<Item = &'a ConstParam>;
+    fn consts(self) -> Self::Consts;
+}
+impl<'a, T: IntoIterator<Item = &'a GenericParam>> IGenerics<'a> for T {
+    type Lifetimes =
+        core::iter::FilterMap<T::IntoIter, fn(&'a GenericParam) -> Option<&'a LifetimeDef>>;
+    fn lifetimes(self) -> Self::Lifetimes {
+        self.into_iter().filter_map(|g| {
+            if let GenericParam::Lifetime(l) = g {
+                Some(l)
+            } else {
+                None
+            }
+        })
+    }
+    type Types = core::iter::FilterMap<T::IntoIter, fn(&'a GenericParam) -> Option<&'a TypeParam>>;
+    fn types(self) -> Self::Types {
+        self.into_iter().filter_map(|g| {
+            if let GenericParam::Type(l) = g {
+                Some(l)
+            } else {
+                None
+            }
+        })
+    }
+    type Consts =
+        core::iter::FilterMap<T::IntoIter, fn(&'a GenericParam) -> Option<&'a ConstParam>>;
+    fn consts(self) -> Self::Consts {
+        self.into_iter().filter_map(|g| {
+            if let GenericParam::Const(l) = g {
+                Some(l)
+            } else {
+                None
+            }
+        })
+    }
+}
+pub trait Unbound {
+    type Unbound;
+    fn unbound(self) -> Self::Unbound;
+}
+impl<'a> Unbound for &'a LifetimeDef {
+    type Unbound = &'a Lifetime;
+    fn unbound(self) -> Self::Unbound {
+        &self.lifetime
+    }
+}
+
+impl<'a> Unbound for &'a TypeParam {
+    type Unbound = &'a syn::Ident;
+    fn unbound(self) -> Self::Unbound {
+        &self.ident
+    }
+}
+
+impl<'a> Unbound for &'a ConstParam {
+    type Unbound = &'a syn::Ident;
+    fn unbound(self) -> Self::Unbound {
+        &self.ident
+    }
+}
+impl<'a, T: Iterator<Item = &'a GenericParam>, I: Unbound> Unbound
+    for core::iter::FilterMap<T, fn(&'a GenericParam) -> Option<I>>
+{
+    type Unbound = core::iter::Map<
+        core::iter::FilterMap<T, fn(&'a GenericParam) -> Option<I>>,
+        fn(I) -> I::Unbound,
+    >;
+    fn unbound(self) -> Self::Unbound {
+        self.map(I::unbound)
+    }
 }

@@ -207,11 +207,10 @@ where
     const VTABLE: &'c VtMyTrait<T::Output> = &unsafe {
         VtMyTrait {
             do_stuff: core::mem::transmute(
-                <T as MyTrait>::do_stuff
-                    as for<'a, 'b> extern "C" fn(&'a Self, &'b T::Output) -> &'a u8,
+                Self::do_stuff as for<'a, 'b> extern "C" fn(&'a Self, &'b T::Output) -> &'a u8,
             ),
             gen_stuff: core::mem::transmute(
-                <T as MyTrait>::gen_stuff as extern "C" fn(&mut Self) -> T::Output,
+                Self::gen_stuff as extern "C" fn(&mut Self) -> T::Output,
             ),
         }
     };
@@ -330,14 +329,10 @@ fn test() {
 pub trait MyTrait3<Hi: core::ops::Deref> {
     type A;
     type B: for<'a> core::ops::Add<&'a Self::A>;
-    // extern "C" fn do_stuff<'a>(
-    //     &'a self,
-    //     a: &'a Self::A,
-    //     b: Self::B,
-    // ) -> <Self::B as core::ops::Add<&'a Self::A>>::Output;
-    extern "C" fn gen_stuff(&mut self, with: Hi) -> Self::A;
-    extern "C" fn test<'a>(
+    extern "C" fn do_stuff<'a>(
         &'a self,
-        this: Dyn<'a, Box<()>, stabby::vtable!(MyTrait2 + MyTrait<Output = u8> + Send + Sync)>,
-    );
+        a: &'a Self::A,
+        b: Self::B,
+    ) -> <Self::B as core::ops::Add<&'a Self::A>>::Output;
+    extern "C" fn gen_stuff(&mut self, with: Hi) -> Self::A;
 }
