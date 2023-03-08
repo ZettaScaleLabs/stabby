@@ -66,6 +66,7 @@ pub fn stabby(
     }
     let mut layout = quote!(());
     let DataEnum { variants, .. } = data;
+    let mut has_non_empty_fields = false;
     for variant in &variants {
         match &variant.fields {
             syn::Fields::Named(_) => {
@@ -77,6 +78,7 @@ pub fn stabby(
                     1,
                     "stabby only supports one field per enum variant"
                 );
+                has_non_empty_fields = true;
                 let f = f.unnamed.first().unwrap();
                 let ty = &f.ty;
                 layout = quote!(#st::Union<#layout, core::mem::ManuallyDrop<#ty>>)
@@ -89,6 +91,9 @@ pub fn stabby(
         // 'stabby: {
         let repr = match repr {
             Repr::Stabby => {
+                if !has_non_empty_fields {
+                    panic!("Your enum doesn't have any field with values: use #[repr(C)] or #[repr(u*)] instead")
+                }
                 todo!("#[repr(stabby)] isn't supported YET");
                 // break 'stabby quote!();
             }

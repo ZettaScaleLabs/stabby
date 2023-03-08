@@ -105,13 +105,12 @@ unsafe impl IStable for core::num::NonZeroU64 {
     type HasExactlyOneNiche = B1;
 }
 
-// TODO: Support for 128bit types, which are going to be a bit more painful.
 unsafe impl IStable for u128 {
     type UnusedBits = End;
     type IllegalValues = End;
     type Size = U16;
     type HasExactlyOneNiche = B0;
-    #[cfg(any(target_arch = "x86_64", target_arch = "arm"))]
+    #[cfg(not(any(target_arch = "aarch64")))]
     type Align = U8;
     #[cfg(any(target_arch = "aarch64"))]
     type Align = U16;
