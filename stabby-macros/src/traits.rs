@@ -3,7 +3,6 @@ use std::ops::Deref;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{
-    spanned::Spanned,
     token::{Const, Mut, Unsafe},
     Abi, AngleBracketedGenericArguments, BoundLifetimes, Expr, Lifetime, PatType, Path,
     PathArguments, PathSegment, Receiver, Signature, TraitItemMethod, TraitItemType, Type,
@@ -45,6 +44,10 @@ impl SelfDependentTypes {
                     next: None,
                 }
             }
+            Ty::Arbitrary { prefix, next } => Ty::Arbitrary {
+                prefix: prefix.clone(),
+                next: Box::new(self.unselfed(next)),
+            },
             Ty::Reference {
                 lifetime,
                 mutability,
@@ -332,7 +335,7 @@ impl DynTraitFn<'_> {
         }
         sdts
     }
-    fn ptr_signature(&self) -> TokenStream {
+    fn ptr_signature(&self, self_as_trait: &TokenStream) -> TokenStream {
         let Self {
             ident: _,
             generics,
@@ -349,7 +352,11 @@ impl DynTraitFn<'_> {
         } = self else {unreachable!()};
         let forgen = (!generics.params.is_empty()).then(|| quote!(for));
         let receiver = quote!(& #lt #mutability Self);
-        let output = output.as_ref().map(|ty| quote!(-> #ty));
+        let output = output.as_ref().map(|ty| {
+            let ty = ty.replace_self(self_as_trait);
+            quote!(-> #ty)
+        });
+        let inputs = inputs.iter().map(|ty| ty.replace_self(self_as_trait));
         quote!(#forgen #generics #abi #unsafety fn(#receiver, #(#inputs),*) #output)
     }
     fn field_signature(&self, sdts: &SelfDependentTypes) -> TokenStream {
@@ -442,11 +449,6 @@ impl<'a> DynTraitDescription<'a> {
             .chain(&self.mut_functions)
             .map(|f| f.ident)
             .collect::<Vec<_>>();
-        let fn_ptrs = self
-            .functions
-            .iter()
-            .chain(&self.mut_functions)
-            .map(|f| f.ptr_signature());
         let fn_fts = self
             .functions
             .iter()
@@ -473,21 +475,40 @@ impl<'a> DynTraitDescription<'a> {
                 quote!(#gen = #binding)
             })
             .collect::<Vec<_>>();
+        let vt_signature = quote! {
+            #vtid <
+                        #(#unbound_trait_lts,)*
+                        #(#dyntrait_types,)*
+                        #(#unbound_trait_types,)*
+                    >
+        };
+        let self_as_trait = quote!(<Self as #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)*>>);
+        let fn_ptrs = self
+            .functions
+            .iter()
+            .chain(&self.mut_functions)
+            .map(|f| f.ptr_signature(&self_as_trait));
         quote! {
+            #[stabby::stabby]
             #vis struct #vtid < #vt_generics > where #(#vt_bounds)* {
                 #(#fn_ids: #fn_fts,)*
             }
-            // impl<'stabby_vt_lt, #(#trait_lts,)*
-            //     StabbyTraitImplementor: 'stabby_vt_lt + #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)* >, #(#trait_types,)*
-            //     #(#trait_consts,)*
-            //  >
-            //     #st::vtable::IConstConstructor<'stabby_vt_lt, #vtid < #nbvt_generics >>
-            //     for StabbyTraitImplementor
-            // {
-            //     const VTABLE: &'stabby_vt_lt #vtid < #nbvt_generics > = & #vtid {
-            //         #(#fn_ids: unsafe {core::mem::transmute(Self::#fn_ids as #fn_ptrs)},)*
-            //     };
-            // }
+            impl<
+                'stabby_vt_lt, #(#trait_lts,)*
+                StabbyArbitraryType,
+                #(#dyntrait_types,)*
+                #(#trait_types,)*
+                #(#trait_consts,)*
+            > #st::vtable::IConstConstructor<'stabby_vt_lt, #vt_signature> for StabbyArbitraryType
+            where
+                StabbyArbitraryType: #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)* #(#trait_to_vt_bindings,)* >,
+                #(#vt_bounds)*
+                #(#unbound_trait_types: 'stabby_vt_lt,)*
+                #(#dyntrait_types: 'stabby_vt_lt,)* {
+                const VTABLE: &'stabby_vt_lt #vt_signature = & #vtid {
+                    #(#fn_ids: unsafe {core::mem::transmute(#self_as_trait::#fn_ids as #fn_ptrs)},)*
+                };
+            }
 
             impl<
                 'stabby_vt_lt, #(#trait_lts,)*
@@ -495,9 +516,9 @@ impl<'a> DynTraitDescription<'a> {
                 #(#trait_types,)*
                 #(#trait_consts,)*
             > #st::vtable::CompoundVt for dyn #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)* #(#trait_to_vt_bindings,)* > where #(#vt_bounds)* {
-                type Vt<StabbyNextVtable> = #st::vtable::VTable<#vtid <#(#unbound_trait_lts,)*
-                #(#dyntrait_types,)*
-                #(#unbound_trait_types,)*>, StabbyNextVtable>;
+                type Vt<StabbyNextVtable> = #st::vtable::VTable<
+                    #vt_signature,
+                    StabbyNextVtable>;
             }
 
             impl< #vt_generics > Clone for #vtid < #nbvt_generics > where #(#vt_bounds)* {
@@ -552,6 +573,10 @@ impl<'a> DynTraitDescription<'a> {
 enum Ty {
     Never,
     Unit,
+    Arbitrary {
+        prefix: TokenStream,
+        next: Box<Self>,
+    },
     SelfReferencial(Box<Self>),
     Reference {
         lifetime: Option<Lifetime>,
@@ -630,6 +655,7 @@ impl quote::ToTokens for Ty {
         match self {
             Self::Never => tokens.extend(quote!(!)),
             Self::Unit => tokens.extend(quote!(())),
+            Self::Arbitrary { prefix, next } => tokens.extend(quote!(#prefix::#next)),
             Self::SelfReferencial(ty) => tokens.extend(quote!(Self::#ty)),
             Self::Reference {
                 lifetime,
@@ -708,6 +734,7 @@ impl Ty {
             Ty::SelfReferencial(ty) => sdts.push(ty.as_ref().clone()),
             Ty::Never | Ty::Unit => {}
             Ty::LeadingColon { next: elem }
+            | Ty::Arbitrary { next: elem, .. }
             | Ty::Reference { elem, .. }
             | Ty::Ptr { elem, .. }
             | Ty::Array { elem, .. } => elem.rec_self_dependent_types(sdts),
@@ -718,9 +745,7 @@ impl Ty {
                 }
             }
             Ty::Path {
-                segment,
-                arguments,
-                next,
+                arguments, next, ..
             } => {
                 match arguments {
                     Arguments::None => {}
@@ -848,6 +873,89 @@ impl Ty {
         let mut sdts = Vec::new();
         self.rec_self_dependent_types(&mut sdts);
         sdts
+    }
+    fn replace_self(&self, with: &TokenStream) -> Self {
+        match self {
+            Ty::Never => Ty::Never,
+            Ty::Unit => Ty::Unit,
+            Ty::Arbitrary { prefix, next } => Ty::Arbitrary {
+                prefix: prefix.clone(),
+                next: Box::new(next.replace_self(with)),
+            },
+            Ty::SelfReferencial(ty) => Ty::Arbitrary {
+                prefix: with.clone(),
+                next: ty.clone(),
+            },
+            Ty::Reference {
+                lifetime,
+                mutability,
+                elem,
+            } => Ty::Reference {
+                lifetime: lifetime.clone(),
+                mutability: *mutability,
+                elem: Box::new(elem.replace_self(with)),
+            },
+            Ty::Ptr {
+                const_token,
+                mutability,
+                elem,
+            } => Ty::Ptr {
+                const_token: *const_token,
+                mutability: *mutability,
+                elem: Box::new(elem.replace_self(with)),
+            },
+            Ty::Array { elem, len } => Ty::Array {
+                elem: Box::new(elem.replace_self(with)),
+                len: len.clone(),
+            },
+            Ty::BareFn {
+                lifetimes,
+                unsafety,
+                abi,
+                inputs,
+                output,
+            } => Ty::BareFn {
+                lifetimes: lifetimes.clone(),
+                unsafety: *unsafety,
+                abi: abi.clone(),
+                inputs: inputs.iter().map(|elem| elem.replace_self(with)).collect(),
+                output: Box::new(output.replace_self(with)),
+            },
+            Ty::Path {
+                segment,
+                arguments,
+                next,
+            } => Ty::Path {
+                segment: segment.clone(),
+                arguments: match arguments {
+                    Arguments::None => Arguments::None,
+                    Arguments::AngleBracketed { generics } => Arguments::AngleBracketed {
+                        generics: generics
+                            .iter()
+                            .map(|g| match g {
+                                GenericArgument::Type(ty) => {
+                                    GenericArgument::Type(ty.replace_self(with))
+                                }
+                                g => g.clone(),
+                            })
+                            .collect(),
+                    },
+                },
+                next: next.as_ref().map(|elem| Box::new(elem.replace_self(with))),
+            },
+            Ty::LeadingColon { next } => Ty::LeadingColon {
+                next: Box::new(next.replace_self(with)),
+            },
+            Ty::Qualified {
+                target,
+                as_trait,
+                next,
+            } => Ty::Qualified {
+                target: Box::new(target.replace_self(with)),
+                as_trait: Box::new(as_trait.replace_self(with)),
+                next: Box::new(next.replace_self(with)),
+            },
+        }
     }
 }
 pub fn stabby(item_trait: syn::ItemTrait) -> TokenStream {

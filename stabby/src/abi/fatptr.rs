@@ -177,62 +177,30 @@ unsafe impl<'a, P: IPtrOwned + Sync, Vt: HasSyncVt + HasDropVt> Sync for Dyn<'a,
 
 // MYTRAIT
 
+#[stabby::stabby]
 pub trait MyTrait {
     type Output;
     extern "C" fn do_stuff<'a>(&'a self, with: &Self::Output) -> &'a u8;
     extern "C" fn gen_stuff(&mut self) -> Self::Output;
 }
 
-#[stabby::stabby]
-pub struct VtMyTrait<Output> {
-    do_stuff: for<'a, 'b> extern "C" fn(&'a (), &'b Output) -> &'a u8,
-    gen_stuff: extern "C" fn(&mut ()) -> Output,
-}
-impl<Output> CompoundVt for dyn MyTrait<Output = Output> {
-    type Vt<T> = VTable<VtMyTrait<Output>, T>;
-}
-impl<Output> Clone for VtMyTrait<Output> {
-    fn clone(&self) -> Self {
-        Self {
-            do_stuff: self.do_stuff,
-            gen_stuff: self.gen_stuff,
-        }
-    }
-}
-impl<Output> Copy for VtMyTrait<Output> {}
-impl<'c, T: MyTrait> IConstConstructor<'c, VtMyTrait<T::Output>> for T
-where
-    T::Output: 'c,
-{
-    const VTABLE: &'c VtMyTrait<T::Output> = &unsafe {
-        VtMyTrait {
-            do_stuff: core::mem::transmute(
-                Self::do_stuff as for<'a, 'b> extern "C" fn(&'a Self, &'b T::Output) -> &'a u8,
-            ),
-            gen_stuff: core::mem::transmute(
-                Self::gen_stuff as extern "C" fn(&mut Self) -> T::Output,
-            ),
-        }
-    };
-}
-impl<Output> PartialEq for VtMyTrait<Output> {
-    fn eq(&self, other: &Self) -> bool {
-        core::ptr::eq(self.do_stuff as *const (), other.do_stuff as *const _)
-            && core::ptr::eq(self.gen_stuff as *const (), other.gen_stuff as *const _)
-    }
-}
 pub trait DynMyTrait<N, Output> {
     extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8;
 }
-impl<Vt: TransitiveDeref<VtMyTrait<Output>, N>, Output, N> DynMyTrait<N, Output>
+impl<Vt: TransitiveDeref<StabbyVtableMyTrait<Output>, N>, Output, N> DynMyTrait<N, Output>
     for DynRef<'_, Vt>
 {
     extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8 {
         (self.vtable.tderef().do_stuff)(self.ptr, with)
     }
 }
-impl<'c, P: IPtrOwned, Vt: HasDropVt + TransitiveDeref<VtMyTrait<Output>, N>, Output, N>
-    DynMyTrait<N, Output> for Dyn<'c, P, Vt>
+impl<
+        'c,
+        P: IPtrOwned,
+        Vt: HasDropVt + TransitiveDeref<StabbyVtableMyTrait<Output>, N>,
+        Output,
+        N,
+    > DynMyTrait<N, Output> for Dyn<'c, P, Vt>
 {
     extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8 {
         (self.vtable.tderef().do_stuff)(unsafe { self.ptr.as_ref() }, with)
@@ -244,7 +212,7 @@ pub trait DynMutMyTrait<N, Output>: DynMyTrait<N, Output> {
 impl<
         'a,
         P: IPtrOwned + IPtrMut,
-        Vt: HasDropVt + TransitiveDeref<VtMyTrait<Output>, N>,
+        Vt: HasDropVt + TransitiveDeref<StabbyVtableMyTrait<Output>, N>,
         Output,
         N,
     > DynMutMyTrait<N, Output> for Dyn<'a, P, Vt>
@@ -276,29 +244,9 @@ impl MyTrait for u16 {
 }
 
 // MYTRAIT2
-
+#[stabby::stabby]
 pub trait MyTrait2 {
     extern "C" fn do_stuff2(&self) -> u8;
-}
-impl CompoundVt for dyn MyTrait2 {
-    type Vt<T> = VTable<VtMyTrait2, T>;
-}
-#[stabby::stabby]
-#[derive(Clone, Copy)]
-pub struct VtMyTrait2 {
-    do_stuff: extern "C" fn(&()) -> &(),
-}
-impl PartialEq for VtMyTrait2 {
-    fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(self.do_stuff as *const (), other.do_stuff as *const _)
-    }
-}
-impl<'a, T: MyTrait2> IConstConstructor<'a, VtMyTrait2> for T {
-    const VTABLE: &'a VtMyTrait2 = &VtMyTrait2 {
-        do_stuff: unsafe {
-            core::mem::transmute(<T as MyTrait2>::do_stuff2 as extern "C" fn(&Self) -> u8)
-        },
-    };
 }
 
 // IMPL
@@ -314,11 +262,36 @@ impl MyTrait2 for u16 {
     }
 }
 
+impl MyTrait3<Box<()>> for u8 {
+    type A = u8;
+    type B = u8;
+    extern "C" fn do_stuff<'a>(&'a self, _a: &'a Self::A, _b: Self::B) -> Self::B {
+        *self
+    }
+    extern "C" fn gen_stuff(&mut self, _with: Box<()>) -> Self::A {
+        *self
+    }
+}
+impl MyTrait3<Box<()>> for u16 {
+    type A = u8;
+    type B = u8;
+    extern "C" fn do_stuff<'a>(&'a self, _a: &'a Self::A, _b: Self::B) -> Self::B {
+        (*self) as u8
+    }
+    extern "C" fn gen_stuff(&mut self, _with: Box<()>) -> Self::A {
+        (*self) as u8
+    }
+}
+
 #[test]
 fn test() {
     let boxed = Box::new(6u8);
-    let mut dyned =
-        Dyn::<_, stabby::vtable!(MyTrait2 + MyTrait<Output = u8> + Send + Sync)>::from(boxed);
+    let mut dyned = Dyn::<
+        _,
+        stabby::vtable!(
+            MyTrait2 + MyTrait<Output = u8> + MyTrait3<Box<()>, A = u8, B = u8> + Send + Sync
+        ),
+    >::from(boxed);
     assert_eq!(dyned.downcast_ref::<u8>(), Some(&6));
     assert_eq!(dyned.do_stuff(&0), &6);
     assert_eq!(dyned.gen_stuff(), 6);
@@ -328,11 +301,7 @@ fn test() {
 #[stabby::stabby]
 pub trait MyTrait3<Hi: core::ops::Deref> {
     type A;
-    type B: for<'a> core::ops::Add<&'a Self::A>;
-    extern "C" fn do_stuff<'a>(
-        &'a self,
-        a: &'a Self::A,
-        b: Self::B,
-    ) -> <Self::B as core::ops::Add<&'a Self::A>>::Output;
+    type B;
+    extern "C" fn do_stuff<'a>(&'a self, a: &'a Self::A, b: Self::B) -> Self::B;
     extern "C" fn gen_stuff(&mut self, with: Hi) -> Self::A;
 }
