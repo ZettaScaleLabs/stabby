@@ -1,5 +1,15 @@
 use core::ops::*;
+#[doc(hidden)]
 pub use typenum::*;
+
+#[macro_export]
+macro_rules! assert_optimal_layout {
+    ($t: ty) => {
+        const _: () = {
+            assert!(<$t>::has_optimal_layout());
+        };
+    };
+}
 
 use stabby_macros::holes;
 
@@ -12,6 +22,9 @@ pub use istabilize::IStabilize;
 mod istabilize;
 mod stable_impls;
 pub mod vtable;
+
+#[allow(type_alias_bounds)]
+pub type Stable<Source: IStabilize> = Source::Stable;
 
 pub struct AssertStable<T: IStable>(pub core::marker::PhantomData<T>);
 impl<T: IStable> AssertStable<T> {

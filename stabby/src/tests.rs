@@ -19,7 +19,7 @@ pub enum Fields {
     _B,
 }
 
-#[stabby::stabby]
+#[stabby::stabby(no_opt)]
 pub struct WeirdStructBadLayout {
     fields: Fields,
     no_fields: NoFields,
@@ -42,6 +42,9 @@ fn somefunc(_: u8) -> u8 {
 
 #[test]
 fn layouts() {
+    assert!(WeirdStruct::has_optimal_layout());
+    assert!(!WeirdStructBadLayout::has_optimal_layout());
+
     macro_rules! test {
         () => {};
         ($t: ty) => {

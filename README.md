@@ -1,0 +1,1 @@
+# A Stable ABI for Rust with compact sum-types

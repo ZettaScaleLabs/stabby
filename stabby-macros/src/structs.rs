@@ -7,16 +7,25 @@ pub fn stabby(
     vis: Visibility,
     ident: Ident,
     generics: Generics,
-    DataStruct { fields, .. }: DataStruct,
+    DataStruct {
+        fields, semi_token, ..
+    }: DataStruct,
+    stabby_attrs: &proc_macro::TokenStream,
 ) -> proc_macro2::TokenStream {
+    let mut opt = match stabby_attrs.to_string().as_str() {
+        "no_opt" => false,
+        "" => true,
+        _ => panic!("Unkown stabby attributes {stabby_attrs}"),
+    };
+    opt &= generics.params.is_empty();
     let st = crate::tl_mod();
     let unbound_generics = crate::utils::unbound_generics(&generics.params);
     let generics_without_defaults = crate::utils::generics_without_defaults(&generics.params);
     let mut layout = None;
-    let struct_code = match fields {
+    let struct_code = match &fields {
         syn::Fields::Named(fields) => {
-            let fields = fields.named;
-            for field in &fields {
+            let fields = &fields.named;
+            for field in fields {
                 let ty = &field.ty;
                 layout = Some(
                     layout.map_or_else(|| quote!(#ty), |layout| quote!(#st::Tuple2<#layout, #ty>)),
@@ -31,8 +40,8 @@ pub fn stabby(
             }
         }
         syn::Fields::Unnamed(fields) => {
-            let fields = fields.unnamed;
-            for field in &fields {
+            let fields = &fields.unnamed;
+            for field in fields {
                 let ty = &field.ty;
                 layout = Some(
                     layout.map_or_else(|| quote!(#ty), |layout| quote!(#st::Tuple2<#layout, #ty>)),
@@ -52,8 +61,17 @@ pub fn stabby(
         }
     };
     let layout = layout.unwrap_or_else(|| quote!(()));
+    let opt_id = quote::format_ident!("OptimizedLayoutFor{ident}");
+    let assertion = opt.then(|| {
+        quote! {
+            const _: () = {
+                assert!(<#ident>::has_optimal_layout())
+            };
+        }
+    });
     quote! {
         #struct_code
+
         #[automatically_derived]
         unsafe impl <#generics_without_defaults> #st::IStable for #ident <#unbound_generics> where #layout: #st::IStable {
             type IllegalValues = <#layout as #st::IStable>::IllegalValues;
@@ -61,6 +79,14 @@ pub fn stabby(
             type Size = <#layout as #st::IStable>::Size;
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = <#layout as #st::IStable>::HasExactlyOneNiche;
+        }
+        #[allow(dead_code)]
+        struct #opt_id #generics #fields #semi_token
+        #assertion
+        impl < #generics_without_defaults > #ident <#unbound_generics> {
+            pub const fn has_optimal_layout() -> bool {
+                core::mem::size_of::<Self>() <= core::mem::size_of::<#opt_id<#unbound_generics>>()
+            }
         }
     }
 }

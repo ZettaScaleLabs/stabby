@@ -5,8 +5,6 @@ extern crate alloc;
 pub use stabby_macros::{stabby, vtable};
 
 pub mod abi;
-#[allow(type_alias_bounds)]
-pub type Stable<Source: abi::IStabilize> = Source::Stable;
 
 #[cfg(feature = "alloc")]
 mod allocs;

@@ -16,7 +16,7 @@ pub(crate) fn tl_mod() -> proc_macro2::TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn stabby(_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
+pub fn stabby(stabby_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     if let Ok(DeriveInput {
         attrs,
         vis,
@@ -26,7 +26,9 @@ pub fn stabby(_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     }) = syn::parse(tokens.clone())
     {
         match data {
-            syn::Data::Struct(data) => structs::stabby(attrs, vis, ident, generics, data),
+            syn::Data::Struct(data) => {
+                structs::stabby(attrs, vis, ident, generics, data, &stabby_attrs)
+            }
             syn::Data::Enum(data) => enums::stabby(attrs, vis, ident, generics, data),
             syn::Data::Union(data) => unions::stabby(attrs, vis, ident, generics, data),
         }
