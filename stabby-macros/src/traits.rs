@@ -155,6 +155,25 @@ struct DynTraitFn<'a> {
     inputs: Vec<Ty>,
     output: Option<Ty>,
 }
+impl quote::ToTokens for DynTraitFn<'_> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let DynTraitFn {
+            ident,
+            generics,
+            abi,
+            unsafety,
+            receiver,
+            inputs,
+            output,
+        } = self;
+        let inputs = inputs.iter().enumerate().map(|(i, ty)| {
+            let id = quote::format_ident!("_{i}");
+            quote!(#id: #ty,)
+        });
+        let output = output.as_ref().map(|ty| quote!(->#ty));
+        tokens.extend(quote!(#unsafety #abi fn #ident #generics (#receiver, #(#inputs)*) #output))
+    }
+}
 impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
     fn from(
         syn::ItemTrait {
@@ -443,13 +462,35 @@ impl<'a> DynTraitDescription<'a> {
                 },
             )
             .collect::<Vec<_>>();
-        let fn_ids = self
-            .functions
+        let fns = &self.functions;
+        let mut_fns = &self.mut_functions;
+        let fn_args = fns
             .iter()
-            .chain(&self.mut_functions)
-            .map(|f| f.ident)
+            .map(|f| {
+                let mut r = quote!();
+                for i in 0..f.inputs.len() {
+                    let id = quote::format_ident!("_{i}");
+                    r = quote!(#r #id,)
+                }
+                r
+            })
             .collect::<Vec<_>>();
-        let fn_fts = self
+        let mut_fn_args = mut_fns
+            .iter()
+            .map(|f| {
+                let mut r = quote!();
+                for i in 0..f.inputs.len() {
+                    let id = quote::format_ident!("_{i}");
+                    r = quote!(#r #id,)
+                }
+                r
+            })
+            .collect::<Vec<_>>();
+        let fn_ids = fns.iter().map(|f| f.ident).collect::<Vec<_>>();
+        let mut_fn_ids = mut_fns.iter().map(|f| f.ident).collect::<Vec<_>>();
+        let mut all_fn_ids = fn_ids.clone();
+        all_fn_ids.extend(mut_fn_ids.iter().copied());
+        let all_fn_fts = self
             .functions
             .iter()
             .chain(&self.mut_functions)
@@ -466,6 +507,7 @@ impl<'a> DynTraitDescription<'a> {
             .self_dependent_types
             .unselfed_iter()
             .collect::<Vec<_>>();
+        let sdts: &[_] = &self.self_dependent_types;
         let trait_to_vt_bindings = self
             .self_dependent_types
             .iter()
@@ -475,6 +517,7 @@ impl<'a> DynTraitDescription<'a> {
                 quote!(#gen = #binding)
             })
             .collect::<Vec<_>>();
+
         let vt_signature = quote! {
             #vtid <
                         #(#unbound_trait_lts,)*
@@ -488,11 +531,29 @@ impl<'a> DynTraitDescription<'a> {
             .iter()
             .chain(&self.mut_functions)
             .map(|f| f.ptr_signature(&self_as_trait));
+        let traitid_dyn = quote::format_ident!("{}Dyn", trait_id);
+        let traitid_dynmut = quote::format_ident!("{}DynMut", trait_id);
+
         quote! {
             #[stabby::stabby]
             #vis struct #vtid < #vt_generics > where #(#vt_bounds)* {
-                #(#fn_ids: #fn_fts,)*
+                #(pub #all_fn_ids: #st::StableLike<#all_fn_fts, core::num::NonZeroUsize>,)*
             }
+
+            impl< #vt_generics > Clone for #vtid < #nbvt_generics > where #(#vt_bounds)* {
+                fn clone(&self) -> Self {
+                    Self {
+                        #(#all_fn_ids: self.#all_fn_ids,)*
+                    }
+                }
+            }
+            impl< #vt_generics > Copy for #vtid < #nbvt_generics > where #(#vt_bounds)* {}
+            impl< #vt_generics > core::cmp::PartialEq for #vtid < #nbvt_generics > where #(#vt_bounds)*{
+                fn eq(&self, other: &Self) -> bool {
+                    #(core::ptr::eq((*self.#all_fn_ids) as *const (), (*other.#all_fn_ids) as *const _) &&)* true
+                }
+            }
+
             impl<
                 'stabby_vt_lt, #(#trait_lts,)*
                 StabbyArbitraryType,
@@ -506,7 +567,7 @@ impl<'a> DynTraitDescription<'a> {
                 #(#unbound_trait_types: 'stabby_vt_lt,)*
                 #(#dyntrait_types: 'stabby_vt_lt,)* {
                 const VTABLE: &'stabby_vt_lt #vt_signature = & #vtid {
-                    #(#fn_ids: unsafe {core::mem::transmute(#self_as_trait::#fn_ids as #fn_ptrs)},)*
+                    #(#all_fn_ids: unsafe {core::mem::transmute(#self_as_trait::#all_fn_ids as #fn_ptrs)},)*
                 };
             }
 
@@ -521,54 +582,113 @@ impl<'a> DynTraitDescription<'a> {
                     StabbyNextVtable>;
             }
 
-            impl< #vt_generics > Clone for #vtid < #nbvt_generics > where #(#vt_bounds)* {
-                fn clone(&self) -> Self {
-                    Self {
-                        #(#fn_ids: self.#fn_ids,)*
-                    }
-                }
+            #vis trait #traitid_dyn<
+                #(#trait_lts,)*
+                StabbyTransitiveDerefN,
+                #(#dyntrait_types,)*
+                #(#trait_types,)*
+                #(#trait_consts,)*
+            > {
+                #(type #sdts;)*
+                #(#fns;)*
             }
-            impl< #vt_generics > Copy for #vtid < #nbvt_generics > where #(#vt_bounds)* {}
-            impl< #vt_generics > core::cmp::PartialEq for #vtid < #nbvt_generics > where #(#vt_bounds)*{
-                fn eq(&self, other: &Self) -> bool {
-                    #(core::ptr::eq(self.#fn_ids as *const (), other.#fn_ids as *const _) &&)* true
-                }
+            impl<
+                #(#trait_lts,)*
+                StabbyVtProvider: #st::vtable::TransitiveDeref<
+                    #vt_signature,
+                    StabbyTransitiveDerefN
+                    > + Copy,
+                StabbyTransitiveDerefN,
+                #(#dyntrait_types,)*
+                #(#trait_types,)*
+                #(#trait_consts,)*
+            >
+            #traitid_dyn <
+                #(#unbound_trait_lts,)*
+                StabbyTransitiveDerefN,
+                #(#dyntrait_types,)*
+                #(#unbound_trait_types,)*
+                #(#unbound_trait_consts,)*
+            >
+            for #st::DynRef<'_, StabbyVtProvider>
+            {
+                #(type #trait_to_vt_bindings;)*
+                #(#fns {
+                    (self.vtable().tderef().#fn_ids)(self.ptr(), #fn_args)
+                })*
             }
-            // pub trait DynMyTrait<N, Output> {
-            //     extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8;
-            // }
-            // impl<Vt: TransitiveDeref<VtMyTrait<Output>, N>, Output, N> DynMyTrait<N, Output>
-            //     for DynRef<'_, Vt>
-            // {
-            //     extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8 {
-            //         (self.vtable.tderef().do_stuff)(self.ptr, with)
-            //     }
-            // }
-            // impl<'c, P: IPtrOwned, Vt: HasDropVt + TransitiveDeref<VtMyTrait<Output>, N>, Output, N>
-            //     DynMyTrait<N, Output> for Dyn<'c, P, Vt>
-            // {
-            //     extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8 {
-            //         (self.vtable.tderef().do_stuff)(unsafe { self.ptr.as_ref() }, with)
-            //     }
-            // }
-            // pub trait DynMutMyTrait<N, Output>: DynMyTrait<N, Output> {
-            //     extern "C" fn gen_stuff(&mut self) -> Output;
-            // }
-            // impl<
-            //         'a,
-            //         P: IPtrOwned + IPtrMut,
-            //         Vt: HasDropVt + TransitiveDeref<VtMyTrait<Output>, N>,
-            //         Output,
-            //         N,
-            //     > DynMutMyTrait<N, Output> for Dyn<'a, P, Vt>
-            // {
-            //     extern "C" fn gen_stuff(&mut self) -> Output {
-            //         (self.vtable.tderef().gen_stuff)(unsafe { self.ptr.as_mut() })
-            //     }
-            // }
+            impl<
+                #(#trait_lts,)*
+                StabbyPtrProvider: #st::IPtrOwned,
+                StabbyVtProvider: #st::vtable::HasDropVt + Copy + #st::vtable::TransitiveDeref<
+                    #vt_signature,
+                    StabbyTransitiveDerefN
+                    >,
+                StabbyTransitiveDerefN,
+                #(#dyntrait_types,)*
+                #(#trait_types,)*
+                #(#trait_consts,)*
+            >
+            #traitid_dyn <
+                #(#unbound_trait_lts,)*
+                StabbyTransitiveDerefN,
+                #(#dyntrait_types,)*
+                #(#unbound_trait_types,)*
+                #(#unbound_trait_consts,)*
+            >
+            for #st::Dyn<'_, StabbyPtrProvider, StabbyVtProvider>
+            {
+                #(type #trait_to_vt_bindings;)*
+                #(#fns {
+                    (self.vtable.tderef().#fn_ids)(unsafe{self.ptr.as_ref()}, #fn_args)
+                })*
+            }
+
+
+            #vis trait #traitid_dynmut<
+                #(#trait_lts,)*
+                StabbyTransitiveDerefN,
+                #(#dyntrait_types,)*
+                #(#trait_types,)*
+                #(#trait_consts,)*
+            >: #traitid_dyn <
+                #(#unbound_trait_lts,)*
+                StabbyTransitiveDerefN,
+                #(#dyntrait_types,)*
+                #(#unbound_trait_types,)*
+                #(#unbound_trait_consts,)*
+            > {
+                #(#mut_fns;)*
+            }
+            impl<
+                #(#trait_lts,)*
+                StabbyPtrProvider: #st::IPtrOwned + #st::IPtrMut,
+                StabbyVtProvider: #st::vtable::HasDropVt + Copy + #st::vtable::TransitiveDeref<
+                    #vt_signature,
+                    StabbyTransitiveDerefN
+                    >,
+                StabbyTransitiveDerefN,
+                #(#dyntrait_types,)*
+                #(#trait_types,)*
+                #(#trait_consts,)*
+            >
+            #traitid_dynmut <
+                #(#unbound_trait_lts,)*
+                StabbyTransitiveDerefN,
+                #(#dyntrait_types,)*
+                #(#unbound_trait_types,)*
+                #(#unbound_trait_consts,)*
+            >
+            for #st::Dyn<'_, StabbyPtrProvider, StabbyVtProvider>
+            {
+                #(#mut_fns {
+                    (self.vtable.tderef().#mut_fn_ids)(unsafe {self.ptr.as_mut()}, #mut_fn_args)
+                })*
+            }
         }
     }
 }
+
 #[derive(Clone)]
 enum Ty {
     Never,

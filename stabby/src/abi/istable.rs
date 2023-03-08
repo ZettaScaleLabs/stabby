@@ -175,3 +175,7 @@ pub trait IShift<By> {
 impl<By> IShift<By> for End {
     type Output = End;
 }
+
+impl<Offset: Add<By>, T, Rest: IShift<By>, By> IShift<By> for Array<Offset, T, Rest> {
+    type Output = Array<tyeval!(Offset + By), T, Rest::Output>;
+}

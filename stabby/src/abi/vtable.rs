@@ -17,6 +17,7 @@ pub struct T<T>(T);
 /// A recursive type to define sets of v-tables.
 /// You should _always_ use `stabby::vtable!(Trait1 + Trait2 + ...)` to generate this type,
 /// as this macro will ensure that traits are ordered consistently in the vtable.
+#[stabby::stabby]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct VTable<Head, Tail = VtDrop> {
     head: Head,
@@ -77,23 +78,25 @@ impl<T: HasDropVt> HasDropVt for VtSync<T> {
 
 pub trait HasSendVt {}
 impl<T> HasSendVt for VtSend<T> {}
-impl<T> HasSendVt for VtSync<VtSend<T>> {}
+impl<T: HasSendVt> HasSendVt for VtSync<T> {}
+impl<Head, Tail: HasSyncVt> HasSendVt for VTable<Head, Tail> {}
 pub trait HasSyncVt {}
 impl<T> HasSyncVt for VtSync<T> {}
-impl<T> HasSyncVt for VtSend<VtSync<T>> {}
+impl<T: HasSyncVt> HasSyncVt for VtSend<T> {}
+impl<Head, Tail: HasSyncVt> HasSyncVt for VTable<Head, Tail> {}
 
 // DROP
 /// The vtable to drop a value in place
 #[stabby::stabby]
 #[derive(Clone, Copy)]
 pub struct VtDrop {
-    pub drop: unsafe extern "C" fn(&mut ()),
+    pub drop: crate::abi::StableLike<unsafe extern "C" fn(&mut ()), core::num::NonZeroUsize>,
 }
 impl PartialEq for VtDrop {
     fn eq(&self, other: &Self) -> bool {
         core::ptr::eq(
-            self.drop as *const unsafe extern "C" fn(&mut ()),
-            other.drop as *const unsafe extern "C" fn(&mut ()),
+            (*self.drop) as *const unsafe extern "C" fn(&mut ()),
+            (*other.drop) as *const unsafe extern "C" fn(&mut ()),
         )
     }
 }

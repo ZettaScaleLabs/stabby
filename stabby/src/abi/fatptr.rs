@@ -73,6 +73,12 @@ pub struct DynRef<'a, Vt: 'static> {
 }
 
 impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
+    pub fn ptr(&self) -> &() {
+        self.ptr
+    }
+    pub fn vtable(&self) -> &Vt {
+        self.vtable
+    }
     /// Downcasts the reference based on vtable equality.
     /// This implies that this downcast will always yield `None` when attempting to downcast values constructed accross an FFI.
     pub fn downcast<T: IConstConstructor<'a, Vt>>(&self) -> Option<&T>
@@ -84,8 +90,8 @@ impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
 }
 #[stabby::stabby]
 pub struct Dyn<'a, P: IPtrOwned, Vt: HasDropVt + 'a> {
-    ptr: core::mem::ManuallyDrop<P>,
-    vtable: &'a Vt,
+    pub ptr: core::mem::ManuallyDrop<P>,
+    pub vtable: &'a Vt,
     unsend: core::marker::PhantomData<*mut P>,
 }
 
@@ -153,7 +159,7 @@ where
 
 impl<'a, P: IPtrOwned, Vt: HasDropVt> Drop for Dyn<'a, P, Vt> {
     fn drop(&mut self) {
-        P::drop(&mut self.ptr, self.vtable.drop_vt().drop)
+        P::drop(&mut self.ptr, *self.vtable.drop_vt().drop)
     }
 }
 
@@ -174,134 +180,3 @@ unsafe impl<'a, Vt: HasSyncVt> Sync for DynRef<'a, Vt> {}
 
 unsafe impl<'a, P: IPtrOwned + Send, Vt: HasSendVt + HasDropVt> Send for Dyn<'a, P, Vt> {}
 unsafe impl<'a, P: IPtrOwned + Sync, Vt: HasSyncVt + HasDropVt> Sync for Dyn<'a, P, Vt> {}
-
-// MYTRAIT
-
-#[stabby::stabby]
-pub trait MyTrait {
-    type Output;
-    extern "C" fn do_stuff<'a>(&'a self, with: &Self::Output) -> &'a u8;
-    extern "C" fn gen_stuff(&mut self) -> Self::Output;
-}
-
-pub trait DynMyTrait<N, Output> {
-    extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8;
-}
-impl<Vt: TransitiveDeref<StabbyVtableMyTrait<Output>, N>, Output, N> DynMyTrait<N, Output>
-    for DynRef<'_, Vt>
-{
-    extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8 {
-        (self.vtable.tderef().do_stuff)(self.ptr, with)
-    }
-}
-impl<
-        'c,
-        P: IPtrOwned,
-        Vt: HasDropVt + TransitiveDeref<StabbyVtableMyTrait<Output>, N>,
-        Output,
-        N,
-    > DynMyTrait<N, Output> for Dyn<'c, P, Vt>
-{
-    extern "C" fn do_stuff<'a>(&'a self, with: &Output) -> &'a u8 {
-        (self.vtable.tderef().do_stuff)(unsafe { self.ptr.as_ref() }, with)
-    }
-}
-pub trait DynMutMyTrait<N, Output>: DynMyTrait<N, Output> {
-    extern "C" fn gen_stuff(&mut self) -> Output;
-}
-impl<
-        'a,
-        P: IPtrOwned + IPtrMut,
-        Vt: HasDropVt + TransitiveDeref<StabbyVtableMyTrait<Output>, N>,
-        Output,
-        N,
-    > DynMutMyTrait<N, Output> for Dyn<'a, P, Vt>
-{
-    extern "C" fn gen_stuff(&mut self) -> Output {
-        (self.vtable.tderef().gen_stuff)(unsafe { self.ptr.as_mut() })
-    }
-}
-
-// IMPL
-
-impl MyTrait for u8 {
-    type Output = u8;
-    extern "C" fn do_stuff<'a>(&'a self, _: &Self::Output) -> &'a u8 {
-        self
-    }
-    extern "C" fn gen_stuff(&mut self) -> Self::Output {
-        *self
-    }
-}
-impl MyTrait for u16 {
-    type Output = u8;
-    extern "C" fn do_stuff<'a>(&'a self, _: &Self::Output) -> &'a u8 {
-        &0
-    }
-    extern "C" fn gen_stuff(&mut self) -> Self::Output {
-        *self as u8
-    }
-}
-
-// MYTRAIT2
-#[stabby::stabby]
-pub trait MyTrait2 {
-    extern "C" fn do_stuff2(&self) -> u8;
-}
-
-// IMPL
-
-impl MyTrait2 for u8 {
-    extern "C" fn do_stuff2(&self) -> u8 {
-        *self
-    }
-}
-impl MyTrait2 for u16 {
-    extern "C" fn do_stuff2(&self) -> u8 {
-        (*self) as u8
-    }
-}
-
-impl MyTrait3<Box<()>> for u8 {
-    type A = u8;
-    type B = u8;
-    extern "C" fn do_stuff<'a>(&'a self, _a: &'a Self::A, _b: Self::B) -> Self::B {
-        *self
-    }
-    extern "C" fn gen_stuff(&mut self, _with: Box<()>) -> Self::A {
-        *self
-    }
-}
-impl MyTrait3<Box<()>> for u16 {
-    type A = u8;
-    type B = u8;
-    extern "C" fn do_stuff<'a>(&'a self, _a: &'a Self::A, _b: Self::B) -> Self::B {
-        (*self) as u8
-    }
-    extern "C" fn gen_stuff(&mut self, _with: Box<()>) -> Self::A {
-        (*self) as u8
-    }
-}
-
-#[test]
-fn test() {
-    let boxed = Box::new(6u8);
-    let mut dyned = Dyn::<
-        _,
-        stabby::vtable!(
-            MyTrait2 + MyTrait<Output = u8> + MyTrait3<Box<()>, A = u8, B = u8> + Send + Sync
-        ),
-    >::from(boxed);
-    assert_eq!(dyned.downcast_ref::<u8>(), Some(&6));
-    assert_eq!(dyned.do_stuff(&0), &6);
-    assert_eq!(dyned.gen_stuff(), 6);
-    assert!(dyned.downcast_ref::<u16>().is_none());
-}
-
-#[stabby::stabby]
-pub trait MyTrait3<Hi: core::ops::Deref> {
-    type A;
-    type B;
-    extern "C" fn do_stuff<'a>(&'a self, a: &'a Self::A, b: Self::B) -> Self::B;
-    extern "C" fn gen_stuff(&mut self, with: Hi) -> Self::A;
-}

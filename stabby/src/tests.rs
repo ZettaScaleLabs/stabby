@@ -100,3 +100,99 @@ fn layouts() {
         Option<core::num::NonZeroI8>,
     );
 }
+
+// MYTRAIT
+
+#[stabby::stabby]
+pub trait MyTrait {
+    type Output;
+    extern "C" fn do_stuff<'a>(&'a self, with: &Self::Output) -> &'a u8;
+    extern "C" fn gen_stuff(&mut self) -> Self::Output;
+}
+
+// IMPL
+
+impl MyTrait for u8 {
+    type Output = u8;
+    extern "C" fn do_stuff<'a>(&'a self, _: &Self::Output) -> &'a u8 {
+        self
+    }
+    extern "C" fn gen_stuff(&mut self) -> Self::Output {
+        *self
+    }
+}
+impl MyTrait for u16 {
+    type Output = u8;
+    extern "C" fn do_stuff<'a>(&'a self, _: &Self::Output) -> &'a u8 {
+        &0
+    }
+    extern "C" fn gen_stuff(&mut self) -> Self::Output {
+        *self as u8
+    }
+}
+
+// MYTRAIT2
+#[stabby::stabby]
+pub trait MyTrait2 {
+    extern "C" fn do_stuff2(&self) -> u8;
+}
+
+// IMPL
+
+impl MyTrait2 for u8 {
+    extern "C" fn do_stuff2(&self) -> u8 {
+        *self
+    }
+}
+impl MyTrait2 for u16 {
+    extern "C" fn do_stuff2(&self) -> u8 {
+        (*self) as u8
+    }
+}
+
+#[stabby::stabby]
+pub trait MyTrait3<Hi: core::ops::Deref> {
+    type A;
+    type B;
+    extern "C" fn do_stuff3<'a>(&'a self, a: &'a Self::A, b: Self::B) -> Self::B;
+    extern "C" fn gen_stuff3(&mut self, with: Hi) -> Self::A;
+}
+
+impl MyTrait3<Box<()>> for u8 {
+    type A = u8;
+    type B = u8;
+    extern "C" fn do_stuff3<'a>(&'a self, _a: &'a Self::A, _b: Self::B) -> Self::B {
+        *self
+    }
+    extern "C" fn gen_stuff3(&mut self, _with: Box<()>) -> Self::A {
+        *self
+    }
+}
+impl MyTrait3<Box<()>> for u16 {
+    type A = u8;
+    type B = u8;
+    extern "C" fn do_stuff3<'a>(&'a self, _a: &'a Self::A, _b: Self::B) -> Self::B {
+        (*self) as u8
+    }
+    extern "C" fn gen_stuff3(&mut self, _with: Box<()>) -> Self::A {
+        (*self) as u8
+    }
+}
+
+#[test]
+fn dyn_traits() {
+    let boxed = Box::new(6u8);
+    let mut dyned = crate::abi::Dyn::<
+        _,
+        stabby::vtable!(
+            Send + MyTrait2 + MyTrait3<Box<()>, A = u8, B = u8> + Sync + MyTrait<Output = u8>
+        ),
+    >::from(boxed);
+    assert_eq!(dyned.downcast_ref::<u8>(), Some(&6));
+    assert_eq!(dyned.do_stuff(&0), &6);
+    assert_eq!(dyned.gen_stuff(), 6);
+    assert_eq!(dyned.gen_stuff3(Box::new(())), 6);
+    assert!(dyned.downcast_ref::<u16>().is_none());
+    fn trait_assertions<T: Send + Sync + stabby::abi::IStable>(_t: T) {}
+    trait_assertions(dyned);
+}
