@@ -685,6 +685,47 @@ impl<'a> DynTraitDescription<'a> {
                     (self.vtable.tderef().#mut_fn_ids)(unsafe {self.ptr.as_mut()}, #mut_fn_args)
                 })*
             }
+
+            // impl<
+            //     #(#trait_lts,)*
+            //     StabbyPtrProvider: #st::IPtrOwned + #st::IPtrMut,
+            //     StabbyNextVtable,
+            //     #(#dyntrait_types,)*
+            //     #(#trait_types,)*
+            //     #(#trait_consts,)*
+            // >
+            // #trait_id <
+            //     #(#unbound_trait_lts,)*
+            //     #(#unbound_trait_types,)*
+            //     #(#unbound_trait_consts,)*
+            // >
+            // for #st::Dyn<'_, StabbyPtrProvider,
+            //     <dyn #trait_id <
+            //         #(#unbound_trait_lts,)*
+            //         #(#unbound_trait_types,)*
+            //         #(#unbound_trait_consts,)*
+            //         #(#trait_to_vt_bindings,)*
+            //         > as #st::vtable::CompoundVt>::Vt<StabbyNextVtable>>
+            // where
+            // <dyn #trait_id <
+            //         #(#unbound_trait_lts,)*
+            //         #(#unbound_trait_types,)*
+            //         #(#unbound_trait_consts,)*
+            //         #(#trait_to_vt_bindings,)*
+            //         > as #st::vtable::CompoundVt>::Vt<StabbyNextVtable>: #st::vtable::HasDropVt + Copy + #st::vtable::TransitiveDeref<
+            //         #vt_signature,
+            //         #st::vtable::H
+            //         >,
+            // #(#vt_bounds)*
+            //     {
+            //     #(type #trait_to_vt_bindings;)*
+            //     #(#fns {
+            //         (self.vtable.tderef().#fn_ids)(unsafe{self.ptr.as_ref()}, #fn_args)
+            //     })*
+            //     #(#mut_fns {
+            //         (self.vtable.tderef().#mut_fn_ids)(unsafe {self.ptr.as_mut()}, #mut_fn_args)
+            //     })*
+            // }
         }
     }
 }

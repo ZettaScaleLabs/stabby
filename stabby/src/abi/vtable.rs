@@ -120,7 +120,7 @@ pub struct VtSend<T>(T);
 impl CompoundVt for dyn Send {
     type Vt<T> = VtSend<T>;
 }
-impl<Tail: TransitiveDeref<Vt, N>, Vt, N> TransitiveDeref<Vt, T<N>> for VtSend<Tail> {
+impl<Tail: TransitiveDeref<Vt, N>, Vt, N> TransitiveDeref<Vt, N> for VtSend<Tail> {
     fn tderef(&self) -> &Vt {
         self.0.tderef()
     }
@@ -148,7 +148,7 @@ impl<'a, T: IConstConstructor<'a, Vt> + Sync, Vt: Copy + 'a> IConstConstructor<'
 {
     const VTABLE: &'a VtSync<Vt> = &VtSync(*T::VTABLE);
 }
-impl<Tail: TransitiveDeref<Vt, N>, Vt, N> TransitiveDeref<Vt, T<N>> for VtSync<Tail> {
+impl<Tail: TransitiveDeref<Vt, N>, Vt, N> TransitiveDeref<Vt, N> for VtSync<Tail> {
     fn tderef(&self) -> &Vt {
         self.0.tderef()
     }
