@@ -63,9 +63,26 @@ pub fn stabby(
     let layout = layout.unwrap_or_else(|| quote!(()));
     let opt_id = quote::format_ident!("OptimizedLayoutFor{ident}");
     let assertion = opt.then(|| {
+        let sub_optimal_message = format!(
+            "{ident}'s layout is sub-optimal, reorder fields or use `#[stabby::stabby(no_opt)]`"
+        );
+        let size_bug = format!(
+            "{ident}'s size was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please fill an issue"
+        );
+        let align_bug = format!(
+            "{ident}'s align was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please fill an issue"
+        );
         quote! {
             const _: () = {
-                assert!(<#ident>::has_optimal_layout())
+                if !<#ident>::has_optimal_layout() {
+                    panic!(#sub_optimal_message)
+                }
+                if core::mem::size_of::<#ident>() != <<#ident as #st::IStable>::Size as #st::Unsigned>::USIZE {
+                    panic!(#size_bug)
+                }
+                if core::mem::align_of::<#ident>() != <<#ident as #st::IStable>::Align as #st::Unsigned>::USIZE {
+                    panic!(#align_bug)
+                }
             };
         }
     });
