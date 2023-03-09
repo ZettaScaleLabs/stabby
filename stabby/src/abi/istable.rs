@@ -65,7 +65,7 @@ impl<T> SaturatingAdd<T> for B2 {
     type Output = B2;
 }
 
-unsafe impl<A: IStable + Copy, B: IStable + Copy> IStable for Union<A, B>
+unsafe impl<A: IStable, B: IStable> IStable for Union<A, B>
 where
     A::Align: Max<B::Align>,
     A::Size: Max<B::Size>,

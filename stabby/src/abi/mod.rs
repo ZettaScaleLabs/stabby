@@ -86,11 +86,18 @@ pub struct Tuple2<A, B> {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
-pub union Union<A: Copy, B: Copy> {
-    _0: A,
-    _1: B,
+pub union Union<A, B> {
+    pub(crate) _0: core::mem::ManuallyDrop<A>,
+    pub(crate) _1: core::mem::ManuallyDrop<B>,
 }
+impl<A, B> Clone for Union<A, B> {
+    fn clone(&self) -> Self {
+        unsafe { core::ptr::read(self) }
+    }
+}
+
+pub(crate) mod enums;
+
 pub use istable::{Array, End, IStable};
 mod istable;
 pub type NonZeroHole = holes!([1, 0, 0, 0]);

@@ -15,5 +15,7 @@ pub mod str;
 pub mod tuple {
     pub use crate::abi::Tuple2;
 }
+pub mod option;
+pub mod result;
 // #[cfg(test)]
 mod tests;
