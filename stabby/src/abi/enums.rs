@@ -1,6 +1,5 @@
 use super::{istable::B2, IStable, Union};
-use crate as stabby;
-use stabby::abi::*;
+use crate::abi::*;
 
 pub trait IDiscriminant<Ok, Err> {
     /// # Safety

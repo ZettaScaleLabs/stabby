@@ -1,5 +1,5 @@
 use crate as stabby;
-use stabby::abi::IStable;
+use crate::abi::IStable;
 #[stabby::stabby]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Option<T: IStable> {
