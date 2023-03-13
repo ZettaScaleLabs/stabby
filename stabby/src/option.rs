@@ -1,19 +1,28 @@
 use crate as stabby;
+use crate::abi::enums::IDiscriminantProvider;
 use crate::abi::IStable;
+
 #[stabby::stabby]
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Option<T: IStable> {
+pub struct Option<T: IStable>
+where
+    (T, ()): IDiscriminantProvider,
+{
     inner: crate::result::Result<T, ()>,
 }
 impl<T: IStable> core::fmt::Debug for Option<T>
 where
+    (T, ()): IDiscriminantProvider,
     T: core::fmt::Debug,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.as_ref().fmt(f)
     }
 }
-impl<T: IStable> From<core::option::Option<T>> for Option<T> {
+impl<T: IStable> From<core::option::Option<T>> for Option<T>
+where
+    (T, ()): IDiscriminantProvider,
+{
     fn from(value: core::option::Option<T>) -> Self {
         match value {
             Some(value) => Self {
@@ -25,12 +34,18 @@ impl<T: IStable> From<core::option::Option<T>> for Option<T> {
         }
     }
 }
-impl<T: IStable> From<Option<T>> for core::option::Option<T> {
+impl<T: IStable> From<Option<T>> for core::option::Option<T>
+where
+    (T, ()): IDiscriminantProvider,
+{
     fn from(value: Option<T>) -> Self {
         value.inner.ok()
     }
 }
-impl<T: IStable> Option<T> {
+impl<T: IStable> Option<T>
+where
+    (T, ()): IDiscriminantProvider,
+{
     pub fn as_ref(&self) -> core::option::Option<&T> {
         self.match_ref(Some, || None)
     }

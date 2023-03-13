@@ -21,6 +21,8 @@ pub fn stabby(
     let st = crate::tl_mod();
     let unbound_generics = crate::utils::unbound_generics(&generics.params);
     let generics_without_defaults = crate::utils::generics_without_defaults(&generics.params);
+    let where_clause = &generics.where_clause;
+    let clauses = where_clause.as_ref().map(|w| &w.predicates);
     let mut layout = None;
     let struct_code = match &fields {
         syn::Fields::Named(fields) => {
@@ -34,7 +36,7 @@ pub fn stabby(
             quote! {
                 #(#attrs)*
                 #[repr(C)]
-                #vis struct #ident #generics {
+                #vis struct #ident #generics #where_clause {
                     #fields
                 }
             }
@@ -50,13 +52,13 @@ pub fn stabby(
             quote! {
                 #(#attrs)*
                 #[repr(C)]
-                #vis struct #ident #generics (#fields);
+                #vis struct #ident #generics #where_clause (#fields);
             }
         }
         syn::Fields::Unit => {
             quote! {
                 #(#attrs)*
-                #vis struct #ident #generics;
+                #vis struct #ident #generics #where_clause;
             }
         }
     };
@@ -90,7 +92,7 @@ pub fn stabby(
         #struct_code
 
         #[automatically_derived]
-        unsafe impl <#generics_without_defaults> #st::IStable for #ident <#unbound_generics> where #layout: #st::IStable {
+        unsafe impl <#generics_without_defaults> #st::IStable for #ident <#unbound_generics> where #layout: #st::IStable, #clauses {
             type IllegalValues = <#layout as #st::IStable>::IllegalValues;
             type UnusedBits =<#layout as #st::IStable>::UnusedBits;
             type Size = <#layout as #st::IStable>::Size;
@@ -98,9 +100,9 @@ pub fn stabby(
             type HasExactlyOneNiche = <#layout as #st::IStable>::HasExactlyOneNiche;
         }
         #[allow(dead_code)]
-        struct #opt_id #generics #fields #semi_token
+        struct #opt_id #generics #where_clause #fields #semi_token
         #assertion
-        impl < #generics_without_defaults > #ident <#unbound_generics> {
+        impl < #generics_without_defaults > #ident <#unbound_generics> #where_clause {
             pub const fn has_optimal_layout() -> bool {
                 core::mem::size_of::<Self>() <= core::mem::size_of::<#opt_id<#unbound_generics>>()
             }

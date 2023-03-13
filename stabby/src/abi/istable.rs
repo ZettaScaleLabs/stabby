@@ -26,6 +26,8 @@ pub unsafe trait IStable: Sized {
 
 pub struct End;
 pub struct Array<Offset, T, Rest>(core::marker::PhantomData<(Offset, T, Rest)>);
+pub struct IllegalValue<Value: Unsigned>(core::marker::PhantomData<Value>);
+pub struct Or<A, B>(core::marker::PhantomData<(A, B)>);
 
 unsafe impl<A: IStable, B: IStable> IStable for Tuple2<A, B>
 where
@@ -35,7 +37,7 @@ where
     <A::Align as Max<B::Align>>::Output: Unsigned,
     A::HasExactlyOneNiche: SaturatingAdd<B::HasExactlyOneNiche>,
 {
-    type IllegalValues = End; // TODO
+    type IllegalValues = Or<A::IllegalValues, <AlignedAfter<B, A::Size> as IStable>::IllegalValues>;
     type UnusedBits =
         <A::UnusedBits as IArrayPush<<AlignedAfter<B, A::Size> as IStable>::UnusedBits>>::Output;
     type Size = <AlignedAfter<B, A::Size> as IStable>::Size;
@@ -178,4 +180,7 @@ impl<By> IShift<By> for End {
 
 impl<Offset: Add<By>, T, Rest: IShift<By>, By> IShift<By> for Array<Offset, T, Rest> {
     type Output = Array<tyeval!(Offset + By), T, Rest::Output>;
+}
+impl<A: IShift<By>, B: IShift<By>, By> IShift<By> for Or<A, B> {
+    type Output = Or<A::Output, B::Output>;
 }

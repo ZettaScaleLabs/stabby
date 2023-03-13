@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::quote;
-use syn::{parse::Parser, DeriveInput, Expr, ExprArray, ExprLit, Lit, TypeParamBound};
+use syn::{parse::Parser, DeriveInput, TypeParamBound};
 
 pub(crate) fn tl_mod() -> proc_macro2::TokenStream {
     match proc_macro_crate::crate_name("stabby")
@@ -65,26 +65,6 @@ mod structs;
 mod traits;
 mod unions;
 pub(crate) mod utils;
-
-#[proc_macro]
-pub fn holes(input: TokenStream) -> TokenStream {
-    let st = tl_mod();
-    let ExprArray { elems: holes, .. } = syn::parse::<ExprArray>(input).unwrap();
-    assert_eq!(holes.len(), 4);
-    let mut bits = Vec::with_capacity(256);
-    for spec in holes {
-        let Expr::Lit(ExprLit{lit: Lit::Int(spec), ..}) = spec else {panic!()};
-        let spec: u64 = spec.base10_parse().unwrap();
-        for i in 0..64 {
-            bits.push(if (spec >> i) & 1 != 0 {
-                quote!(::typenum::B1)
-            } else {
-                quote!(::typenum::B0)
-            });
-        }
-    }
-    quote!(#st::holes::Holes<#(#bits,)*>).into()
-}
 
 mod tyops;
 #[proc_macro]

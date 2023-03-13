@@ -11,11 +11,6 @@ macro_rules! assert_optimal_layout {
     };
 }
 
-use stabby_macros::holes;
-
-pub mod holes {
-    include!(concat!(env!("OUT_DIR"), "/holes.rs"));
-}
 pub use fatptr::*;
 mod fatptr;
 pub use istabilize::IStabilize;
@@ -80,6 +75,7 @@ unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
 }
 
 #[repr(C)]
+#[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Tuple2<A, B> {
     _0: A,
     _1: B,
@@ -99,5 +95,7 @@ impl<A, B> Clone for Union<A, B> {
 pub(crate) mod enums;
 
 pub use istable::{Array, End, IStable};
+
+use self::istable::IllegalValue;
 mod istable;
-pub type NonZeroHole = holes!([1, 0, 0, 0]);
+pub type NonZeroHole = IllegalValue<U0>;
