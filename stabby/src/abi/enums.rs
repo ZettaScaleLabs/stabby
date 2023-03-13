@@ -318,6 +318,58 @@ where
         ) as IDiscriminantComputer>::CoerceErr,
     ) as IDiscriminantProvider>::Discriminant;
 }
+impl<Ok: IStable, OkShift: IPadding, Err: IStable, ErrShift: IPadding, B, Tail>
+    IDiscriminantProvider
+    for (
+        Surrounded<OkShift, Ok, UInt<B, Tail>>,
+        Surrounded<ErrShift, Err, U0>,
+        End,
+        End,
+        End,
+    )
+where
+    OkShift: Add<Ok::Align>,
+    UInt<B, Tail>: IPadding + Sub<Ok::Align>,
+    tyeval!(OkShift + Ok::Align): IPadding,
+    <UInt<B, Tail> as Sub<Ok::Align>>::Output: IPadding,
+    (
+        Surrounded<tyeval!(OkShift + Ok::Align), Ok, <UInt<B, Tail> as Sub<Ok::Align>>::Output>,
+        Surrounded<ErrShift, Err, U0>,
+    ): IDiscriminantComputer,
+    (
+        Surrounded<tyeval!(OkShift + Ok::Align), Ok, <UInt<B, Tail> as Sub<Ok::Align>>::Output>,
+        Surrounded<ErrShift, Err, U0>,
+        <(
+            Surrounded<tyeval!(OkShift + Ok::Align), Ok, <UInt<B, Tail> as Sub<Ok::Align>>::Output>,
+            Surrounded<ErrShift, Err, U0>,
+        ) as IDiscriminantComputer>::CoerceErr,
+    ): IDiscriminantProvider,
+{
+    type OkShift = <(
+        Surrounded<tyeval!(OkShift + Ok::Align), Ok, <UInt<B, Tail> as Sub<Ok::Align>>::Output>,
+        Surrounded<ErrShift, Err, U0>,
+        <(
+            Surrounded<tyeval!(OkShift + Ok::Align), Ok, <UInt<B, Tail> as Sub<Ok::Align>>::Output>,
+            Surrounded<ErrShift, Err, U0>,
+        ) as IDiscriminantComputer>::CoerceErr,
+    ) as IDiscriminantProvider>::OkShift;
+    type ErrShift = <(
+        Surrounded<tyeval!(OkShift + Ok::Align), Ok, <UInt<B, Tail> as Sub<Ok::Align>>::Output>,
+        Surrounded<ErrShift, Err, U0>,
+        <(
+            Surrounded<tyeval!(OkShift + Ok::Align), Ok, <UInt<B, Tail> as Sub<Ok::Align>>::Output>,
+            Surrounded<ErrShift, Err, U0>,
+        ) as IDiscriminantComputer>::CoerceErr,
+    ) as IDiscriminantProvider>::ErrShift;
+    type Discriminant = <(
+        Surrounded<tyeval!(OkShift + Ok::Align), Ok, <UInt<B, Tail> as Sub<Ok::Align>>::Output>,
+        Surrounded<ErrShift, Err, U0>,
+        <(
+            Surrounded<tyeval!(OkShift + Ok::Align), Ok, <UInt<B, Tail> as Sub<Ok::Align>>::Output>,
+            Surrounded<ErrShift, Err, U0>,
+        ) as IDiscriminantComputer>::CoerceErr,
+    ) as IDiscriminantProvider>::Discriminant;
+}
 
 pub trait IDiscriminantComputer {
     type CoerceErr;
