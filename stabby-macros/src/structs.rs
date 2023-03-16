@@ -29,9 +29,10 @@ pub fn stabby(
             let fields = &fields.named;
             for field in fields {
                 let ty = &field.ty;
-                layout = Some(
-                    layout.map_or_else(|| quote!(#ty), |layout| quote!(#st::Tuple2<#layout, #ty>)),
-                )
+                layout = Some(layout.map_or_else(
+                    || quote!(#ty),
+                    |layout| quote!(#st::FieldPair<#layout, #ty>),
+                ))
             }
             quote! {
                 #(#attrs)*
@@ -45,9 +46,10 @@ pub fn stabby(
             let fields = &fields.unnamed;
             for field in fields {
                 let ty = &field.ty;
-                layout = Some(
-                    layout.map_or_else(|| quote!(#ty), |layout| quote!(#st::Tuple2<#layout, #ty>)),
-                )
+                layout = Some(layout.map_or_else(
+                    || quote!(#ty),
+                    |layout| quote!(#st::FieldPair<#layout, #ty>),
+                ))
             }
             quote! {
                 #(#attrs)*
@@ -62,7 +64,7 @@ pub fn stabby(
             }
         }
     };
-    let layout = layout.unwrap_or_else(|| quote!(()));
+    let layout = layout.map_or_else(|| quote!(()), |layout| quote!(#st::Struct<#layout>));
     let opt_id = quote::format_ident!("OptimizedLayoutFor{ident}");
     let assertion = opt.then(|| {
         let sub_optimal_message = format!(

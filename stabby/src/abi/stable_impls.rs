@@ -19,7 +19,7 @@ macro_rules! nz_holes {
 }
 unsafe impl IStable for () {
     type Size = U0;
-    type Align = U0;
+    type Align = U1;
     type IllegalValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;

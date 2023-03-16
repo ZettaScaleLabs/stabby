@@ -10,12 +10,10 @@ pub mod abi;
 mod allocs;
 #[cfg(feature = "alloc")]
 pub use allocs::*;
-pub mod slice;
-pub mod str;
-pub mod tuple {
-    pub use crate::abi::Tuple2;
-}
 pub mod option;
 pub mod result;
+pub mod slice;
+pub mod str;
+pub mod tuple;
 // #[cfg(test)]
 mod tests;

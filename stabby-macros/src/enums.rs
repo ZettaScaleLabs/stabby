@@ -110,7 +110,7 @@ pub fn stabby(
             Repr::Isize => "isize",
         };
         let repr = quote::format_ident!("{}", repr);
-        layout = quote!(#st::Tuple2<#repr, #layout>);
+        layout = quote!(#st::FieldPair<#repr, #layout>);
         quote! {
             #(#new_attrs)*
             #[repr(#repr)]

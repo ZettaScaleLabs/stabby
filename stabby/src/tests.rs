@@ -1,9 +1,14 @@
-use crate as stabby;
+use crate::{self as stabby, abi::IStable, tuple::Tuple3};
 
 #[stabby::stabby]
 pub union UTest {
     u8: u8,
     usize: usize,
+}
+#[stabby::stabby]
+pub union UTest2 {
+    usize: usize,
+    u32s: Tuple3<u32, u32, u32>,
 }
 
 #[stabby::stabby]
@@ -28,6 +33,13 @@ pub struct WeirdStructBadLayout {
 }
 
 #[stabby::stabby]
+pub struct WeirdStructBadLayout2 {
+    fields: Fields,
+    no_fields: NoFields,
+    utest: UTest,
+}
+
+#[stabby::stabby]
 pub struct WeirdStruct {
     fields: Fields,
     no_fields: NoFields,
@@ -38,6 +50,11 @@ pub struct WeirdStruct {
 #[stabby::stabby]
 fn somefunc(_: u8) -> u8 {
     0
+}
+#[stabby::stabby]
+pub struct Test {
+    b: u8,
+    a: u32,
 }
 
 #[test]
@@ -53,6 +70,11 @@ fn layouts() {
             test!($($tt)*);
         };
     }
+
+    println!(
+        "{}",
+        std::any::type_name::<<UTest2 as IStable>::UnusedBits>()
+    );
 
     test!(
         u8,

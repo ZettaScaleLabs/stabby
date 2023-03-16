@@ -115,8 +115,7 @@ impl From<proc_macro2::TokenStream> for TyExpr {
                                     count != 0
                                 })
                                 .collect();
-                            let inner = tyeval(&braced.into());
-                            path = quote!(#path < #inner >);
+                            path = quote!(#path < #braced >);
                             continue;
                         }
                         c => panic!("{c} is not supported: {path}"),

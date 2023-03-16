@@ -75,11 +75,9 @@ unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct Tuple2<A, B> {
-    _0: A,
-    _1: B,
-}
+pub struct FieldPair<A, B>(core::marker::PhantomData<(A, B)>);
+#[repr(transparent)]
+pub struct Struct<T>(T);
 
 #[repr(C)]
 pub union Union<A, B> {
@@ -93,6 +91,7 @@ impl<A, B> Clone for Union<A, B> {
 }
 
 pub(crate) mod enums;
+pub mod padding;
 
 pub use istable::{Array, End, IStable};
 
