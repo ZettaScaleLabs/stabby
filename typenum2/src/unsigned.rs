@@ -126,7 +126,6 @@ impl<U: IUnsignedBase> IUnsigned for U {
     type Max<T: IUnsigned> = <Self::Greater<T> as IBitBase>::Ternary<Self, T>;
     type Truncate<T: IUnsigned> = <Self::_Truncate<T> as IUnsignedBase>::_Simplified;
     type Mod<T: IPowerOf2> = Self::Truncate<T::Log2>;
-    //     <Self::GreaterOrEq<T> as IBitBase>::Ternary<<Self::AbsSub<T> as IUnsigned>::Mod<T>, Self>;
 }
 impl IUnsignedBase for UTerm {
     const _U128: u128 = 0;
