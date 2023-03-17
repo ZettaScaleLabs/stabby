@@ -57,7 +57,7 @@ impl From<proc_macro2::TokenStream> for TyExpr {
                         path.extend(Some(TokenTree::Ident(ident)));
                         accept_ident = false;
                     } else {
-                        panic!("Identifier not accepted here")
+                        panic!("Identifier {ident} not accepted here")
                     }
                 }
                 TokenTree::Punct(p) => {
@@ -108,8 +108,10 @@ impl From<proc_macro2::TokenStream> for TyExpr {
                                 .by_ref()
                                 .take_while(|t| {
                                     if let TokenTree::Punct(p) = t {
-                                        if p.as_char() == '>' {
-                                            count -= 1
+                                        match p.as_char() {
+                                            '<' => count += 1,
+                                            '>' => count -= 1,
+                                            _ => {}
                                         }
                                     }
                                     count != 0

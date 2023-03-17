@@ -1,6 +1,32 @@
 use crate::abi::*;
 use crate::tuple::Tuple2;
 
+#[crate::stabby]
+#[derive(Clone, Copy)]
+pub struct Padded<Left: IPadding, T> {
+    pub lpad: Left::Padding,
+    pub value: T,
+}
+impl<Left: IPadding, T> From<T> for Padded<Left, T> {
+    fn from(value: T) -> Self {
+        Self {
+            lpad: Default::default(),
+            value,
+        }
+    }
+}
+impl<Left: IPadding, T> Deref for Padded<Left, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+impl<Left: IPadding, T> DerefMut for Padded<Left, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
+    }
+}
+
 #[repr(transparent)]
 #[derive(Debug, Default, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PadByte(u8);
@@ -13,7 +39,7 @@ unsafe impl IStable for PadByte {
 }
 
 pub trait IPadding {
-    type Padding: Default + Copy;
+    type Padding: Default + Sized + Copy;
 }
 impl IPadding for UTerm {
     type Padding = ();

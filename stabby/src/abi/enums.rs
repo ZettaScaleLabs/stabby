@@ -3,27 +3,11 @@ use core::marker::PhantomData;
 use stabby_macros::tyeval;
 
 use super::{
-    istable::{Includes, B2},
+    istable::{IArrayPush, Includes, B2},
+    padding::Padded,
     IStable,
 };
-use crate::{
-    abi::{padding::IPadding, *},
-    tuple::Tuple2,
-};
-
-#[crate::stabby]
-pub struct Padded<Padding, T> {
-    pub(crate) padding: Padding,
-    pub(crate) value: T,
-}
-impl<Padding: Default, T> From<T> for Padded<Padding, T> {
-    fn from(value: T) -> Self {
-        Self {
-            padding: Default::default(),
-            value,
-        }
-    }
-}
+use crate::abi::{padding::IPadding, *};
 
 pub trait IDiscriminant: IStable {
     /// # Safety
@@ -33,12 +17,6 @@ pub trait IDiscriminant: IStable {
     /// This function MUST be called after setting `union` to a valid value for type `Err`
     unsafe fn err(union: *mut u8) -> Self;
     fn is_ok(&self, union: *const u8) -> bool;
-}
-
-pub trait IDiscriminantProvider {
-    type Ok;
-    type Err;
-    type Discriminant: IDiscriminant;
 }
 
 #[repr(u8)]
@@ -133,4 +111,359 @@ where
     fn is_ok(&self, union: *const u8) -> bool {
         !self.0.is_ok(union)
     }
+}
+
+pub struct UnionMember<Left, This, Other>(core::marker::PhantomData<(Left, This, Other)>);
+unsafe impl<Left: IPadding, This, Other> IStable for UnionMember<Left, This, Other>
+where
+    Padded<Left, This>: IStable,
+    Union<Padded<Left, This>, Other>: IStable,
+    <Union<Padded<Left, This>, Other> as IStable>::Size: Sub<<Padded<Left, This> as IStable>::Size>,
+    tyeval!(
+        <Union<Padded<Left, This>, Other> as IStable>::Size - <Padded<Left, This> as IStable>::Size
+    ): IPadding,
+    <tyeval!(
+        <Union<Padded<Left, This>, Other> as IStable>::Size - <Padded<Left, This> as IStable>::Size
+    ) as IPadding>::Padding: IStable,
+    <<tyeval!(
+        <Union<Padded<Left, This>, Other> as IStable>::Size - <Padded<Left, This> as IStable>::Size
+    ) as IPadding>::Padding as IStable>::UnusedBits:
+        IArrayPush<<Padded<Left, This> as IStable>::IllegalValues>,
+{
+    type Size = <Union<Padded<Left, This>, Other> as IStable>::Size;
+    type Align = <Union<Padded<Left, This>, Other> as IStable>::Align;
+    type IllegalValues = <Padded<Left, This> as IStable>::Size;
+    type UnusedBits = <<<tyeval!(
+        <Union<Padded<Left, This>, Other> as IStable>::Size - <Padded<Left, This> as IStable>::Size
+    ) as IPadding>::Padding as IStable>::UnusedBits as IArrayPush<
+        <Padded<Left, This> as IStable>::IllegalValues,
+    >>::Output;
+    type HasExactlyOneNiche = B2;
+}
+
+pub trait IDiscriminantProvider {
+    type OkShift: IPadding;
+    type ErrShift: IPadding;
+    type Discriminant: IDiscriminant;
+}
+
+pub struct Eval;
+impl<Ok: IStable, Err: IStable> IDiscriminantProvider for (Ok, Err)
+where
+    (UnionMember<U0, Ok, Err>, UnionMember<U0, Err, Ok>, Eval): IDiscriminantProvider,
+{
+    type OkShift = <(UnionMember<U0, Ok, Err>, UnionMember<U0, Err, Ok>, Eval) as IDiscriminantProvider>::OkShift;
+    type ErrShift = <(UnionMember<U0, Ok, Err>, UnionMember<U0, Err, Ok>, Eval) as IDiscriminantProvider>::ErrShift;
+    type Discriminant = <(UnionMember<U0, Ok, Err>, UnionMember<U0, Err, Ok>, Eval) as IDiscriminantProvider>::Discriminant;
+}
+
+impl<Ok: IStable, Err: IStable, OkS, ErrS> IDiscriminantProvider
+    for (UnionMember<OkS, Ok, Err>, UnionMember<ErrS, Err, Ok>, Eval)
+where
+    UnionMember<OkS, Ok, Err>: IStable,
+    UnionMember<ErrS, Err, Ok>: IStable,
+    <UnionMember<OkS, Ok, Err> as IStable>::UnusedBits:
+        Includes<<UnionMember<ErrS, Err, Ok> as IStable>::IllegalValues>,
+    (
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        <<UnionMember<OkS, Ok, Err> as IStable>::UnusedBits as Includes<
+            <UnionMember<ErrS, Err, Ok> as IStable>::IllegalValues,
+        >>::Output,
+    ): IDiscriminantProvider,
+{
+    type OkShift = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        <<UnionMember<OkS, Ok, Err> as IStable>::UnusedBits as Includes<
+            <UnionMember<ErrS, Err, Ok> as IStable>::IllegalValues,
+        >>::Output,
+    ) as IDiscriminantProvider>::OkShift;
+    type ErrShift = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        <<UnionMember<OkS, Ok, Err> as IStable>::UnusedBits as Includes<
+            <UnionMember<ErrS, Err, Ok> as IStable>::IllegalValues,
+        >>::Output,
+    ) as IDiscriminantProvider>::ErrShift;
+    type Discriminant = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        <<UnionMember<OkS, Ok, Err> as IStable>::UnusedBits as Includes<
+            <UnionMember<ErrS, Err, Ok> as IStable>::IllegalValues,
+        >>::Output,
+    ) as IDiscriminantProvider>::Discriminant;
+}
+
+impl<Ok: IStable, Err: IStable, OkS, ErrS> IDiscriminantProvider
+    for (UnionMember<OkS, Ok, Err>, UnionMember<ErrS, Err, Ok>, End)
+where
+    UnionMember<OkS, Ok, Err>: IStable,
+    UnionMember<ErrS, Err, Ok>: IStable,
+    <UnionMember<ErrS, Err, Ok> as IStable>::UnusedBits:
+        Includes<<UnionMember<OkS, Ok, Err> as IStable>::IllegalValues>,
+    (
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        <<UnionMember<ErrS, Err, Ok> as IStable>::UnusedBits as Includes<
+            <UnionMember<OkS, Ok, Err> as IStable>::IllegalValues,
+        >>::Output,
+    ): IDiscriminantProvider,
+{
+    type OkShift = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        <<UnionMember<ErrS, Err, Ok> as IStable>::UnusedBits as Includes<
+            <UnionMember<OkS, Ok, Err> as IStable>::IllegalValues,
+        >>::Output,
+    ) as IDiscriminantProvider>::OkShift;
+    type ErrShift = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        <<UnionMember<ErrS, Err, Ok> as IStable>::UnusedBits as Includes<
+            <UnionMember<OkS, Ok, Err> as IStable>::IllegalValues,
+        >>::Output,
+    ) as IDiscriminantProvider>::ErrShift;
+    type Discriminant = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        <<UnionMember<ErrS, Err, Ok> as IStable>::UnusedBits as Includes<
+            <UnionMember<OkS, Ok, Err> as IStable>::IllegalValues,
+        >>::Output,
+    ) as IDiscriminantProvider>::Discriminant;
+}
+
+impl<Ok: IStable, Err: IStable, OkS, ErrS> IDiscriminantProvider
+    for (
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        End,
+    )
+where
+    UnionMember<OkS, Ok, Err>: IStable,
+    UnionMember<ErrS, Err, Ok>: IStable,
+    <UnionMember<ErrS, Err, Ok> as IStable>::UnusedBits:
+        BitAnd<<UnionMember<OkS, Ok, Err> as IStable>::UnusedBits>,
+    (
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        End,
+        <<UnionMember<ErrS, Err, Ok> as IStable>::UnusedBits as BitAnd<
+            <UnionMember<OkS, Ok, Err> as IStable>::UnusedBits,
+        >>::Output,
+    ): IDiscriminantProvider,
+{
+    type OkShift = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        End,
+        <<UnionMember<ErrS, Err, Ok> as IStable>::UnusedBits as BitAnd<
+            <UnionMember<OkS, Ok, Err> as IStable>::UnusedBits,
+        >>::Output,
+    ) as IDiscriminantProvider>::OkShift;
+    type ErrShift = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        End,
+        <<UnionMember<ErrS, Err, Ok> as IStable>::UnusedBits as BitAnd<
+            <UnionMember<OkS, Ok, Err> as IStable>::UnusedBits,
+        >>::Output,
+    ) as IDiscriminantProvider>::ErrShift;
+    type Discriminant = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        End,
+        <<UnionMember<ErrS, Err, Ok> as IStable>::UnusedBits as BitAnd<
+            <UnionMember<OkS, Ok, Err> as IStable>::UnusedBits,
+        >>::Output,
+    ) as IDiscriminantProvider>::Discriminant;
+}
+
+impl<Ok: IStable, Err: IStable, OkS, ErrS> IDiscriminantProvider
+    for (
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        End,
+        End,
+    )
+where
+    Ok::Size: Cmp<Err::Size>,
+    (
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        End,
+        End,
+        <Ok::Size as Cmp<Err::Size>>::Output,
+    ): IDiscriminantProvider,
+{
+    type OkShift = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        End,
+        End,
+        <Ok::Size as Cmp<Err::Size>>::Output,
+    ) as IDiscriminantProvider>::OkShift;
+    type ErrShift = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        End,
+        End,
+        <Ok::Size as Cmp<Err::Size>>::Output,
+    ) as IDiscriminantProvider>::ErrShift;
+    type Discriminant = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        End,
+        End,
+        <Ok::Size as Cmp<Err::Size>>::Output,
+    ) as IDiscriminantProvider>::Discriminant;
+}
+impl<Ok: IStable, Err: IStable, OkS, ErrS> IDiscriminantProvider
+    for (
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        End,
+        End,
+        Equal,
+    )
+{
+    type OkShift = U0;
+    type ErrShift = U0;
+    type Discriminant = BitDiscriminant;
+}
+impl<Ok: IStable, Err: IStable, OkS, ErrS, T> IDiscriminantProvider
+    for (
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        End,
+        End,
+        T,
+        B0,
+    )
+{
+    type OkShift = U0;
+    type ErrShift = U0;
+    type Discriminant = BitDiscriminant;
+}
+impl<Ok: IStable, Err: IStable, OkS, ErrS, T> IDiscriminantProvider
+    for (
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        End,
+        End,
+        T,
+        B1,
+    )
+where
+    UnionMember<OkS, Ok, Err>: IStable,
+    UnionMember<ErrS, Err, Ok>: IStable,
+    <UnionMember<OkS, Ok, Err> as IStable>::UnusedBits:
+        Includes<<UnionMember<ErrS, Err, Ok> as IStable>::IllegalValues>,
+    (
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        <<UnionMember<OkS, Ok, Err> as IStable>::UnusedBits as Includes<
+            <UnionMember<ErrS, Err, Ok> as IStable>::IllegalValues,
+        >>::Output,
+    ): IDiscriminantProvider,
+{
+    type OkShift = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        <<UnionMember<OkS, Ok, Err> as IStable>::UnusedBits as Includes<
+            <UnionMember<ErrS, Err, Ok> as IStable>::IllegalValues,
+        >>::Output,
+    ) as IDiscriminantProvider>::OkShift;
+    type ErrShift = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        <<UnionMember<OkS, Ok, Err> as IStable>::UnusedBits as Includes<
+            <UnionMember<ErrS, Err, Ok> as IStable>::IllegalValues,
+        >>::Output,
+    ) as IDiscriminantProvider>::ErrShift;
+    type Discriminant = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        <<UnionMember<OkS, Ok, Err> as IStable>::UnusedBits as Includes<
+            <UnionMember<ErrS, Err, Ok> as IStable>::IllegalValues,
+        >>::Output,
+    ) as IDiscriminantProvider>::Discriminant;
+}
+impl<Ok: IStable, Err: IStable, OkS, ErrS> IDiscriminantProvider
+    for (
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<ErrS, Err, Ok>,
+        End,
+        End,
+        End,
+        Greater,
+    )
+where
+    ErrS: Add<Err::Align> + Add<tyeval!(Err::Align + Err::Size)>,
+    Err::Align: Add<Err::Size>,
+    UnionMember<ErrS, Err, Ok>: IStable,
+    <UnionMember<ErrS, Err, Ok> as IStable>::Size:
+        IsGreater<tyeval!(ErrS + (Err::Align + Err::Size))>,
+    (
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<tyeval!(ErrS + Err::Align), Err, Ok>,
+        End,
+        End,
+        End,
+        Greater,
+        <<UnionMember<ErrS, Err, Ok> as IStable>::Size as IsGreater<
+            tyeval!(ErrS + (Err::Align + Err::Size)),
+        >>::Output,
+    ): IDiscriminantProvider,
+{
+    type OkShift = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<tyeval!(ErrS + Err::Align), Err, Ok>,
+        End,
+        End,
+        End,
+        Greater,
+        <<UnionMember<ErrS, Err, Ok> as IStable>::Size as IsGreater<
+            tyeval!(ErrS + (Err::Align + Err::Size)),
+        >>::Output,
+    ) as IDiscriminantProvider>::OkShift;
+    type ErrShift = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<tyeval!(ErrS + Err::Align), Err, Ok>,
+        End,
+        End,
+        End,
+        Greater,
+        <<UnionMember<ErrS, Err, Ok> as IStable>::Size as IsGreater<
+            tyeval!(ErrS + (Err::Align + Err::Size)),
+        >>::Output,
+    ) as IDiscriminantProvider>::ErrShift;
+    type Discriminant = <(
+        UnionMember<OkS, Ok, Err>,
+        UnionMember<tyeval!(ErrS + Err::Align), Err, Ok>,
+        End,
+        End,
+        End,
+        Greater,
+        <<UnionMember<ErrS, Err, Ok> as IStable>::Size as IsGreater<
+            tyeval!(ErrS + (Err::Align + Err::Size)),
+        >>::Output,
+    ) as IDiscriminantProvider>::Discriminant;
 }

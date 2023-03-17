@@ -216,22 +216,37 @@ where
 {
     same_as!((Self, T::Align));
 }
-// ZST aligned after a non-ZST
-unsafe impl<T: IStable, Start: Unsigned> IStable for (AlignedAfter<T, Start>, U0) {
-    type Align = U0;
-    type Size = Start;
-    type UnusedBits = End;
-    type IllegalValues = End;
-    type HasExactlyOneNiche = B0;
+
+unsafe impl<T: IStable, Start: Unsigned> IStable for (AlignedAfter<T, Start>, U1)
+where
+    Start: Add<T::Size>,
+    tyeval!(Start + T::Size): Unsigned,
+    T::UnusedBits: IShift<Start>,
+    T::IllegalValues: IShift<Start>,
+{
+    type Align = U1;
+    type Size = tyeval!(Start + T::Size);
+    type UnusedBits = <T::UnusedBits as IShift<Start>>::Output;
+    type IllegalValues = <T::IllegalValues as IShift<Start>>::Output;
+    type HasExactlyOneNiche = T::HasExactlyOneNiche;
 }
 // non-ZST aligned after a non-ZST
-unsafe impl<T: IStable, Start, TAlignB, TAlignInt> IStable
-    for (AlignedAfter<T, Start>, UInt<TAlignB, TAlignInt>)
+unsafe impl<T: IStable, Start, TAlignB1, TAlignB2, TAlignInt> IStable
+    for (
+        AlignedAfter<T, Start>,
+        UInt<UInt<TAlignInt, TAlignB1>, TAlignB2>,
+    )
 where
-    Start: Rem<UInt<TAlignB, TAlignInt>>,
-    (Self, <Start as Rem<UInt<TAlignB, TAlignInt>>>::Output): IStable,
+    Start: Rem<UInt<UInt<TAlignInt, TAlignB1>, TAlignB2>>,
+    (
+        Self,
+        <Start as Rem<UInt<UInt<TAlignInt, TAlignB1>, TAlignB2>>>::Output,
+    ): IStable,
 {
-    same_as!((Self, <Start as Rem<UInt<TAlignB, TAlignInt>>>::Output));
+    same_as!((
+        Self,
+        <Start as Rem<UInt<UInt<TAlignInt, TAlignB1>, TAlignB2>>>::Output
+    ));
 }
 // non-ZST already aligned
 unsafe impl<T: IStable, Start, TAlignB, TAlignInt> IStable

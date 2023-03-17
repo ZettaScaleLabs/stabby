@@ -26,14 +26,14 @@ unsafe impl IStable for () {
 }
 unsafe impl<T> IStable for core::marker::PhantomData<T> {
     type Size = U0;
-    type Align = U0;
+    type Align = U1;
     type IllegalValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
 }
 unsafe impl IStable for core::marker::PhantomPinned {
     type Size = U0;
-    type Align = U0;
+    type Align = U1;
     type IllegalValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;

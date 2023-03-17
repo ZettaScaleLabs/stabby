@@ -81,8 +81,8 @@ pub struct Struct<T>(T);
 
 #[repr(C)]
 pub union Union<A, B> {
-    pub(crate) _0: core::mem::ManuallyDrop<A>,
-    pub(crate) _1: core::mem::ManuallyDrop<B>,
+    pub(crate) ok: core::mem::ManuallyDrop<A>,
+    pub(crate) err: core::mem::ManuallyDrop<B>,
 }
 impl<A, B> Clone for Union<A, B> {
     fn clone(&self) -> Self {

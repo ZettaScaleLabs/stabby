@@ -1,4 +1,4 @@
-use crate::{self as stabby, abi::IStable, tuple::Tuple3};
+use crate::{self as stabby, tuple::Tuple3};
 
 #[stabby::stabby]
 pub union UTest {
@@ -70,11 +70,6 @@ fn layouts() {
             test!($($tt)*);
         };
     }
-
-    println!(
-        "{}",
-        std::any::type_name::<<UTest2 as IStable>::UnusedBits>()
-    );
 
     test!(
         u8,
