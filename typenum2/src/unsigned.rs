@@ -15,6 +15,7 @@ pub trait IBitBase {
     type Not: IBit;
     type Ternary<A: IUnsigned, B: IUnsigned>: IUnsigned;
     type BTernary<A: IBit, B: IBit>: IBit;
+    type PTernary<A: IPowerOf2, B: IPowerOf2>: IPowerOf2;
 }
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct B0;
@@ -25,6 +26,7 @@ impl IBitBase for B0 {
     type Not = B1;
     type Ternary<A: IUnsigned, B: IUnsigned> = B;
     type BTernary<A: IBit, B: IBit> = B;
+    type PTernary<A: IPowerOf2, B: IPowerOf2> = B;
 }
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct B1;
@@ -35,6 +37,7 @@ impl IBitBase for B1 {
     type Not = B0;
     type Ternary<A: IUnsigned, B: IUnsigned> = A;
     type BTernary<A: IBit, B: IBit> = A;
+    type PTernary<A: IPowerOf2, B: IPowerOf2> = A;
 }
 pub trait IBit: IBitBase {
     type Nand<T: IBit>: IBit;
@@ -91,11 +94,13 @@ pub trait IUnsigned: IUnsignedBase {
     type AbsSub<T: IUnsigned>: IUnsigned;
     type Min<T: IUnsigned>: IUnsigned;
     type Max<T: IUnsigned>: IUnsigned;
-    // type Truncate<T: IUnsigned>: IUnsigned;
+    type Truncate<T: IUnsigned>: IUnsigned;
     type Mod<T: IPowerOf2>: IUnsigned;
 }
 pub trait IPowerOf2: IUnsigned {
     type Log2: IUnsigned;
+    type Min<T: IPowerOf2>: IPowerOf2;
+    type Max<T: IPowerOf2>: IPowerOf2;
 }
 impl<U: IUnsignedBase> IUnsigned for U {
     const U128: u128 = Self::_U128;
@@ -119,8 +124,8 @@ impl<U: IUnsignedBase> IUnsigned for U {
     > as IUnsignedBase>::_Simplified;
     type Min<T: IUnsigned> = <Self::Greater<T> as IBitBase>::Ternary<T, Self>;
     type Max<T: IUnsigned> = <Self::Greater<T> as IBitBase>::Ternary<Self, T>;
-    type Mod<T: IPowerOf2> = Self::_Truncate<T::Log2>;
-    // type Truncate<T: IUnsigned> = Self::_Truncate<T::Add<U1>>;
+    type Truncate<T: IUnsigned> = <Self::_Truncate<T> as IUnsignedBase>::_Simplified;
+    type Mod<T: IPowerOf2> = Self::Truncate<T::Log2>;
     //     <Self::GreaterOrEq<T> as IBitBase>::Ternary<<Self::AbsSub<T> as IUnsigned>::Mod<T>, Self>;
 }
 impl IUnsignedBase for UTerm {
@@ -162,9 +167,13 @@ impl<Msb: IUnsigned, Bit: IBit> IUnsignedBase for UInt<Msb, Bit> {
 }
 impl<Msb: IUnsigned<_IsUTerm = B1>> IPowerOf2 for UInt<Msb, B1> {
     type Log2 = U0;
+    type Min<T: IPowerOf2> = <Self::Greater<T> as IBitBase>::PTernary<T, Self>;
+    type Max<T: IPowerOf2> = <Self::Greater<T> as IBitBase>::PTernary<Self, T>;
 }
 impl<Msb: IPowerOf2> IPowerOf2 for UInt<Msb, B0> {
     type Log2 = <Msb::Log2 as IUnsignedBase>::Increment;
+    type Min<T: IPowerOf2> = <Self::Greater<T> as IBitBase>::PTernary<T, Self>;
+    type Max<T: IPowerOf2> = <Self::Greater<T> as IBitBase>::PTernary<Self, T>;
 }
 
 #[test]
@@ -247,17 +256,6 @@ fn ops() {
             A::U128,
             B::U128,
         );
-        // if B::U128 != 0 {
-        //     assert_eq!(
-        //         <A::Mod<B> as IUnsigned>::U128,
-        //         A::U128 % B::U128,
-        //         "{} % {} ({} % {})",
-        //         A::U128,
-        //         B::U128,
-        //         core::any::type_name::<A>(),
-        //         core::any::type_name::<B>(),
-        //     );
-        // }
         assert_eq!(
             <A::AbsSub<B> as IUnsigned>::U128,
             A::U128.abs_diff(B::U128),
@@ -304,7 +302,15 @@ fn ops() {
     let _: U2 = <<U10 as IUnsigned>::BitAnd<U6>>::default();
     let _: B1 = <<U2 as IUnsigned>::Equal<<U10 as IUnsigned>::BitAnd<U6>>>::default();
     let _: B0 = <<U3 as IUnsigned>::Equal<<U10 as IUnsigned>::BitAnd<U6>>>::default();
+    let _: U11 = <<U11 as IUnsigned>::Mod<U16>>::default();
+    let _: U10 = <<U10 as IUnsigned>::Mod<U16>>::default();
+    let _: U3 = <<U11 as IUnsigned>::Mod<U8>>::default();
     let _: U2 = <<U10 as IUnsigned>::Mod<U8>>::default();
+    let _: U3 = <<U11 as IUnsigned>::Mod<U4>>::default();
+    let _: U2 = <<U10 as IUnsigned>::Mod<U4>>::default();
+    let _: U1 = <<U11 as IUnsigned>::Mod<U2>>::default();
+    let _: U0 = <<U10 as IUnsigned>::Mod<U2>>::default();
+    let _: U0 = <<U10 as IUnsigned>::Mod<U1>>::default();
     assert_eq!(U0::_U128, 0);
     assert_eq!(U1::_U128, 1);
     assert_eq!(U2::_U128, 2);
