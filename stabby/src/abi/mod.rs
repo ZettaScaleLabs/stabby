@@ -1,6 +1,6 @@
-use core::ops::*;
 #[doc(hidden)]
-pub use typenum::*;
+pub use ::typenum2::*;
+use core::ops::*;
 
 #[macro_export]
 macro_rules! assert_optimal_layout {

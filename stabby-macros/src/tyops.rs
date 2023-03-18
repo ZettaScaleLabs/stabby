@@ -198,27 +198,27 @@ pub fn tyeval(tokens: &TyExpr) -> proc_macro2::TokenStream {
         TyExpr::Add(l, r) => {
             let l = tyeval(l);
             let r = tyeval(r);
-            quote!(<#l as ::core::ops::Add<#r>>::Output)
+            quote!(<#l as ::typenum2::Unsigned>::Add<#r>)
         }
         TyExpr::Sub(l, r) => {
             let l = tyeval(l);
             let r = tyeval(r);
-            quote!(<#l as ::core::ops::Sub<#r>>::Output)
+            quote!(<#l as ::typenum2::Unsigned>::AbsSub<#r>)
         }
         TyExpr::Rem(l, r) => {
             let l = tyeval(l);
             let r = tyeval(r);
-            quote!(<#l as ::core::ops::Rem<#r>>::Output)
+            quote!(<#l as ::typenum2::Unsigned>::Mod<#r>)
         }
         TyExpr::BitOr(l, r) => {
             let l = tyeval(l);
             let r = tyeval(r);
-            quote!(<#l as ::core::ops::BitOr<#r>>::Output)
+            quote!(<#l as ::typenum2::Unsigned>::BitOr<#r>)
         }
         TyExpr::BitAnd(l, r) => {
             let l = tyeval(l);
             let r = tyeval(r);
-            quote!(<#l as ::core::ops::BitAnd<#r>>::Output)
+            quote!(<#l as ::typenum2::Unsigned>::BitAnd<#r>)
         }
         TyExpr::Not(ty) => {
             let ty = tyeval(ty);
@@ -233,7 +233,7 @@ pub fn tyeval(tokens: &TyExpr) -> proc_macro2::TokenStream {
         TyExpr::IsEqual(l, r) => {
             let l = tyeval(l);
             let r = tyeval(r);
-            quote!(<#l as IsEqual<#r>>::Output)
+            quote!(<#l as ::typenum2::Unsigned>::Equal<#r>)
         }
     }
 }

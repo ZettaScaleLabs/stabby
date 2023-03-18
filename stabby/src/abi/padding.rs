@@ -38,7 +38,7 @@ unsafe impl IStable for PadByte {
     type HasExactlyOneNiche = B0;
 }
 
-pub trait IPadding {
+pub trait IPadding: Unsigned {
     type Padding: Default + Sized + Copy;
 }
 impl IPadding for UTerm {
@@ -50,7 +50,7 @@ impl<A: IPadding> IPadding for UInt<A, B0> {
 impl IPadding for UInt<UTerm, B1> {
     type Padding = PadByte;
 }
-impl<A> IPadding for UInt<UInt<UTerm, A>, B1>
+impl<A: Bit> IPadding for UInt<UInt<UTerm, A>, B1>
 where
     UInt<UTerm, A>: IPadding,
 {
@@ -59,7 +59,7 @@ where
         Tuple2<<U1 as IPadding>::Padding, <U1 as IPadding>::Padding>,
     >;
 }
-impl<A, B> IPadding for UInt<UInt<UInt<UTerm, A>, B>, B1>
+impl<A: Bit, B: Bit> IPadding for UInt<UInt<UInt<UTerm, A>, B>, B1>
 where
     UInt<UInt<UTerm, A>, B>: IPadding,
 {
@@ -68,7 +68,7 @@ where
         Tuple2<<U2 as IPadding>::Padding, <U2 as IPadding>::Padding>,
     >;
 }
-impl<A, B, C> IPadding for UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, B1>
+impl<A: Bit, B: Bit, C: Bit> IPadding for UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, B1>
 where
     UInt<UInt<UInt<UTerm, A>, B>, C>: IPadding,
 {
@@ -77,7 +77,8 @@ where
         Tuple2<<U4 as IPadding>::Padding, <U4 as IPadding>::Padding>,
     >;
 }
-impl<A, B, C, D> IPadding for UInt<UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, D>, B1>
+impl<A: Bit, B: Bit, C: Bit, D: Bit> IPadding
+    for UInt<UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, D>, B1>
 where
     UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, D>: IPadding,
 {
@@ -86,7 +87,8 @@ where
         Tuple2<<U8 as IPadding>::Padding, <U8 as IPadding>::Padding>,
     >;
 }
-impl<A, B, C, D, E> IPadding for UInt<UInt<UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, D>, E>, B1>
+impl<A: Bit, B: Bit, C: Bit, D: Bit, E: Bit> IPadding
+    for UInt<UInt<UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, D>, E>, B1>
 where
     UInt<UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, D>, E>: IPadding,
 {
@@ -95,7 +97,7 @@ where
         Tuple2<<U16 as IPadding>::Padding, <U16 as IPadding>::Padding>,
     >;
 }
-impl<A, B, C, D, E, F> IPadding
+impl<A: Bit, B: Bit, C: Bit, D: Bit, E: Bit, F: Bit> IPadding
     for UInt<UInt<UInt<UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, D>, E>, F>, B1>
 where
     UInt<UInt<UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, D>, E>, F>: IPadding,
@@ -105,7 +107,7 @@ where
         Tuple2<<U32 as IPadding>::Padding, <U32 as IPadding>::Padding>,
     >;
 }
-impl<A, B, C, D, E, F, G> IPadding
+impl<A: Bit, B: Bit, C: Bit, D: Bit, E: Bit, F: Bit, G: Bit> IPadding
     for UInt<UInt<UInt<UInt<UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, D>, E>, F>, G>, B1>
 where
     UInt<UInt<UInt<UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, D>, E>, F>, G>: IPadding,
@@ -115,7 +117,7 @@ where
         Tuple2<<U64 as IPadding>::Padding, <U64 as IPadding>::Padding>,
     >;
 }
-impl<A, B, C, D, E, F, G, H> IPadding
+impl<A: Bit, B: Bit, C: Bit, D: Bit, E: Bit, F: Bit, G: Bit, H: Bit> IPadding
     for UInt<UInt<UInt<UInt<UInt<UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, D>, E>, F>, G>, H>, B1>
 where
     UInt<UInt<UInt<UInt<UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, D>, E>, F>, G>, H>: IPadding,
@@ -125,7 +127,7 @@ where
         Tuple2<<U128 as IPadding>::Padding, <U128 as IPadding>::Padding>,
     >;
 }
-impl<A, B, C, D, E, F, G, H, I> IPadding
+impl<A: Bit, B: Bit, C: Bit, D: Bit, E: Bit, F: Bit, G: Bit, H: Bit, I: Bit> IPadding
     for UInt<
         UInt<UInt<UInt<UInt<UInt<UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, D>, E>, F>, G>, H>, I>,
         B1,
@@ -139,7 +141,7 @@ where
         Tuple2<<U256 as IPadding>::Padding, <U256 as IPadding>::Padding>,
     >;
 }
-impl<A, B, C, D, E, F, G, H, I, J> IPadding
+impl<A: Bit, B: Bit, C: Bit, D: Bit, E: Bit, F: Bit, G: Bit, H: Bit, I: Bit, J: Bit> IPadding
     for UInt<
         UInt<
             UInt<UInt<UInt<UInt<UInt<UInt<UInt<UInt<UInt<UTerm, A>, B>, C>, D>, E>, F>, G>, H>, I>,

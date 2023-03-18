@@ -12,4 +12,4 @@ alloc = []
 
 [dependencies]
 stabby-macros = { path = "../stabby-macros/" }
-typenum = "1.16.0"
+typenum2 = { path = "../typenum2/" }
