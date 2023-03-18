@@ -18,18 +18,25 @@ fn main() {
     use std::io::Write;
     let padding_rs = PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("unsigned.rs");
     let mut padding_file = BufWriter::new(File::create(padding_rs).unwrap());
-
-    for i in 0..1024 {
-        let u = u(i as u128);
-        writeln!(padding_file, "pub type U{i} = {u};").unwrap();
-    }
-    for i in [
-        u16::MAX as u128,
-        u32::MAX as u128,
-        u64::MAX as u128,
-        u128::MAX,
-    ] {
+    const SEQ_MAX: u128 = 1000;
+    for i in 0..=SEQ_MAX {
         let u = u(i);
         writeln!(padding_file, "pub type U{i} = {u};").unwrap();
+        writeln!(padding_file, "pub type Ux{i:X} = {u};").unwrap();
+        writeln!(padding_file, "pub type Ub{i:b} = {u};").unwrap();
+    }
+    for i in 0..39 {
+        let ipow = 10u128.pow(i);
+        let u = u(ipow);
+        writeln!(padding_file, "pub type U10pow{i} = {u};").unwrap();
+        if ipow > SEQ_MAX {
+            writeln!(padding_file, "pub type U{ipow} = {u};").unwrap();
+            writeln!(padding_file, "pub type Ux{ipow:X} = {u};").unwrap();
+            writeln!(padding_file, "pub type Ub{ipow:b} = {u};").unwrap();
+        }
+    }
+    for i in 0..128 {
+        let u = u(1 << i);
+        writeln!(padding_file, "pub type U2pow{i} = {u};").unwrap();
     }
 }
