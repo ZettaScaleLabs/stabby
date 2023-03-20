@@ -33,6 +33,59 @@ pub unsafe trait IStable: Sized {
     }
 }
 
+/// DO NOT PUT THIS IN YOUR OWN STRUCTURE! NOT EVER!!!
+/// IF UNSAFE STRUCTS WERE A THING, THIS WOULD BE IT!!
+///
+/// This structure is used by `#[repr(stabby)]` enums to re-export their niches.
+/// You could theoretically use this to export niches from your own internally tagged unions,
+/// but this is the ONLY pertinent use-case for this struct, and failing to do so properly WILL
+/// make your sum types containing this memory-corruptors.
+pub struct NicheExporter<
+    ForbiddenValues: IForbiddenValues,
+    UnusedBits: IBitMask,
+    HasExactlyOneNiche: ISaturatingAdd,
+>(core::marker::PhantomData<(ForbiddenValues, UnusedBits, HasExactlyOneNiche)>);
+
+impl<
+        ForbiddenValues: IForbiddenValues,
+        UnusedBits: IBitMask,
+        HasExactlyOneNiche: ISaturatingAdd,
+    > Clone for NicheExporter<ForbiddenValues, UnusedBits, HasExactlyOneNiche>
+{
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+impl<
+        ForbiddenValues: IForbiddenValues,
+        UnusedBits: IBitMask,
+        HasExactlyOneNiche: ISaturatingAdd,
+    > Copy for NicheExporter<ForbiddenValues, UnusedBits, HasExactlyOneNiche>
+{
+}
+impl<
+        ForbiddenValues: IForbiddenValues,
+        UnusedBits: IBitMask,
+        HasExactlyOneNiche: ISaturatingAdd,
+    > Default for NicheExporter<ForbiddenValues, UnusedBits, HasExactlyOneNiche>
+{
+    fn default() -> Self {
+        Self(core::marker::PhantomData)
+    }
+}
+unsafe impl<
+        ForbiddenValues: IForbiddenValues,
+        UnusedBits: IBitMask,
+        HasExactlyOneNiche: ISaturatingAdd,
+    > IStable for NicheExporter<ForbiddenValues, UnusedBits, HasExactlyOneNiche>
+{
+    type Size = U0;
+    type Align = U1;
+    type ForbiddenValues = ForbiddenValues;
+    type UnusedBits = UnusedBits;
+    type HasExactlyOneNiche = HasExactlyOneNiche;
+}
+
 #[crate::stabby]
 #[derive(Default)]
 pub struct End;

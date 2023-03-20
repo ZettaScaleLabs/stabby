@@ -5,40 +5,6 @@ use crate::abi::enums::{IDiscriminant, IDiscriminantProvider};
 use crate::abi::padding::Padded;
 use crate::abi::Union;
 
-#[test]
-fn test() {
-    use crate::{abi::IStable, tuple::Tuple2};
-    use core::num::NonZeroU8;
-    fn inner<A, B>(a: A, b: B, expected_size: usize)
-    where
-        A: Clone + PartialEq + core::fmt::Debug,
-        B: Clone + PartialEq + core::fmt::Debug,
-        (A, B): IDiscriminantProvider,
-        Result<A, B>: IStable,
-    {
-        let ac = a.clone();
-        let bc = b.clone();
-        let a: core::result::Result<A, B> = Ok(a);
-        let b: core::result::Result<A, B> = Err(b);
-        assert_eq!(<Result<A, B> as IStable>::size(), expected_size);
-        let a: Result<_, _> = a.into();
-        let b: Result<_, _> = b.into();
-        assert!(a.is_ok());
-        assert!(b.is_err());
-        assert_eq!(a.unwrap(), ac);
-        assert_eq!(b.unwrap_err(), bc);
-    }
-    inner(8u8, 2u8, 2);
-    let _: crate::abi::typenum2::U2 = <Result<u8, u8> as IStable>::Size::default();
-    inner(Tuple2(1u8, 2u16), Tuple2(3u16, 4u16), 6);
-    inner(
-        Tuple2(1u8, 2u16),
-        Tuple2(3u8, NonZeroU8::new(4).unwrap()),
-        4,
-    );
-    // let _: crate::abi::typenum2::U2 = <Result<u8, NonZeroU16> as IStable>::Size::default();
-}
-
 #[stabby::stabby]
 pub struct Result<Ok, Err>
 where
@@ -266,4 +232,46 @@ where
     {
         self.unwrap_err_or_else(|e| panic!("Result::unwrap_err called on Ok variant: {e:?}"))
     }
+}
+
+#[test]
+fn test() {
+    use crate::{abi::IStable, tuple::Tuple2};
+    use core::num::NonZeroU8;
+    fn inner<A, B>(a: A, b: B, expected_size: usize)
+    where
+        A: Clone + PartialEq + core::fmt::Debug,
+        B: Clone + PartialEq + core::fmt::Debug,
+        (A, B): IDiscriminantProvider,
+        Result<A, B>: IStable,
+    {
+        let ac = a.clone();
+        let bc = b.clone();
+        let a: core::result::Result<A, B> = Ok(a);
+        let b: core::result::Result<A, B> = Err(b);
+        assert_eq!(<Result<A, B> as IStable>::size(), expected_size);
+        let a: Result<_, _> = a.into();
+        let b: Result<_, _> = b.into();
+        assert_eq!(a, Result::Ok(ac.clone()));
+        assert_eq!(b, Result::Err(bc.clone()));
+        assert!(a.is_ok());
+        assert!(b.is_err());
+        assert_eq!(a.unwrap(), ac);
+        assert_eq!(b.unwrap_err(), bc);
+    }
+    inner(8u8, 2u8, 2);
+    let _: crate::abi::typenum2::U2 = <Result<u8, u8> as IStable>::Size::default();
+    inner(Tuple2(1u8, 2u16), Tuple2(3u16, 4u16), 6);
+    inner(
+        Tuple2(1u8, 2u16),
+        Tuple2(3u8, NonZeroU8::new(4).unwrap()),
+        4,
+    );
+    inner(
+        Tuple2(3u8, NonZeroU8::new(4).unwrap()),
+        Tuple2(1u8, 2u16),
+        4,
+    );
+    inner(Tuple2(3u8, 4u16), Tuple2(1u8, 2u16), 4);
+    // let _: crate::abi::typenum2::U2 = <Result<u8, NonZeroU16> as IStable>::Size::default();
 }
