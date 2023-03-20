@@ -5,7 +5,7 @@ macro_rules! same_as {
         type Align = <$t as IStable>::Align;
         type Size = <$t as IStable>::Size;
         type UnusedBits = <$t as IStable>::UnusedBits;
-        type IllegalValues = <$t as IStable>::IllegalValues;
+        type ForbiddenValues = <$t as IStable>::ForbiddenValues;
         type HasExactlyOneNiche = <$t as IStable>::HasExactlyOneNiche;
     };
 }
@@ -20,21 +20,21 @@ macro_rules! nz_holes {
 unsafe impl IStable for () {
     type Size = U0;
     type Align = U1;
-    type IllegalValues = End;
+    type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
 }
 unsafe impl<T> IStable for core::marker::PhantomData<T> {
     type Size = U0;
     type Align = U1;
-    type IllegalValues = End;
+    type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
 }
 unsafe impl IStable for core::marker::PhantomPinned {
     type Size = U0;
     type Align = U1;
-    type IllegalValues = End;
+    type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
 }
@@ -55,7 +55,7 @@ macro_rules! illegal_values {
 unsafe impl IStable for bool {
     type Align = U1;
     type Size = U1;
-    type IllegalValues = illegal_values!(
+    type ForbiddenValues = illegal_values!(
         (
             (
                 (
@@ -112,7 +112,7 @@ unsafe impl IStable for bool {
 
 unsafe impl IStable for u8 {
     type UnusedBits = End;
-    type IllegalValues = End;
+    type ForbiddenValues = End;
     type Align = U1;
     type Size = U1;
     type HasExactlyOneNiche = B0;
@@ -121,18 +121,18 @@ unsafe impl IStable for core::num::NonZeroU8 {
     type Align = U1;
     type Size = U1;
     type UnusedBits = End;
-    type IllegalValues = nz_holes!(U0);
+    type ForbiddenValues = nz_holes!(U0);
     type HasExactlyOneNiche = B1;
 }
 unsafe impl IStable for u16 {
     type UnusedBits = End;
-    type IllegalValues = End;
+    type ForbiddenValues = End;
     type Align = U2;
     type Size = U2;
     type HasExactlyOneNiche = B0;
 }
 unsafe impl IStable for core::num::NonZeroU16 {
-    type IllegalValues = nz_holes!(U0, U1);
+    type ForbiddenValues = nz_holes!(U0, U1);
     type UnusedBits = End;
     type Align = U2;
     type Size = U2;
@@ -140,13 +140,13 @@ unsafe impl IStable for core::num::NonZeroU16 {
 }
 unsafe impl IStable for u32 {
     type UnusedBits = End;
-    type IllegalValues = End;
+    type ForbiddenValues = End;
     type Align = U4;
     type Size = U4;
     type HasExactlyOneNiche = B0;
 }
 unsafe impl IStable for core::num::NonZeroU32 {
-    type IllegalValues = nz_holes!(U0, U1, U2, U3);
+    type ForbiddenValues = nz_holes!(U0, U1, U2, U3);
     type UnusedBits = End;
     type Align = U4;
     type Size = U4;
@@ -154,14 +154,14 @@ unsafe impl IStable for core::num::NonZeroU32 {
 }
 unsafe impl IStable for u64 {
     type UnusedBits = End;
-    type IllegalValues = End;
+    type ForbiddenValues = End;
     type Align = U8;
     type Size = U8;
     type HasExactlyOneNiche = B0;
 }
 unsafe impl IStable for core::num::NonZeroU64 {
     type UnusedBits = End;
-    type IllegalValues = nz_holes!(U0, U1, U2, U3, U4, U5, U6, U7);
+    type ForbiddenValues = nz_holes!(U0, U1, U2, U3, U4, U5, U6, U7);
     type Align = U8;
     type Size = U8;
     type HasExactlyOneNiche = B1;
@@ -169,7 +169,7 @@ unsafe impl IStable for core::num::NonZeroU64 {
 
 unsafe impl IStable for u128 {
     type UnusedBits = End;
-    type IllegalValues = End;
+    type ForbiddenValues = End;
     type Size = U16;
     type HasExactlyOneNiche = B0;
     #[cfg(not(any(target_arch = "aarch64")))]
@@ -179,7 +179,7 @@ unsafe impl IStable for u128 {
 }
 unsafe impl IStable for core::num::NonZeroU128 {
     type UnusedBits = End;
-    type IllegalValues =
+    type ForbiddenValues =
         nz_holes!(U0, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15);
     type Size = U16;
     type HasExactlyOneNiche = B1;
@@ -319,7 +319,7 @@ where
 unsafe impl<T: IStable> IStable for HasExactlyOneNiche<Option<T>, B1> {
     type Size = T::Size;
     type Align = T::Align;
-    type IllegalValues = End;
+    type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
 }

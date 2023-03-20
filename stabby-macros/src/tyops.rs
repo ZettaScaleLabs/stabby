@@ -193,47 +193,48 @@ impl From<proc_macro2::TokenStream> for TyExpr {
 }
 
 pub fn tyeval(tokens: &TyExpr) -> proc_macro2::TokenStream {
+    let st = crate::tl_mod();
     match tokens {
         TyExpr::Type(ty) => quote!(#ty),
         TyExpr::Add(l, r) => {
             let l = tyeval(l);
             let r = tyeval(r);
-            quote!(<#l as ::typenum2::Unsigned>::Add<#r>)
+            quote!(<#l as #st::typenum2::Unsigned>::Add<#r>)
         }
         TyExpr::Sub(l, r) => {
             let l = tyeval(l);
             let r = tyeval(r);
-            quote!(<#l as ::typenum2::Unsigned>::AbsSub<#r>)
+            quote!(<#l as #st::typenum2::Unsigned>::AbsSub<#r>)
         }
         TyExpr::Rem(l, r) => {
             let l = tyeval(l);
             let r = tyeval(r);
-            quote!(<#l as ::typenum2::Unsigned>::Mod<#r>)
+            quote!(<#l as #st::typenum2::Unsigned>::Mod<#r>)
         }
         TyExpr::BitOr(l, r) => {
             let l = tyeval(l);
             let r = tyeval(r);
-            quote!(<#l as ::typenum2::Unsigned>::BitOr<#r>)
+            quote!(<#l as #st::typenum2::Unsigned>::BitOr<#r>)
         }
         TyExpr::BitAnd(l, r) => {
             let l = tyeval(l);
             let r = tyeval(r);
-            quote!(<#l as ::typenum2::Unsigned>::BitAnd<#r>)
+            quote!(<#l as #st::typenum2::Unsigned>::BitAnd<#r>)
         }
         TyExpr::Not(ty) => {
             let ty = tyeval(ty);
-            quote!(<#ty as ::core::ops::Not>::Output)
+            quote!(<#ty as #st::typenum2::Bit>::Not)
         }
         TyExpr::Ternary(cond, t, f) => {
             let cond = tyeval(cond);
             let t = tyeval(t);
             let f = tyeval(f);
-            quote!(<#cond as Ternary<#t, #f>>::Output)
+            quote!(<#cond as #st::typenum2::Bit>::UTernary<#t, #f>)
         }
         TyExpr::IsEqual(l, r) => {
             let l = tyeval(l);
             let r = tyeval(r);
-            quote!(<#l as ::typenum2::Unsigned>::Equal<#r>)
+            quote!(<#l as #st::typenum2::Unsigned>::Equal<#r>)
         }
     }
 }

@@ -33,8 +33,8 @@ impl<'a> IStabilize for &'a mut str {
 }
 impl<T> IStabilize for core::pin::Pin<T>
 where
-    T: Deref + IStabilize,
-    T::Stable: Deref,
+    T: core::ops::Deref + IStabilize,
+    T::Stable: core::ops::Deref,
 {
     type Stable = core::pin::Pin<T::Stable>;
     fn stable(self) -> Self::Stable {

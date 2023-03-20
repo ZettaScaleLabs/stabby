@@ -1,6 +1,6 @@
+pub mod typenum2;
 #[doc(hidden)]
-pub use ::typenum2::*;
-use core::ops::*;
+pub use typenum2::*;
 
 #[macro_export]
 macro_rules! assert_optimal_layout {
@@ -69,12 +69,13 @@ impl<T, As: IStable> core::ops::DerefMut for StableLike<T, As> {
 unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
     type Size = As::Size;
     type Align = As::Align;
-    type IllegalValues = As::IllegalValues;
+    type ForbiddenValues = As::ForbiddenValues;
     type UnusedBits = As::UnusedBits;
     type HasExactlyOneNiche = As::HasExactlyOneNiche;
 }
 
 #[repr(C)]
+#[derive(Default, Clone, Copy)]
 pub struct FieldPair<A, B>(core::marker::PhantomData<(A, B)>);
 #[repr(transparent)]
 pub struct Struct<T>(T);
@@ -95,6 +96,5 @@ pub mod padding;
 
 pub use istable::{Array, End, IStable};
 
-use self::istable::IllegalValue;
 mod istable;
-pub type NonZeroHole = IllegalValue<U0>;
+pub type NonZeroHole = U0;

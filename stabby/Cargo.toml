@@ -12,4 +12,3 @@ alloc = []
 
 [dependencies]
 stabby-macros = { path = "../stabby-macros/" }
-typenum2 = { path = "../typenum2/" }

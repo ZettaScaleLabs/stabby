@@ -27,7 +27,7 @@ pub fn stabby(
 
         #[automatically_derived]
         unsafe impl #generics #st::IStable for #ident <#unbound_generics> where #layout: #st::IStable {
-            type IllegalValues = #st::End;
+            type ForbiddenValues = #st::End;
             type UnusedBits = #st::End;
             type Size = <#layout as #st::IStable>::Size;
             type Align = <#layout as #st::IStable>::Align;

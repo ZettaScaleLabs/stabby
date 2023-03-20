@@ -2,20 +2,41 @@ pub mod typenames {
     use super::{UInt, UTerm, B0, B1};
     include!(concat!(env!("OUT_DIR"), "/unsigned.rs"));
 }
+use stabby_macros::tyeval;
 use typenames::*;
+
+use crate::abi::{
+    istable::{IBitMask, ISingleForbiddenValue, Saturator},
+    Array, End, IStable,
+};
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct UTerm;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct UInt<Msbs: IUnsignedBase, Bit: IBit>(Msbs, Bit);
 
+#[repr(transparent)]
+#[derive(Debug, Default, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PadByte(u8);
+unsafe impl IStable for PadByte {
+    type Size = U1;
+    type Align = U1;
+    type ForbiddenValues = End;
+    type UnusedBits = Array<U0, UxFF, End>;
+    type HasExactlyOneNiche = B0;
+}
+
 pub trait IBitBase {
     const _BOOL: bool;
-    type _And<T: IBit>: IBit;
-    type _Or<T: IBit>: IBit;
-    type _Not: IBit;
-    type _Ternary<A: IUnsigned, B: IUnsigned>: IUnsigned;
-    type _BTernary<A: IBit, B: IBit>: IBit;
-    type _PTernary<A: IPowerOf2, B: IPowerOf2>: IPowerOf2;
+    type _And<T: IBit>: IBit + Sized;
+    type _Or<T: IBit>: IBit + Sized;
+    type _Not: IBit + Sized;
+    type _Ternary<A, B>;
+    type _UTernary<A: IUnsigned, B: IUnsigned>: IUnsigned + Sized;
+    type _NzTernary<A: NonZero, B: NonZero>: NonZero + Sized;
+    type _BTernary<A: IBit, B: IBit>: IBit + Sized;
+    type _BmTernary<A: IBitMask, B: IBitMask>: IBitMask + Sized;
+    type _PTernary<A: IPowerOf2, B: IPowerOf2>: IPowerOf2 + Sized;
+    type AsForbiddenValue: ISingleForbiddenValue + Sized;
 }
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct B0;
@@ -24,9 +45,13 @@ impl IBitBase for B0 {
     type _And<T: IBit> = Self;
     type _Or<T: IBit> = T;
     type _Not = B1;
-    type _Ternary<A: IUnsigned, B: IUnsigned> = B;
+    type _Ternary<A, B> = B;
+    type _UTernary<A: IUnsigned, B: IUnsigned> = B;
+    type _NzTernary<A: NonZero, B: NonZero> = B;
     type _BTernary<A: IBit, B: IBit> = B;
+    type _BmTernary<A: IBitMask, B: IBitMask> = B;
     type _PTernary<A: IPowerOf2, B: IPowerOf2> = B;
+    type AsForbiddenValue = Saturator;
 }
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct B1;
@@ -35,33 +60,43 @@ impl IBitBase for B1 {
     type _And<T: IBit> = T;
     type _Or<T: IBit> = Self;
     type _Not = B0;
-    type _Ternary<A: IUnsigned, B: IUnsigned> = A;
+    type _Ternary<A, B> = A;
+    type _UTernary<A: IUnsigned, B: IUnsigned> = A;
+    type _NzTernary<A: NonZero, B: NonZero> = A;
     type _BTernary<A: IBit, B: IBit> = A;
+    type _BmTernary<A: IBitMask, B: IBitMask> = A;
     type _PTernary<A: IPowerOf2, B: IPowerOf2> = A;
+    type AsForbiddenValue = End;
 }
 pub trait IBit: IBitBase {
     const BOOL: bool;
-    type And<T: IBit>: IBit;
-    type Or<T: IBit>: IBit;
-    type Not: IBit;
-    type Ternary<A: IUnsigned, B: IUnsigned>: IUnsigned;
-    type BTernary<A: IBit, B: IBit>: IBit;
-    type PTernary<A: IPowerOf2, B: IPowerOf2>: IPowerOf2;
-    type Nand<T: IBit>: IBit;
-    type Xor<T: IBit>: IBit;
-    type Equals<T: IBit>: IBit;
-    type AdderSum<Rhs: IBit, Carry: IBit>: IBit;
-    type AdderCarry<Rhs: IBit, Carry: IBit>: IBit;
-    type SuberSum<Rhs: IBit, Carry: IBit>: IBit;
-    type SuberCarry<Rhs: IBit, Carry: IBit>: IBit;
+    type And<T: IBit>: IBit + Sized;
+    type Or<T: IBit>: IBit + Sized;
+    type Not: IBit + Sized;
+    type Ternary<A, B>;
+    type UTernary<A: IUnsigned + Sized, B: IUnsigned + Sized>: IUnsigned + Sized;
+    type NzTernary<A: NonZero, B: NonZero>: NonZero + Sized;
+    type BTernary<A: IBit, B: IBit>: IBit + Sized;
+    type BmTernary<A: IBitMask, B: IBitMask>: IBitMask + Sized;
+    type PTernary<A: IPowerOf2, B: IPowerOf2>: IPowerOf2 + Sized;
+    type Nand<T: IBit>: IBit + Sized;
+    type Xor<T: IBit>: IBit + Sized;
+    type Equals<T: IBit>: IBit + Sized;
+    type AdderSum<Rhs: IBit, Carry: IBit>: IBit + Sized;
+    type AdderCarry<Rhs: IBit, Carry: IBit>: IBit + Sized;
+    type SuberSum<Rhs: IBit, Carry: IBit>: IBit + Sized;
+    type SuberCarry<Rhs: IBit, Carry: IBit>: IBit + Sized;
 }
 impl<Bit: IBitBase> IBit for Bit {
     const BOOL: bool = Self::_BOOL;
     type And<T: IBit> = Self::_And<T>;
     type Or<T: IBit> = Self::_Or<T>;
     type Not = Self::_Not;
-    type Ternary<A: IUnsigned, B: IUnsigned> = Self::_Ternary<A, B>;
+    type Ternary<A, B> = Self::_Ternary<A, B>;
+    type UTernary<A: IUnsigned, B: IUnsigned> = Self::_UTernary<A, B>;
+    type NzTernary<A: NonZero, B: NonZero> = Self::_NzTernary<A, B>;
     type BTernary<A: IBit, B: IBit> = Self::_BTernary<A, B>;
+    type BmTernary<A: IBitMask, B: IBitMask> = Self::_BmTernary<A, B>;
     type PTernary<A: IPowerOf2, B: IPowerOf2> = Self::_PTernary<A, B>;
     type Nand<T: IBit> = <Self::_And<T> as IBitBase>::_Not;
     type Xor<T: IBit> = <Self::_And<T::_Not> as IBitBase>::_Or<T::_And<Self::_Not>>;
@@ -90,7 +125,14 @@ pub trait IUnsignedBase {
     type _Truncate<T: IUnsigned>: IUnsigned;
     type NextPow2: IUnsigned;
     type Increment: IUnsigned;
+    type _Padding: IStable + Default + Copy;
+    type _SatDecrement: IUnsigned;
+    type _TruncateAtRightmostOne: NonZero;
+    type _NonZero: NonZero;
 }
+pub struct Lesser;
+pub struct Equal;
+pub struct Greater;
 pub trait IUnsigned: IUnsignedBase {
     const U128: u128;
     const USIZE: usize;
@@ -112,6 +154,10 @@ pub trait IUnsigned: IUnsignedBase {
     type Max<T: IUnsigned>: IUnsigned;
     type Truncate<T: IUnsigned>: IUnsigned;
     type Mod<T: IPowerOf2>: IUnsigned;
+    type Padding: IStable + Sized + Default + Copy;
+    type NonZero: NonZero;
+    type NextMultipleOf<T: IPowerOf2>: IUnsigned;
+    type Cmp<T: IUnsigned>;
 }
 pub trait IPowerOf2: IUnsigned {
     type Log2: IUnsigned;
@@ -134,14 +180,22 @@ impl<U: IUnsignedBase> IUnsigned for U {
     type SmallerOrEq<T: IUnsigned> = <Self::Greater<T> as IBit>::Not;
     type Smaller<T: IUnsigned> = <Self::GreaterOrEq<T> as IBit>::Not;
     type Add<T: IUnsigned> = Self::_Add<T, B0>;
-    type AbsSub<T: IUnsigned> = <<Self::Greater<T> as IBit>::Ternary<
+    type AbsSub<T: IUnsigned> = <<Self::Greater<T> as IBit>::UTernary<
         Self::_Sub<T, B0>,
         T::_Sub<Self, B0>,
     > as IUnsignedBase>::_Simplified;
-    type Min<T: IUnsigned> = <Self::Greater<T> as IBit>::Ternary<T, Self>;
-    type Max<T: IUnsigned> = <Self::Greater<T> as IBit>::Ternary<Self, T>;
+    type Min<T: IUnsigned> = <Self::Greater<T> as IBit>::UTernary<T, Self>;
+    type Max<T: IUnsigned> = <Self::Greater<T> as IBit>::UTernary<Self, T>;
     type Truncate<T: IUnsigned> = <Self::_Truncate<T> as IUnsignedBase>::_Simplified;
     type Mod<T: IPowerOf2> = Self::Truncate<T::Log2>;
+    type Padding = Self::_Padding;
+    type NonZero = Self::_NonZero;
+    type NextMultipleOf<T: IPowerOf2> =
+        tyeval!(((Self % T) == U0) ? Self : (Self + (T - (Self % T))));
+    type Cmp<T: IUnsigned> = <Self::Equal<T> as IBit>::Ternary<
+        Equal,
+        <Self::Greater<T> as IBit>::Ternary<Greater, Lesser>,
+    >;
 }
 impl IUnsignedBase for UTerm {
     const _U128: u128 = 0;
@@ -153,18 +207,68 @@ impl IUnsignedBase for UTerm {
     type _Simplified = UTerm;
     type _Equals<T: IUnsigned> = T::_IsUTerm;
     type Increment = U1;
-    type _Add<T: IUnsigned, Carry: IBit> = Carry::Ternary<T::Increment, T>;
+    type _Add<T: IUnsigned, Carry: IBit> = Carry::UTernary<T::Increment, T>;
     type _Greater<T: IUnsigned, Hint: IBit> = Hint::And<T::_IsUTerm>;
     type _Sub<T: IUnsigned, Carry: IBit> = UTerm;
     type _Truncate<T: IUnsigned> = UTerm;
+    type _Padding = ();
+    type _SatDecrement = U0;
     type NextPow2 = U0;
+    type _TruncateAtRightmostOne = Saturator;
+    type _NonZero = Saturator;
+}
+impl IUnsignedBase for Saturator {
+    const _U128: u128 = { panic!("Attempted to convert Saturator into u128") };
+    type Bit = B0;
+    type Msb = Saturator;
+    type _IsUTerm = B1;
+    type _BitAndInner<T: IUnsignedBase> = Saturator;
+    type _BitOrInner<T: IUnsigned> = Saturator;
+    type _Simplified = Saturator;
+    type _Equals<T: IUnsigned> = T::_IsUTerm;
+    type Increment = Saturator;
+    type _Add<T: IUnsigned, Carry: IBit> = Carry::UTernary<T::Increment, T>;
+    type _Greater<T: IUnsigned, Hint: IBit> = Hint::And<T::_IsUTerm>;
+    type _Sub<T: IUnsigned, Carry: IBit> = Saturator;
+    type _Truncate<T: IUnsigned> = Saturator;
+    type _Padding = ();
+    type _SatDecrement = Saturator;
+    type NextPow2 = Saturator;
+    type _TruncateAtRightmostOne = Saturator;
+    type _NonZero = Saturator;
+}
+pub trait NonZero: IUnsigned {
+    type Decrement: IUnsigned;
+    type TruncateAtRightmostOne: IUnsigned;
+}
+impl NonZero for Saturator {
+    type Decrement = Saturator;
+    type TruncateAtRightmostOne = Saturator;
+}
+#[repr(C)]
+#[derive(Default, Clone, Copy)]
+pub struct OneMoreByte<L: IStable + Copy + Default> {
+    l: L,
+    r: PadByte,
+}
+unsafe impl<L: IStable + Copy + Default> IStable for OneMoreByte<L> {
+    type Size = <L::Size as IUnsignedBase>::Increment;
+    type Align = L::Align;
+    type ForbiddenValues = L::ForbiddenValues;
+    type UnusedBits = Array<L::Size, UxFF, L::UnusedBits>;
+    type HasExactlyOneNiche = L::HasExactlyOneNiche;
+}
+impl<Msb: IUnsigned, Bit: IBit> NonZero for UInt<Msb, Bit> {
+    type Decrement =
+        <Bit::UTernary<UInt<Msb, B0>, UInt<Msb::_SatDecrement, B1>> as IUnsignedBase>::_Simplified;
+    type TruncateAtRightmostOne = Self::_TruncateAtRightmostOne;
 }
 impl<Msb: IUnsigned, Bit: IBit> IUnsignedBase for UInt<Msb, Bit> {
     const _U128: u128 = (Msb::_U128 << 1) | (<Self::Bit as IBit>::BOOL as u128);
     type Bit = Bit;
     type Msb = Msb;
     type _IsUTerm = <Bit::Not as IBit>::And<Msb::_IsUTerm>;
-    type _Simplified = <Self::_IsUTerm as IBit>::Ternary<UTerm, UInt<Msb::_Simplified, Bit>>;
+    type _Simplified = <Self::_IsUTerm as IBit>::UTernary<UTerm, UInt<Msb::_Simplified, Bit>>;
     type _BitAndInner<T: IUnsigned> = UInt<Msb::_BitAndInner<T::Msb>, Bit::And<T::Bit>>;
     type _BitOrInner<T: IUnsigned> = UInt<Msb::_BitOrInner<T::Msb>, Bit::Or<T::Bit>>;
     type _Equals<T: IUnsigned> = <Bit::Equals<T::Bit> as IBit>::And<Msb::Equal<T::Msb>>;
@@ -176,8 +280,14 @@ impl<Msb: IUnsigned, Bit: IBit> IUnsignedBase for UInt<Msb, Bit> {
     type _Sub<T: IUnsigned, Carry: IBit> =
         UInt<Msb::_Sub<T::Msb, Bit::SuberCarry<T::Bit, Carry>>, Bit::SuberSum<T::Bit, Carry>>;
     type _Truncate<T: IUnsigned> =
-        <T::_IsUTerm as IBit>::Ternary<UTerm, UInt<Msb::_Truncate<T::AbsSub<U1>>, Bit>>;
-    type NextPow2 = <Msb::NextPow2 as IUnsigned>::Add<<Self::_IsUTerm as IBit>::Ternary<U0, U1>>;
+        <T::_IsUTerm as IBit>::UTernary<UTerm, UInt<Msb::_Truncate<T::AbsSub<U1>>, Bit>>;
+    type _SatDecrement =
+        <Bit::UTernary<UInt<Msb, B0>, UInt<Msb::_SatDecrement, B1>> as IUnsignedBase>::_Simplified;
+    type _Padding =
+        OneMoreByte<<<Self as IUnsignedBase>::_SatDecrement as IUnsignedBase>::_Padding>;
+    type NextPow2 = <Msb::NextPow2 as IUnsigned>::Add<<Self::_IsUTerm as IBit>::UTernary<U0, U1>>;
+    type _TruncateAtRightmostOne = Bit::NzTernary<Self, UInt<Msb::_TruncateAtRightmostOne, B0>>;
+    type _NonZero = Self;
 }
 impl<Msb: IUnsigned<_IsUTerm = B1>> IPowerOf2 for UInt<Msb, B1> {
     type Log2 = U0;
