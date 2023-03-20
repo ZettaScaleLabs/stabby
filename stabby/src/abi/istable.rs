@@ -92,6 +92,8 @@ pub struct End;
 pub struct Array<Offset: Unsigned, T, Rest>(core::marker::PhantomData<(Offset, T, Rest)>);
 
 pub trait IBitMask {
+    const TUPLE: Self::Tuple;
+    type Tuple: core::fmt::Debug;
     type ByteAt<O: Unsigned>: Unsigned;
     type BitOr<T: IBitMask>: IBitMask;
     type Shift<O: Unsigned>: IBitMask;
@@ -102,6 +104,8 @@ pub trait IBitMask {
     type ExtractedBitMask: Unsigned;
 }
 impl IBitMask for End {
+    const TUPLE: Self::Tuple = ();
+    type Tuple = ();
     type ByteAt<O: Unsigned> = U0;
     type BitOr<T: IBitMask> = T;
     type Shift<O: Unsigned> = End;
@@ -112,6 +116,8 @@ impl IBitMask for End {
     type ExtractedBitByteOffset = Saturator;
 }
 impl<Offset: Unsigned, T: NonZero, Rest: IBitMask> IBitMask for Array<Offset, T, Rest> {
+    const TUPLE: Self::Tuple = ((Offset::USIZE, T::USIZE), Rest::TUPLE);
+    type Tuple = ((usize, usize), Rest::Tuple);
     type ByteAt<O: Unsigned> = <Offset::Equal<O> as Bit>::UTernary<T, Rest::ByteAt<O>>;
     type BitAnd<Mask: IBitMask> =
         <<T::BitAnd<Mask::ByteAt<Offset>> as Unsigned>::Equal<U0> as Bit>::BmTernary<
@@ -131,8 +137,8 @@ impl<Offset: Unsigned, T: NonZero, Rest: IBitMask> IBitMask for Array<Offset, T,
             Array<Offset, <T::AbsSub<T::TruncateAtRightmostOne> as Unsigned>::NonZero, Rest>,
             Rest,
         >;
-    type ExtractedBitMask = T::TruncateAtRightmostOne;
     type ExtractedBitByteOffset = Offset;
+    type ExtractedBitMask = T::TruncateAtRightmostOne;
 }
 pub trait IForbiddenValues {
     type Shift<O: Unsigned>: IForbiddenValues;

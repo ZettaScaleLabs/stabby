@@ -96,5 +96,5 @@ pub mod padding;
 
 pub use istable::{Array, End, IStable};
 
-mod istable;
+pub(crate) mod istable;
 pub type NonZeroHole = U0;

@@ -286,7 +286,7 @@ impl<Msb: IUnsigned, Bit: IBit> IUnsignedBase for UInt<Msb, Bit> {
     type _Padding =
         OneMoreByte<<<Self as IUnsignedBase>::_SatDecrement as IUnsignedBase>::_Padding>;
     type NextPow2 = <Msb::NextPow2 as IUnsigned>::Add<<Self::_IsUTerm as IBit>::UTernary<U0, U1>>;
-    type _TruncateAtRightmostOne = Bit::NzTernary<Self, UInt<Msb::_TruncateAtRightmostOne, B0>>;
+    type _TruncateAtRightmostOne = Bit::NzTernary<U1, UInt<Msb::_TruncateAtRightmostOne, B0>>;
     type _NonZero = Self;
 }
 impl<Msb: IUnsigned<_IsUTerm = B1>> IPowerOf2 for UInt<Msb, B1> {

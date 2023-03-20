@@ -237,26 +237,27 @@ where
 #[test]
 fn test() {
     use crate::{abi::IStable, tuple::Tuple2};
-    use core::num::NonZeroU8;
+    use core::num::{NonZeroU16, NonZeroU8};
     fn inner<A, B>(a: A, b: B, expected_size: usize)
     where
-        A: Clone + PartialEq + core::fmt::Debug,
-        B: Clone + PartialEq + core::fmt::Debug,
+        A: Clone + PartialEq + core::fmt::Debug + IStable,
+        B: Clone + PartialEq + core::fmt::Debug + IStable,
         (A, B): IDiscriminantProvider,
         Result<A, B>: IStable,
     {
+        dbg!(<A::UnusedBits as crate::abi::istable::IBitMask>::TUPLE);
         let ac = a.clone();
         let bc = b.clone();
         let a: core::result::Result<A, B> = Ok(a);
         let b: core::result::Result<A, B> = Err(b);
         assert_eq!(<Result<A, B> as IStable>::size(), expected_size);
         let a: Result<_, _> = a.into();
-        let b: Result<_, _> = b.into();
-        assert_eq!(a, Result::Ok(ac.clone()));
-        assert_eq!(b, Result::Err(bc.clone()));
         assert!(a.is_ok());
+        let b: Result<_, _> = b.into();
         assert!(b.is_err());
+        assert_eq!(a, Result::Ok(ac.clone()));
         assert_eq!(a.unwrap(), ac);
+        assert_eq!(b, Result::Err(bc.clone()));
         assert_eq!(b.unwrap_err(), bc);
     }
     inner(8u8, 2u8, 2);
@@ -273,5 +274,5 @@ fn test() {
         4,
     );
     inner(Tuple2(3u8, 4u16), Tuple2(1u8, 2u16), 4);
-    // let _: crate::abi::typenum2::U2 = <Result<u8, NonZeroU16> as IStable>::Size::default();
+    inner(1u8, NonZeroU16::new(6).unwrap(), 4);
 }

@@ -100,17 +100,19 @@ impl<Offset: Unsigned, Value: Unsigned, Tail: IForbiddenValues + IntoValueIsErr>
 #[derive(Debug, Clone, Copy)]
 pub struct BitIsErr<Offset, Mask>(PhantomData<(Offset, Mask)>);
 impl<Offset: Unsigned, Mask: Unsigned> IDiscriminant for BitIsErr<Offset, Mask> {
-    unsafe fn ok(_: *mut u8) -> Self {
+    unsafe fn ok(union: *mut u8) -> Self {
+        let ptr = union as *mut _ as *mut u8;
+        *ptr.add(Offset::USIZE) &= u8::MAX ^ Mask::U8;
         BitIsErr(PhantomData)
     }
     unsafe fn err(union: *mut u8) -> Self {
         let ptr = union as *mut _ as *mut u8;
-        *ptr.add(dbg!(Offset::USIZE)) |= dbg!(Mask::U8);
+        *ptr.add(Offset::USIZE) |= Mask::U8;
         BitIsErr(PhantomData)
     }
     fn is_ok(&self, union: *const u8) -> bool {
         let ptr = union as *const _ as *const u8;
-        unsafe { *ptr.add(Offset::USIZE) & Mask::U8 != 0 }
+        unsafe { *ptr.add(Offset::USIZE) & Mask::U8 == 0 }
     }
 }
 #[derive(Debug, Clone, Copy)]
