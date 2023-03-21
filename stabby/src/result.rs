@@ -1,7 +1,8 @@
 use core::ops::DerefMut;
 
 use crate as stabby;
-use crate::abi::enums::{IDiscriminant, IDiscriminantProvider};
+use crate::abi::enums::{IDiscriminant, IDiscriminantProvider, UnionMemberUnusedBits};
+use crate::abi::istable::IBitMask;
 use crate::abi::padding::Padded;
 use crate::abi::Union;
 
@@ -166,11 +167,20 @@ where
         ok: FnOk,
         err: FnErr,
     ) -> U {
+        let r;
+        let union = &mut self.union as *mut _ as *mut u8;
         if self.is_ok() {
-            unsafe { ok(&mut self.union.ok.deref_mut().value) }
+            unsafe {
+                r = ok(&mut self.union.ok.deref_mut().value);
+                self.discriminant = <(Ok, Err) as IDiscriminantProvider>::Discriminant::ok(union);
+            }
         } else {
-            unsafe { err(&mut self.union.err.deref_mut().value) }
+            unsafe {
+                r = err(&mut self.union.err.deref_mut().value);
+                self.discriminant = <(Ok, Err) as IDiscriminantProvider>::Discriminant::err(union);
+            }
         }
+        r
     }
     pub fn match_owned<U, FnOk: FnOnce(Ok) -> U, FnErr: FnOnce(Err) -> U>(
         self,
@@ -243,15 +253,26 @@ fn test() {
         A: Clone + PartialEq + core::fmt::Debug + IStable,
         B: Clone + PartialEq + core::fmt::Debug + IStable,
         (A, B): IDiscriminantProvider,
+        <(A, B) as IDiscriminantProvider>::Discriminant: core::fmt::Debug,
         Result<A, B>: IStable,
     {
-        dbg!(<A::UnusedBits as crate::abi::istable::IBitMask>::TUPLE);
+        println!(
+            "Testing: {}({a:?}) | {}({b:?})",
+            core::any::type_name::<A>(),
+            core::any::type_name::<B>()
+        );
         let ac = a.clone();
         let bc = b.clone();
         let a: core::result::Result<A, B> = Ok(a);
         let b: core::result::Result<A, B> = Err(b);
-        assert_eq!(<Result<A, B> as IStable>::size(), expected_size);
         let a: Result<_, _> = a.into();
+        println!(
+            "discriminant: {:?}, ABM: {:?}, OkShift: {}, ErrShift: {}",
+            a.discriminant,
+            <UnionMemberUnusedBits<A, B, <(A, B) as IDiscriminantProvider>::OkShift> as IBitMask>::TUPLE,
+            <<(A, B) as IDiscriminantProvider>::OkShift as crate::abi::typenum2::Unsigned>::USIZE,
+            <<(A, B) as IDiscriminantProvider>::ErrShift as crate::abi::typenum2::Unsigned>::USIZE
+        );
         assert!(a.is_ok());
         let b: Result<_, _> = b.into();
         assert!(b.is_err());
@@ -259,6 +280,7 @@ fn test() {
         assert_eq!(a.unwrap(), ac);
         assert_eq!(b, Result::Err(bc.clone()));
         assert_eq!(b.unwrap_err(), bc);
+        assert_eq!(<Result<A, B> as IStable>::size(), expected_size);
     }
     inner(8u8, 2u8, 2);
     let _: crate::abi::typenum2::U2 = <Result<u8, u8> as IStable>::Size::default();

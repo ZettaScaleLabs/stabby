@@ -56,7 +56,7 @@ impl IDiscriminant for End {
         true
     }
 }
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct ValueIsErr<Offset, Value, Tail: IStable>(PhantomData<(Offset, Value)>, Tail);
 unsafe impl<Offset, Value, Tail: IStable> IStable for ValueIsErr<Offset, Value, Tail> {
@@ -66,7 +66,19 @@ unsafe impl<Offset, Value, Tail: IStable> IStable for ValueIsErr<Offset, Value, 
     type UnusedBits = Tail::UnusedBits;
     type HasExactlyOneNiche = Tail::HasExactlyOneNiche;
 }
-
+impl<Offset: Unsigned, Value: Unsigned, Tail: IDiscriminant + core::fmt::Debug> core::fmt::Debug
+    for ValueIsErr<Offset, Value, Tail>
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "ValIsErr(ptr[{}]={}, {:?})",
+            Offset::USIZE,
+            Value::U8,
+            &self.1,
+        )
+    }
+}
 impl<Offset: Unsigned, Value: Unsigned, Tail: IDiscriminant> IDiscriminant
     for ValueIsErr<Offset, Value, Tail>
 where
@@ -97,8 +109,13 @@ impl<Offset: Unsigned, Value: Unsigned, Tail: IForbiddenValues + IntoValueIsErr>
     type ValueIsErr = ValueIsErr<Offset, Value, Tail::ValueIsErr>;
 }
 #[crate::stabby]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct BitIsErr<Offset, Mask>(PhantomData<(Offset, Mask)>);
+impl<Offset: Unsigned, Mask: Unsigned> core::fmt::Debug for BitIsErr<Offset, Mask> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "BitIsErr(ptr[{}] & {})", Offset::USIZE, Mask::U8)
+    }
+}
 impl<Offset: Unsigned, Mask: Unsigned> IDiscriminant for BitIsErr<Offset, Mask> {
     unsafe fn ok(union: *mut u8) -> Self {
         let ptr = union as *mut _ as *mut u8;
@@ -171,7 +188,7 @@ type ShiftedForbiddenValues<T, Shift> =
 type ShiftedUnusedBits<T, Shift> = <<T as IStable>::UnusedBits as IBitMask>::Shift<Shift>;
 
 /// The unused bits of the Ok variant in a Ok-Err union where the Ok is placed OkShift bytes from the left
-type UnionMemberUnusedBits<Ok, Err, OkShift> =
+pub(crate) type UnionMemberUnusedBits<Ok, Err, OkShift> =
     <<<<OkShift as Unsigned>::Padding as IStable>::UnusedBits as IBitMask>::BitOr<
         ShiftedUnusedBits<Ok, OkShift>,
     > as IBitMask>::BitOr<
@@ -180,6 +197,8 @@ type UnionMemberUnusedBits<Ok, Err, OkShift> =
             PaddedSize<Ok, OkShift>,
         >,
     >;
+
+/// Prevents the compiler from doing infinite recursion when evaluating `IDiscriminantProvider`
 type DefaultRecursionBudget = T<T<T<T<T<T<T<T<T<T<T<T<T<T<H>>>>>>>>>>>>>>;
 
 /// Enter the type-fu recursion

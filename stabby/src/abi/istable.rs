@@ -87,9 +87,14 @@ unsafe impl<
 }
 
 #[crate::stabby]
-#[derive(Default)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct End;
 pub struct Array<Offset: Unsigned, T, Rest>(core::marker::PhantomData<(Offset, T, Rest)>);
+impl<Offset: Unsigned, T, Rest> Default for Array<Offset, T, Rest> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
 
 pub trait IBitMask {
     const TUPLE: Self::Tuple;
@@ -131,7 +136,7 @@ impl<Offset: Unsigned, T: NonZero, Rest: IBitMask> IBitMask for Array<Offset, T,
     type BitOr<Arr: IBitMask> = Array<Offset, T, Rest::BitOr<Arr>>;
     type Shift<O: Unsigned> = Array<Offset::Add<O>, T, Rest::Shift<O>>;
     type HasFreeByteAt<O: Unsigned> =
-        <<O::Equal<Offset> as Bit>::Or<T::Equal<UxFF>> as Bit>::Or<Rest::HasFreeByteAt<O>>;
+        <<O::Equal<Offset> as Bit>::And<T::Equal<UxFF>> as Bit>::Or<Rest::HasFreeByteAt<O>>;
     type ExtractBit =
         <<T::AbsSub<T::TruncateAtRightmostOne> as Unsigned>::Greater<U0> as Bit>::BmTernary<
             Array<Offset, <T::AbsSub<T::TruncateAtRightmostOne> as Unsigned>::NonZero, Rest>,
@@ -189,11 +194,6 @@ impl<A: IForbiddenValues, B: IForbiddenValues> IForbiddenValues for Or<A, B> {
     type Or<T: IForbiddenValues> = Or<T, Self>;
     type SelectFrom<Mask: IBitMask> =
         <A::SelectFrom<Mask> as ISingleForbiddenValue>::Or<B::SelectFrom<Mask>>;
-}
-impl<Offset: Unsigned, T, Rest: IBitMask> Default for Array<Offset, T, Rest> {
-    fn default() -> Self {
-        Self(Default::default())
-    }
 }
 pub struct Or<A, B>(core::marker::PhantomData<(A, B)>);
 pub trait IsEnd {

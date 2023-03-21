@@ -27,16 +27,16 @@ unsafe impl IStable for PadByte {
 
 pub trait IBitBase {
     const _BOOL: bool;
-    type _And<T: IBit>: IBit + Sized;
-    type _Or<T: IBit>: IBit + Sized;
-    type _Not: IBit + Sized;
+    type _And<T: IBit>: IBit;
+    type _Or<T: IBit>: IBit;
+    type _Not: IBit;
     type _Ternary<A, B>;
-    type _UTernary<A: IUnsigned, B: IUnsigned>: IUnsigned + Sized;
-    type _NzTernary<A: NonZero, B: NonZero>: NonZero + Sized;
-    type _BTernary<A: IBit, B: IBit>: IBit + Sized;
-    type _BmTernary<A: IBitMask, B: IBitMask>: IBitMask + Sized;
-    type _PTernary<A: IPowerOf2, B: IPowerOf2>: IPowerOf2 + Sized;
-    type AsForbiddenValue: ISingleForbiddenValue + Sized;
+    type _UTernary<A: IUnsigned, B: IUnsigned>: IUnsigned;
+    type _NzTernary<A: NonZero, B: NonZero>: NonZero;
+    type _BTernary<A: IBit, B: IBit>: IBit;
+    type _BmTernary<A: IBitMask, B: IBitMask>: IBitMask;
+    type _PTernary<A: IPowerOf2, B: IPowerOf2>: IPowerOf2;
+    type AsForbiddenValue: ISingleForbiddenValue;
 }
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct B0;
