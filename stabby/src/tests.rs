@@ -1,4 +1,9 @@
-use crate::{self as stabby, tuple::Tuple3};
+use core::num::{NonZeroU16, NonZeroU32};
+
+use crate::{
+    self as stabby,
+    tuple::{Tuple2, Tuple3},
+};
 
 #[stabby::stabby]
 pub union UTest {
@@ -19,14 +24,72 @@ pub enum NoFields {
 }
 #[stabby::stabby]
 #[repr(C)]
-pub enum Fields {
-    _A(usize),
+pub enum FieldsC {
+    _A(NonZeroU32),
     _B,
+}
+#[stabby::stabby]
+pub enum FieldsStabby {
+    _A(NonZeroU32),
+    _B,
+}
+#[stabby::stabby]
+#[repr(C)]
+pub enum MultiFieldsC {
+    A(NonZeroU16),
+    B,
+    C(Tuple2<u8, u16>),
+    D(u8),
+    E,
+}
+#[stabby::stabby]
+pub enum MultiFieldsStabby {
+    A(NonZeroU16),
+    B,
+    C(Tuple2<u8, u16>),
+    D(u8),
+    E,
+}
+
+impl MultiFieldsStabby {
+    pub fn match_owned<
+        U,
+        AFn: FnOnce(NonZeroU16) -> U,
+        BFn: FnOnce() -> U,
+        CFn: FnOnce(Tuple2<u8, u16>) -> U,
+        DFn: FnOnce(u8) -> U,
+        EFn: FnOnce() -> U,
+    >(
+        self,
+        A: AFn,
+        B: BFn,
+        C: CFn,
+        D: DFn,
+        E: EFn,
+    ) -> U {
+        (move |this: crate::abi::Result<
+            crate::abi::Result<
+                crate::abi::Result<NonZeroU16, ()>,
+                crate::abi::Result<Tuple2<u8, u16>, u8>,
+            >,
+            (),
+        >| {
+            this.match_owned(
+                move |this| {
+                    this.match_owned(
+                        move |this| this.match_owned(A, |_| B()),
+                        move |this| this.match_owned(C, D),
+                    )
+                },
+                |_| E(),
+            )
+        })(self.0)
+    }
 }
 
 #[stabby::stabby(no_opt)]
 pub struct WeirdStructBadLayout {
-    fields: Fields,
+    fields: FieldsC,
     no_fields: NoFields,
     utest: UTest,
     u32: u32,
@@ -34,14 +97,14 @@ pub struct WeirdStructBadLayout {
 
 #[stabby::stabby]
 pub struct WeirdStructBadLayout2 {
-    fields: Fields,
+    fields: FieldsC,
     no_fields: NoFields,
     utest: UTest,
 }
 
 #[stabby::stabby]
 pub struct WeirdStruct {
-    fields: Fields,
+    fields: FieldsC,
     no_fields: NoFields,
     u32: u32,
     utest: UTest,
@@ -62,6 +125,7 @@ fn layouts() {
     macro_rules! test {
         () => {};
         ($t: ty) => {
+            dbg!(core::mem::size_of::<$t>());
             assert_eq!(core::mem::size_of::<$t>(), <$t as crate::abi::IStable>::size(), "Size mismatch for {}", std::any::type_name::<$t>());
             assert_eq!(core::mem::align_of::<$t>(), <$t as crate::abi::IStable>::align(), "Align mismatch for {}", std::any::type_name::<$t>());
         };
@@ -70,6 +134,15 @@ fn layouts() {
             test!($($tt)*);
         };
     }
+
+    let value = MultiFieldsStabby::D(5);
+    value.match_owned(
+        |_| panic!(),
+        || panic!(),
+        |_| panic!(),
+        |v| assert_eq!(v, 5),
+        || panic!(),
+    );
 
     test!(
         u8,
@@ -106,7 +179,10 @@ fn layouts() {
         crate::abi::Union<u8, ()>,
         crate::abi::Union<(), u8>,
         UTest,
-        Fields,
+        FieldsC,
+        FieldsStabby,
+        MultiFieldsC,
+        MultiFieldsStabby,
         crate::tuple::Tuple2<(), usize>,
         crate::tuple::Tuple2<usize, ()>,
         NoFields,

@@ -313,4 +313,5 @@ fn test() {
         <crate::option::Option<NonZeroU16> as IStable>::Size::default();
     let _: crate::abi::typenum2::U2 = <crate::option::Option<u8> as IStable>::Size::default();
     let _: crate::abi::typenum2::U1 = <crate::option::Option<bool> as IStable>::Size::default();
+    inner(true, (), 1);
 }

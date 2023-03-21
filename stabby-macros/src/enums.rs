@@ -1,5 +1,7 @@
+use std::ops::Deref;
+
 use proc_macro2::TokenStream;
-use quote::{__private::ext::RepToTokensExt, quote};
+use quote::quote;
 use syn::{Attribute, DataEnum, Generics, Ident, Visibility};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,13 +89,13 @@ pub fn stabby(
         }
     }
     let repr = repr.unwrap_or(Repr::Stabby);
-    let declaration = 'stabby: {
+    let declaration = {
         let repr = match repr {
             Repr::Stabby => {
                 if !has_non_empty_fields {
                     panic!("Your enum doesn't have any field with values: use #[repr(C)] or #[repr(u*)] instead")
                 }
-                break 'stabby repr_stabby(&new_attrs, &vis, &ident, &generics, data);
+                return repr_stabby(&new_attrs, &vis, &ident, &generics, data);
             }
             Repr::C => "u8",
             Repr::U8 => "u8",
@@ -158,11 +160,39 @@ impl From<syn::Variant> for Variant {
 struct Variants {
     variants: Vec<Variant>,
 }
+impl Deref for Variants {
+    type Target = Vec<Variant>;
+    fn deref(&self) -> &Self::Target {
+        &self.variants
+    }
+}
 impl FromIterator<syn::Variant> for Variants {
     fn from_iter<T: IntoIterator<Item = syn::Variant>>(iter: T) -> Self {
         Self {
             variants: Vec::from_iter(iter.into_iter().map(Into::into)),
         }
+    }
+}
+impl Variants {
+    fn map<U, LeafFn: FnMut(&Variant) -> U, JoinFn: FnMut(U, U) -> U>(
+        &self,
+        leaf: LeafFn,
+        mut join: JoinFn,
+    ) -> U {
+        let mut buffer = self.variants.iter().map(leaf).collect::<Vec<_>>();
+        while buffer.len() > 1 {
+            let len = buffer.len();
+            let mut iter = buffer.into_iter();
+            buffer = Vec::with_capacity(len / 2 + 1);
+            while let Some(a) = iter.next() {
+                if let Some(b) = iter.next() {
+                    buffer.push(join(a, b))
+                } else {
+                    buffer.push(a)
+                }
+            }
+        }
+        buffer.pop().unwrap()
     }
 }
 
@@ -173,10 +203,91 @@ pub fn repr_stabby(
     generics: &Generics,
     data: DataEnum,
 ) -> TokenStream {
+    let st = crate::tl_mod();
+    let unbound_generics = crate::utils::unbound_generics(&generics.params);
     let variants = data.variants;
     if variants.len() < 2 {
         panic!("#[repr(stabby)] doesn't support single-member enums");
     }
     let variants = variants.into_iter().collect::<Variants>();
-    quote! {}
+    let vty = variants
+        .iter()
+        .map(|v| v.field.as_ref().map(|f| &f.ty))
+        .collect::<Vec<_>>();
+    let vid = variants.iter().map(|v| &v.ident).collect::<Vec<_>>();
+    let fnvid = vid
+        .iter()
+        .map(|i| quote::format_ident!("{i}Fn"))
+        .collect::<Vec<_>>();
+    let (result, bounds) = variants.map(
+        |v| match &v.field {
+            Some(syn::Field { ty, .. }) => (quote!(#ty), quote!()),
+            None => (quote!(()), quote!()),
+        },
+        |(aty, abound), (bty, bbound)| {
+            (
+                quote!(#st::Result<#aty, #bty>),
+                quote!((#aty, #bty): #st::IDiscriminantProvider, #abound #bbound),
+            )
+        },
+    );
+    let mut cparams = Vec::new();
+    let constructors = variants.map(
+        |v| {
+            let ovid = match &v.field {
+                Some(syn::Field { ty, .. }) => {
+                    cparams.push(quote!(value: #ty));
+                    quote!(value)
+                }
+                None => {
+                    cparams.push(quote!());
+                    quote!(())
+                }
+            };
+            vec![ovid]
+        },
+        |a, b| {
+            let mut r = Vec::with_capacity(a.len() + b.len());
+            for v in a {
+                r.push(quote!(#st::Result::Ok(#v)))
+            }
+            for v in b {
+                r.push(quote!(#st::Result::Err(#v)))
+            }
+            r
+        },
+    );
+    let matcher = |matcher| {
+        variants.map(
+            |Variant { ident, field }| match field {
+                Some(_) => quote!(#ident),
+                None => quote!(|_| #ident()),
+            },
+            |a, b| quote!(move |this| this.#matcher(#a, #b)),
+        )
+    };
+    let owned_matcher = matcher(quote!(match_owned));
+    let layout = &result;
+    quote! {
+        #(#attrs)*
+        #vis struct #ident #generics (#result) where #bounds;
+        unsafe impl #generics #st::IStable for #ident < #unbound_generics > where #bounds #layout: #st::IStable {
+            type ForbiddenValues = <#layout as #st::IStable>::ForbiddenValues;
+            type UnusedBits =<#layout as #st::IStable>::UnusedBits;
+            type Size = <#layout as #st::IStable>::Size;
+            type Align = <#layout as #st::IStable>::Align;
+            type HasExactlyOneNiche = #st::B0;
+        }
+        impl #generics #ident < #unbound_generics > where #bounds {
+            #(
+                #[allow(non_snake_case)]
+                pub fn #vid(#cparams) -> Self {
+                    Self (#constructors)
+                }
+            )*
+            // pub fn match_owned<U, #(#fnvid: FnOnce(#vty) -> U,)*>(self, #(#vid: #fnvid,)*) -> U {
+            //     (#owned_matcher)(self.0)
+            // }
+        }
+    }
 }

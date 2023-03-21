@@ -11,6 +11,9 @@ macro_rules! assert_optimal_layout {
     };
 }
 
+pub use crate::abi::enums::IDiscriminantProvider;
+pub use crate::result::Result;
+
 pub use fatptr::*;
 mod fatptr;
 pub use istabilize::IStabilize;
