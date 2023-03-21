@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{__private::ext::RepToTokensExt, quote};
 use syn::{Attribute, DataEnum, Generics, Ident, Visibility};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,9 +65,9 @@ pub fn stabby(
         todo!("empty enums are not supported by stabby YET")
     }
     let mut layout = quote!(());
-    let DataEnum { variants, .. } = data;
+    let DataEnum { variants, .. } = &data;
     let mut has_non_empty_fields = false;
-    for variant in &variants {
+    for variant in variants {
         match &variant.fields {
             syn::Fields::Named(_) => {
                 panic!("stabby does not support named fields in enum variants")
@@ -87,15 +87,13 @@ pub fn stabby(
         }
     }
     let repr = repr.unwrap_or(Repr::Stabby);
-    let declaration = {
-        // 'stabby: {
+    let declaration = 'stabby: {
         let repr = match repr {
             Repr::Stabby => {
                 if !has_non_empty_fields {
                     panic!("Your enum doesn't have any field with values: use #[repr(C)] or #[repr(u*)] instead")
                 }
-                todo!("#[repr(stabby)] isn't supported YET");
-                // break 'stabby quote!();
+                break 'stabby repr_stabby(&new_attrs, &vis, &ident, &generics, data);
             }
             Repr::C => "u8",
             Repr::U8 => "u8",
@@ -131,4 +129,54 @@ pub fn stabby(
             type HasExactlyOneNiche = #st::B0;
         }
     }
+}
+
+struct Variant {
+    ident: Ident,
+    field: Option<syn::Field>,
+}
+impl From<syn::Variant> for Variant {
+    fn from(value: syn::Variant) -> Self {
+        let syn::Variant {
+            ident,
+            fields,
+            discriminant: None,
+            ..
+        } = value else {panic!("#[repr(stabby)] enums do not support explicit discriminants")};
+        let field = match fields {
+            syn::Fields::Unit => None,
+            syn::Fields::Unnamed(mut f) => {
+                let field = f.unnamed.pop().map(|f| f.into_value());
+                assert!(f.unnamed.is_empty());
+                field
+            }
+            syn::Fields::Named(_) => unreachable!(),
+        };
+        Variant { ident, field }
+    }
+}
+struct Variants {
+    variants: Vec<Variant>,
+}
+impl FromIterator<syn::Variant> for Variants {
+    fn from_iter<T: IntoIterator<Item = syn::Variant>>(iter: T) -> Self {
+        Self {
+            variants: Vec::from_iter(iter.into_iter().map(Into::into)),
+        }
+    }
+}
+
+pub fn repr_stabby(
+    attrs: &Vec<Attribute>,
+    vis: &Visibility,
+    ident: &Ident,
+    generics: &Generics,
+    data: DataEnum,
+) -> TokenStream {
+    let variants = data.variants;
+    if variants.len() < 2 {
+        panic!("#[repr(stabby)] doesn't support single-member enums");
+    }
+    let variants = variants.into_iter().collect::<Variants>();
+    quote! {}
 }

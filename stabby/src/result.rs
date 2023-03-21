@@ -1,8 +1,7 @@
 use core::ops::DerefMut;
 
 use crate as stabby;
-use crate::abi::enums::{IDiscriminant, IDiscriminantProvider, UnionMemberUnusedBits};
-use crate::abi::istable::IBitMask;
+use crate::abi::enums::{IDiscriminant, IDiscriminantProvider};
 use crate::abi::padding::Padded;
 use crate::abi::Union;
 
@@ -203,10 +202,22 @@ where
         !self.is_ok()
     }
     pub fn ok(self) -> Option<Ok> {
-        self.match_owned(|ok| Some(ok), |_| None)
+        self.match_owned(Some, |_| None)
     }
     pub fn err(self) -> Option<Err> {
-        self.match_owned(|_| None, |err| Some(err))
+        self.match_owned(|_| None, Some)
+    }
+    pub fn ok_ref(&self) -> Option<&Ok> {
+        self.match_ref(Some, |_| None)
+    }
+    pub fn err_ref(&self) -> Option<&Err> {
+        self.match_ref(|_| None, Some)
+    }
+    pub fn ok_mut(&mut self) -> Option<&mut Ok> {
+        self.match_mut(Some, |_| None)
+    }
+    pub fn err_mut(&mut self) -> Option<&mut Err> {
+        self.match_mut(|_| None, Some)
     }
     pub fn and_then<F: FnOnce(Ok) -> U, U>(self, f: F) -> Result<U, Err>
     where
@@ -267,9 +278,8 @@ fn test() {
         let b: core::result::Result<A, B> = Err(b);
         let a: Result<_, _> = a.into();
         println!(
-            "discriminant: {:?}, ABM: {:?}, OkShift: {}, ErrShift: {}",
+            "discriminant: {:?}, OkShift: {}, ErrShift: {}",
             a.discriminant,
-            <UnionMemberUnusedBits<A, B, <(A, B) as IDiscriminantProvider>::OkShift> as IBitMask>::TUPLE,
             <<(A, B) as IDiscriminantProvider>::OkShift as crate::abi::typenum2::Unsigned>::USIZE,
             <<(A, B) as IDiscriminantProvider>::ErrShift as crate::abi::typenum2::Unsigned>::USIZE
         );
@@ -284,6 +294,8 @@ fn test() {
     }
     inner(8u8, 2u8, 2);
     let _: crate::abi::typenum2::U2 = <Result<u8, u8> as IStable>::Size::default();
+    let _: crate::abi::typenum2::U2 =
+        <Result<Result<u8, u8>, Result<u8, u8>> as IStable>::Size::default();
     inner(Tuple2(1u8, 2u16), Tuple2(3u16, 4u16), 6);
     inner(
         Tuple2(1u8, 2u16),
@@ -297,4 +309,8 @@ fn test() {
     );
     inner(Tuple2(3u8, 4u16), Tuple2(1u8, 2u16), 4);
     inner(1u8, NonZeroU16::new(6).unwrap(), 4);
+    let _: crate::abi::typenum2::U2 =
+        <crate::option::Option<NonZeroU16> as IStable>::Size::default();
+    let _: crate::abi::typenum2::U2 = <crate::option::Option<u8> as IStable>::Size::default();
+    let _: crate::abi::typenum2::U1 = <crate::option::Option<bool> as IStable>::Size::default();
 }

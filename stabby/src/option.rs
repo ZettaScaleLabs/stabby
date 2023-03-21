@@ -42,10 +42,30 @@ where
         value.inner.ok()
     }
 }
+impl<T: IStable> Default for Option<T>
+where
+    (T, ()): IDiscriminantProvider,
+{
+    fn default() -> Self {
+        Self::None()
+    }
+}
 impl<T: IStable> Option<T>
 where
     (T, ()): IDiscriminantProvider,
 {
+    #[allow(non_snake_case)]
+    pub fn Some(value: T) -> Self {
+        Self {
+            inner: crate::result::Result::Ok(value),
+        }
+    }
+    #[allow(non_snake_case)]
+    pub fn None() -> Self {
+        Self {
+            inner: crate::result::Result::Err(()),
+        }
+    }
     pub fn as_ref(&self) -> core::option::Option<&T> {
         self.match_ref(Some, || None)
     }

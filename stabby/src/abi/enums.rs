@@ -199,7 +199,7 @@ pub(crate) type UnionMemberUnusedBits<Ok, Err, OkShift> =
     >;
 
 /// Prevents the compiler from doing infinite recursion when evaluating `IDiscriminantProvider`
-type DefaultRecursionBudget = T<T<T<T<T<T<T<T<T<T<T<T<T<T<H>>>>>>>>>>>>>>;
+type DefaultRecursionBudget = T<T<T<T<T<T<T<T<T<T<H>>>>>>>>>>;
 
 /// Enter the type-fu recursion
 impl<Ok: IStable, Err: IStable> IDiscriminantProvider for (Ok, Err)
