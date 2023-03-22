@@ -35,6 +35,7 @@ pub enum FieldsStabby {
 }
 #[stabby::stabby]
 #[repr(C)]
+#[allow(dead_code)]
 pub enum MultiFieldsC {
     A(NonZeroU16),
     B,
@@ -49,42 +50,6 @@ pub enum MultiFieldsStabby {
     C(Tuple2<u8, u16>),
     D(u8),
     E,
-}
-
-impl MultiFieldsStabby {
-    pub fn match_owned<
-        U,
-        AFn: FnOnce(NonZeroU16) -> U,
-        BFn: FnOnce() -> U,
-        CFn: FnOnce(Tuple2<u8, u16>) -> U,
-        DFn: FnOnce(u8) -> U,
-        EFn: FnOnce() -> U,
-    >(
-        self,
-        A: AFn,
-        B: BFn,
-        C: CFn,
-        D: DFn,
-        E: EFn,
-    ) -> U {
-        (move |this: crate::abi::Result<
-            crate::abi::Result<
-                crate::abi::Result<NonZeroU16, ()>,
-                crate::abi::Result<Tuple2<u8, u16>, u8>,
-            >,
-            (),
-        >| {
-            this.match_owned(
-                move |this| {
-                    this.match_owned(
-                        move |this| this.match_owned(A, |_| B()),
-                        move |this| this.match_owned(C, D),
-                    )
-                },
-                |_| E(),
-            )
-        })(self.0)
-    }
 }
 
 #[stabby::stabby(no_opt)]
@@ -136,6 +101,13 @@ fn layouts() {
     }
 
     let value = MultiFieldsStabby::D(5);
+    value.match_ref(
+        |_| panic!(),
+        || panic!(),
+        |_| panic!(),
+        |&v| assert_eq!(v, 5),
+        || panic!(),
+    );
     value.match_owned(
         |_| panic!(),
         || panic!(),

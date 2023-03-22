@@ -174,8 +174,8 @@ impl FromIterator<syn::Variant> for Variants {
     }
 }
 impl Variants {
-    fn map<U, LeafFn: FnMut(&Variant) -> U, JoinFn: FnMut(U, U) -> U>(
-        &self,
+    fn map<'a, U, LeafFn: FnMut(&'a Variant) -> U, JoinFn: FnMut(U, U) -> U>(
+        &'a self,
         leaf: LeafFn,
         mut join: JoinFn,
     ) -> U {
@@ -193,6 +193,35 @@ impl Variants {
             }
         }
         buffer.pop().unwrap()
+    }
+    fn map_with_finalizer<
+        'a,
+        U,
+        V,
+        LeafFn: FnMut(&'a Variant) -> U,
+        JoinFn: FnMut(U, U) -> U,
+        FinalJoinFn: FnOnce(U, U) -> V,
+    >(
+        &'a self,
+        leaf: LeafFn,
+        mut join: JoinFn,
+        final_join: FinalJoinFn,
+    ) -> V {
+        let mut buffer = self.variants.iter().map(leaf).collect::<Vec<_>>();
+        while buffer.len() > 2 {
+            let len = buffer.len();
+            let mut iter = buffer.into_iter();
+            buffer = Vec::with_capacity(len / 2 + 1);
+            while let Some(a) = iter.next() {
+                if let Some(b) = iter.next() {
+                    buffer.push(join(a, b))
+                } else {
+                    buffer.push(a)
+                }
+            }
+        }
+        let last = buffer.pop().unwrap();
+        final_join(buffer.pop().unwrap(), last)
     }
 }
 
@@ -214,13 +243,15 @@ pub fn repr_stabby(
         .iter()
         .map(|v| v.field.as_ref().map(|f| &f.ty))
         .collect::<Vec<_>>();
+    let vtyref = vty.iter().map(|v| v.map(|ty| quote!(&'st_lt #ty)));
+    let vtymut = vty.iter().map(|v| v.map(|ty| quote!(&'st_lt mut #ty)));
     let vid = variants.iter().map(|v| &v.ident).collect::<Vec<_>>();
     let fnvid = vid
         .iter()
         .map(|i| quote::format_ident!("{i}Fn"))
         .collect::<Vec<_>>();
     let (result, bounds) = variants.map(
-        |v| match &v.field {
+        |Variant { field, .. }| match field.as_ref() {
             Some(syn::Field { ty, .. }) => (quote!(#ty), quote!()),
             None => (quote!(()), quote!()),
         },
@@ -258,19 +289,23 @@ pub fn repr_stabby(
         },
     );
     let matcher = |matcher| {
-        variants.map(
+        variants.map_with_finalizer(
             |Variant { ident, field }| match field {
                 Some(_) => quote!(#ident),
                 None => quote!(|_| #ident()),
             },
             |a, b| quote!(move |this| this.#matcher(#a, #b)),
+            |a, b| quote!(self.0.#matcher(#a, #b)),
         )
     };
     let owned_matcher = matcher(quote!(match_owned));
+    let ref_matcher = matcher(quote!(match_ref));
+    let mut_matcher = matcher(quote!(match_mut));
     let layout = &result;
     quote! {
         #(#attrs)*
         #vis struct #ident #generics (#result) where #bounds;
+        #[automatically_derived]
         unsafe impl #generics #st::IStable for #ident < #unbound_generics > where #bounds #layout: #st::IStable {
             type ForbiddenValues = <#layout as #st::IStable>::ForbiddenValues;
             type UnusedBits =<#layout as #st::IStable>::UnusedBits;
@@ -278,6 +313,7 @@ pub fn repr_stabby(
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
         }
+        #[automatically_derived]
         impl #generics #ident < #unbound_generics > where #bounds {
             #(
                 #[allow(non_snake_case)]
@@ -285,9 +321,18 @@ pub fn repr_stabby(
                     Self (#constructors)
                 }
             )*
-            // pub fn match_owned<U, #(#fnvid: FnOnce(#vty) -> U,)*>(self, #(#vid: #fnvid,)*) -> U {
-            //     (#owned_matcher)(self.0)
-            // }
+            #[allow(non_snake_case)]
+            pub fn match_owned<U, #(#fnvid: FnOnce(#vty) -> U,)*>(self, #(#vid: #fnvid,)*) -> U {
+                #owned_matcher
+            }
+            #[allow(non_snake_case)]
+            pub fn match_ref<'st_lt, U, #(#fnvid: FnOnce(#vtyref) -> U,)*>(&'st_lt self, #(#vid: #fnvid,)*) -> U {
+                #ref_matcher
+            }
+            #[allow(non_snake_case)]
+            pub fn match_mut<'st_lt, U, #(#fnvid: FnOnce(#vtymut) -> U,)*>(&'st_lt mut self, #(#vid: #fnvid,)*) -> U {
+                #mut_matcher
+            }
         }
     }
 }
