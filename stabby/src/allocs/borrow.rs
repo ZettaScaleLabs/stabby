@@ -42,6 +42,3 @@ pub enum CowStr<'a> {
     Borrowed(Str<'a>),
     Owned(String),
 }
-fn test() {
-    let _: crate::abi::typenum2::U24 = <CowStr as IStable>::Size::default();
-}

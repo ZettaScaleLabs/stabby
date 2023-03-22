@@ -53,7 +53,7 @@ impl IDiscriminant for End {
         End
     }
     fn is_ok(&self, _: *const u8) -> bool {
-        true
+        false
     }
 }
 #[derive(Clone, Copy)]
@@ -94,7 +94,7 @@ where
     }
     fn is_ok(&self, union: *const u8) -> bool {
         let ptr = union as *const _ as *const u8;
-        unsafe { *ptr.add(Offset::USIZE) != Value::U8 && self.1.is_ok(union) }
+        unsafe { dbg!(*ptr.add(Offset::USIZE)) != Value::U8 || self.1.is_ok(union) }
     }
 }
 pub trait IntoValueIsErr {
