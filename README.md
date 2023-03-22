@@ -1,7 +1,7 @@
 # A Stable ABI for Rust with compact sum-types
 `stabby` is your one-stop-shop to create stable binary interfaces for your shared libraries easily, without having your sum-types (enums) explode in size.
 
-Your main vector of interraction with `stabby` will be the `#[stabby::stabby]` proc-macro, with why you can annotate
+Your main vector of interraction with `stabby` will be the `#[stabby::stabby]` proc-macro, with which you can annotate a lot of things:
 
 ## Structures
 When you annotate structs with `#[stabby::stabby]`, two things happen:
