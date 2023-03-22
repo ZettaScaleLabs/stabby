@@ -263,7 +263,7 @@ fn dyn_traits() {
 }
 
 #[test]
-fn result() {
+fn enums() {
     use crate::{
         abi::{typenum2, IDiscriminantProvider, IStable},
         result::Result,

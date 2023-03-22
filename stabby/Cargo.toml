@@ -2,8 +2,12 @@
 name = "stabby"
 version = "0.1.0"
 edition = "2021"
+authors = { workspace = true }
+license = { workspace = true }
+categories = { workspace = true }
+repository = { workspace = true }
+readme = { workspace = true }
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
 default = ["std"]
 std = ["alloc"]

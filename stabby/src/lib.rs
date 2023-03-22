@@ -15,5 +15,6 @@ pub use crate::abi::result;
 pub mod slice;
 pub mod str;
 pub mod tuple;
-// #[cfg(test)]
+
+#[cfg(test)]
 mod tests;
