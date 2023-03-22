@@ -1,2 +1,7 @@
 [workspace]
 members = ["stabby-macros", "stabby"]
+
+[workspace.package]
+authors = ["Pierre Avital <pierre.avital@gmail.com>"]
+license = " EPL-2.0 OR Apache-2.0"
+categories = []

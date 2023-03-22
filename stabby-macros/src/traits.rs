@@ -370,7 +370,7 @@ impl DynTraitFn<'_> {
             output,
         } = self else {unreachable!()};
         let forgen = (!generics.params.is_empty()).then(|| quote!(for));
-        let receiver = quote!(& #lt #mutability Self);
+        let receiver = quote!(& #lt #mutability StabbyArbitraryType);
         let output = output.as_ref().map(|ty| {
             let ty = ty.replace_self(self_as_trait);
             quote!(-> #ty)
@@ -525,7 +525,7 @@ impl<'a> DynTraitDescription<'a> {
                         #(#unbound_trait_types,)*
                     >
         };
-        let self_as_trait = quote!(<Self as #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)*>>);
+        let self_as_trait = quote!(<StabbyArbitraryType as #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)*>>);
         let fn_ptrs = self
             .functions
             .iter()
@@ -560,7 +560,7 @@ impl<'a> DynTraitDescription<'a> {
                 #(#dyntrait_types,)*
                 #(#trait_types,)*
                 #(#trait_consts,)*
-            > #st::vtable::IConstConstructor<'stabby_vt_lt, #vt_signature> for StabbyArbitraryType
+            > #st::vtable::IConstConstructor<'stabby_vt_lt, StabbyArbitraryType> for #vt_signature
             where
                 StabbyArbitraryType: #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)* #(#trait_to_vt_bindings,)* >,
                 #(#vt_bounds)*

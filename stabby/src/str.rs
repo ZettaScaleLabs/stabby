@@ -4,7 +4,7 @@ use core::ops::{Deref, DerefMut};
 
 /// An ABI stable equivalent of `&'a T`
 #[stabby::stabby]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Str<'a> {
     pub(crate) inner: crate::slice::Slice<'a, u8>,
 }
@@ -29,6 +29,21 @@ impl<'a> Deref for Str<'a> {
     type Target = str;
     fn deref(&self) -> &Self::Target {
         unsafe { core::str::from_utf8_unchecked(&self.inner) }
+    }
+}
+impl core::fmt::Debug for Str<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+impl core::fmt::Display for Str<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+impl core::cmp::PartialOrd for Str<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.deref().partial_cmp(other.deref())
     }
 }
 

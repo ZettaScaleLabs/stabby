@@ -1,13 +1,12 @@
-use crate::{self as stabby, abi::IntoDyn};
 use alloc::sync::*;
 
-impl stabby::abi::IPtr for Arc<()> {
+impl crate::IPtr for Arc<()> {
     unsafe fn as_ref<U>(&self) -> &U {
         let this: &() = self;
         core::mem::transmute(this)
     }
 }
-impl stabby::abi::IPtrOwned for Arc<()> {
+impl crate::IPtrOwned for Arc<()> {
     fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ())) {
         // Increment the weak count to guarantee the allocation won't be freed
         let weak = Arc::downgrade(this);
@@ -29,7 +28,7 @@ impl stabby::abi::IPtrOwned for Arc<()> {
     }
 }
 
-impl<T: Sized> IntoDyn for Arc<T> {
+impl<T: Sized> crate::IntoDyn for Arc<T> {
     type Anonymized = Arc<()>;
     type Target = T;
     fn anonimize(self) -> Self::Anonymized {

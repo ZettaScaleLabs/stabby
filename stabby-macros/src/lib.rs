@@ -4,6 +4,14 @@ use quote::quote;
 use syn::{parse::Parser, DeriveInput, TypeParamBound};
 
 pub(crate) fn tl_mod() -> proc_macro2::TokenStream {
+    match proc_macro_crate::crate_name("stabby-abi") {
+        Ok(proc_macro_crate::FoundCrate::Itself) => return quote!(crate),
+        Ok(proc_macro_crate::FoundCrate::Name(crate_name)) => {
+            let crate_name = Ident::new(&crate_name, Span::call_site());
+            return quote!(#crate_name);
+        }
+        _ => {}
+    }
     match proc_macro_crate::crate_name("stabby")
         .expect("Couldn't find `stabby` in your dependencies")
     {

@@ -2,8 +2,8 @@ use crate as stabby;
 
 /// Implementation detail for stabby's version of dyn traits.
 /// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
-pub trait IConstConstructor<'a, Vt: 'a + Copy> {
-    const VTABLE: &'a Vt;
+pub trait IConstConstructor<'a, Source>: 'a + Copy {
+    const VTABLE: &'a Self;
 }
 
 /// Implementation detail for stabby's version of dyn traits.
@@ -28,16 +28,17 @@ pub trait CompoundVt {
     type Vt<T>;
 }
 
-impl<'a, T, Head: Copy + 'a, Tail: Copy + 'a> IConstConstructor<'a, VTable<Head, Tail>> for T
+impl<'a, T, Head: Copy + 'a, Tail: Copy + 'a> IConstConstructor<'a, T> for VTable<Head, Tail>
 where
-    T: IConstConstructor<'a, Head> + IConstConstructor<'a, Tail>,
+    Head: IConstConstructor<'a, T>,
+    Tail: IConstConstructor<'a, T>,
 {
     const VTABLE: &'a VTable<Head, Tail> = &VTable {
-        head: *T::VTABLE,
-        tail: *T::VTABLE,
+        head: *Head::VTABLE,
+        tail: *Tail::VTABLE,
     };
 }
-impl<'a, T> IConstConstructor<'a, ()> for T {
+impl<'a, T> IConstConstructor<'a, T> for () {
     const VTABLE: &'a () = &();
 }
 impl<Head, Tail> TransitiveDeref<Head, H> for VTable<Head, Tail> {
@@ -90,7 +91,7 @@ impl<Head, Tail: HasSyncVt> HasSyncVt for VTable<Head, Tail> {}
 #[stabby::stabby]
 #[derive(Clone, Copy)]
 pub struct VtDrop {
-    pub drop: crate::abi::StableLike<unsafe extern "C" fn(&mut ()), core::num::NonZeroUsize>,
+    pub drop: crate::StableLike<unsafe extern "C" fn(&mut ()), core::num::NonZeroUsize>,
 }
 impl PartialEq for VtDrop {
     fn eq(&self, other: &Self) -> bool {
@@ -100,7 +101,7 @@ impl PartialEq for VtDrop {
         )
     }
 }
-impl<'a, T> IConstConstructor<'a, VtDrop> for T {
+impl<'a, T> IConstConstructor<'a, T> for VtDrop {
     const VTABLE: &'a VtDrop = &VtDrop {
         drop: unsafe {
             core::mem::transmute({
@@ -125,15 +126,13 @@ impl<Tail: TransitiveDeref<Vt, N>, Vt, N> TransitiveDeref<Vt, N> for VtSend<Tail
         self.0.tderef()
     }
 }
-impl<Head, Tail> From<crate::abi::vtable::VtSend<VTable<Head, Tail>>> for VTable<Head, Tail> {
+impl<Head, Tail> From<crate::vtable::VtSend<VTable<Head, Tail>>> for VTable<Head, Tail> {
     fn from(value: VtSend<VTable<Head, Tail>>) -> Self {
         value.0
     }
 }
-impl<'a, T: IConstConstructor<'a, Vt> + Send, Vt: Copy + 'a> IConstConstructor<'a, VtSend<Vt>>
-    for T
-{
-    const VTABLE: &'a VtSend<Vt> = &VtSend(*T::VTABLE);
+impl<'a, T: Send, Vt: IConstConstructor<'a, T>> IConstConstructor<'a, T> for VtSend<Vt> {
+    const VTABLE: &'a VtSend<Vt> = &VtSend(*Vt::VTABLE);
 }
 
 /// A marker for vtables for types that are `Sync`
@@ -143,31 +142,27 @@ pub struct VtSync<T>(T);
 impl CompoundVt for dyn Sync {
     type Vt<T> = VtSync<T>;
 }
-impl<'a, T: IConstConstructor<'a, Vt> + Sync, Vt: Copy + 'a> IConstConstructor<'a, VtSync<Vt>>
-    for T
-{
-    const VTABLE: &'a VtSync<Vt> = &VtSync(*T::VTABLE);
+impl<'a, T: Sync, Vt: IConstConstructor<'a, T>> IConstConstructor<'a, T> for VtSync<Vt> {
+    const VTABLE: &'a VtSync<Vt> = &VtSync(*Vt::VTABLE);
 }
 impl<Tail: TransitiveDeref<Vt, N>, Vt, N> TransitiveDeref<Vt, N> for VtSync<Tail> {
     fn tderef(&self) -> &Vt {
         self.0.tderef()
     }
 }
-impl<Head, Tail> From<crate::abi::vtable::VtSync<VtSend<VTable<Head, Tail>>>>
-    for VTable<Head, Tail>
-{
+impl<Head, Tail> From<crate::vtable::VtSync<VtSend<VTable<Head, Tail>>>> for VTable<Head, Tail> {
     fn from(value: VtSync<VtSend<VTable<Head, Tail>>>) -> Self {
         value.0 .0
     }
 }
-impl<Head, Tail> From<crate::abi::vtable::VtSync<VtSend<VTable<Head, Tail>>>>
+impl<Head, Tail> From<crate::vtable::VtSync<VtSend<VTable<Head, Tail>>>>
     for VtSend<VTable<Head, Tail>>
 {
     fn from(value: VtSync<VtSend<VTable<Head, Tail>>>) -> Self {
         value.0
     }
 }
-impl<Head, Tail> From<crate::abi::vtable::VtSync<VTable<Head, Tail>>> for VTable<Head, Tail> {
+impl<Head, Tail> From<crate::vtable::VtSync<VTable<Head, Tail>>> for VTable<Head, Tail> {
     fn from(value: VtSync<VTable<Head, Tail>>) -> Self {
         value.0
     }

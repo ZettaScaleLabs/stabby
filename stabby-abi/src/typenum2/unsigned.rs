@@ -5,7 +5,7 @@ pub mod typenames {
 use stabby_macros::tyeval;
 use typenames::*;
 
-use crate::abi::{
+use crate::{
     istable::{IBitMask, ISingleForbiddenValue, Saturator},
     Array, End, IStable,
 };

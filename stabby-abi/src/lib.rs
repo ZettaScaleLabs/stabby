@@ -1,3 +1,9 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+#[cfg(feature = "alloc")]
+extern crate alloc;
+#[cfg(feature = "alloc")]
+mod allocs;
+
 pub mod typenum2;
 #[doc(hidden)]
 pub use typenum2::*;
@@ -10,19 +16,19 @@ macro_rules! assert_optimal_layout {
         };
     };
 }
-
-pub use crate::abi::enums::IDiscriminantProvider;
-pub use crate::result::Result;
+pub use crate::enums::IDiscriminantProvider;
+pub use stabby_macros::stabby;
+// pub use crate::Result;
 
 pub use fatptr::*;
 mod fatptr;
-pub use istabilize::IStabilize;
-mod istabilize;
+// pub use istabilize::IStabilize;
+// mod istabilize;
 mod stable_impls;
 pub mod vtable;
 
-#[allow(type_alias_bounds)]
-pub type Stable<Source: IStabilize> = Source::Stable;
+// #[allow(type_alias_bounds)]
+// pub type Stable<Source: IStabilize> = Source::Stable;
 
 pub struct AssertStable<T: IStable>(pub core::marker::PhantomData<T>);
 impl<T: IStable> AssertStable<T> {
@@ -85,8 +91,8 @@ pub struct Struct<T>(T);
 
 #[repr(C)]
 pub union Union<A, B> {
-    pub(crate) ok: core::mem::ManuallyDrop<A>,
-    pub(crate) err: core::mem::ManuallyDrop<B>,
+    pub ok: core::mem::ManuallyDrop<A>,
+    pub err: core::mem::ManuallyDrop<B>,
 }
 impl<A, B> Clone for Union<A, B> {
     fn clone(&self) -> Self {
@@ -94,8 +100,10 @@ impl<A, B> Clone for Union<A, B> {
     }
 }
 
-pub(crate) mod enums;
+pub mod enums;
 pub mod padding;
+pub mod result;
+pub use result::Result;
 
 pub use istable::{Array, End, IStable};
 

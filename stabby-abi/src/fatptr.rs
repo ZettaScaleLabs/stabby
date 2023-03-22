@@ -1,5 +1,5 @@
 use crate as stabby;
-use crate::abi::vtable::*;
+use crate::vtable::*;
 
 pub trait IPtr {
     /// # Safety
@@ -81,11 +81,11 @@ impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
     }
     /// Downcasts the reference based on vtable equality.
     /// This implies that this downcast will always yield `None` when attempting to downcast values constructed accross an FFI.
-    pub fn downcast<T: IConstConstructor<'a, Vt>>(&self) -> Option<&T>
+    pub fn downcast<T>(&self) -> Option<&T>
     where
-        Vt: PartialEq,
+        Vt: PartialEq + IConstConstructor<'a, T>,
     {
-        (self.vtable == T::VTABLE).then(|| unsafe { self.ptr.as_ref() })
+        (self.vtable == Vt::VTABLE).then(|| unsafe { self.ptr.as_ref() })
     }
 }
 #[stabby::stabby]
@@ -126,32 +126,32 @@ impl<'a, P: IPtrOwned, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
 
     /// Downcasts the reference based on vtable equality.
     /// This implies that this downcast will always yield `None` when attempting to downcast values constructed accross an FFI.
-    pub fn downcast_ref<T: IConstConstructor<'a, Vt>>(&self) -> Option<&T>
+    pub fn downcast_ref<T>(&self) -> Option<&T>
     where
-        Vt: PartialEq + Copy,
+        Vt: PartialEq + Copy + IConstConstructor<'a, T>,
     {
-        (self.vtable == T::VTABLE).then(|| unsafe { self.ptr.as_ref() })
+        (self.vtable == Vt::VTABLE).then(|| unsafe { self.ptr.as_ref() })
     }
     /// Downcasts the mutable reference based on vtable equality.
     /// This implies that this downcast will always yield `None` when attempting to downcast values constructed accross an FFI.
-    pub fn downcast_mut<T: IConstConstructor<'a, Vt>>(&mut self) -> Option<&mut T>
+    pub fn downcast_mut<T>(&mut self) -> Option<&mut T>
     where
-        Vt: PartialEq + Copy,
+        Vt: PartialEq + Copy + IConstConstructor<'a, T>,
         P: IPtrMut,
     {
-        (self.vtable == T::VTABLE).then(|| unsafe { self.ptr.as_mut() })
+        (self.vtable == Vt::VTABLE).then(|| unsafe { self.ptr.as_mut() })
     }
 }
 
-impl<'a, Vt: HasDropVt + Copy + 'a, P: IntoDyn> From<P> for Dyn<'a, P::Anonymized, Vt>
+impl<'a, Vt: HasDropVt + Copy + IConstConstructor<'a, P::Target> + 'a, P: IntoDyn> From<P>
+    for Dyn<'a, P::Anonymized, Vt>
 where
     P::Anonymized: IPtrOwned,
-    P::Target: IConstConstructor<'a, Vt>,
 {
     fn from(value: P) -> Self {
         Self {
             ptr: core::mem::ManuallyDrop::new(value.anonimize()),
-            vtable: P::Target::VTABLE,
+            vtable: Vt::VTABLE,
             unsend: core::marker::PhantomData,
         }
     }
@@ -163,12 +163,12 @@ impl<'a, P: IPtrOwned, Vt: HasDropVt> Drop for Dyn<'a, P, Vt> {
     }
 }
 
-impl<'a, T: IConstConstructor<'a, Vt>, Vt: Copy> From<&'a T> for DynRef<'a, Vt> {
+impl<'a, T, Vt: Copy + IConstConstructor<'a, T>> From<&'a T> for DynRef<'a, Vt> {
     fn from(value: &'a T) -> Self {
         unsafe {
             DynRef {
                 ptr: core::mem::transmute(value),
-                vtable: T::VTABLE,
+                vtable: Vt::VTABLE,
                 unsend: core::marker::PhantomData,
             }
         }

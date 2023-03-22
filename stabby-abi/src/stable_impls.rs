@@ -1,4 +1,4 @@
-use crate::abi::{istable::Or, *};
+use crate::{istable::Or, *};
 
 macro_rules! same_as {
     ($t: ty) => {
@@ -367,13 +367,13 @@ unsafe impl<T: IStable> IStable for HasExactlyOneNiche<Option<T>, B1> {
 #[cfg(feature = "alloc")]
 mod cfgalloc {
     use super::*;
-    unsafe impl<T: IStable> IStable for crate::alloc::boxed::Box<T> {
+    unsafe impl<T: IStable> IStable for alloc::boxed::Box<T> {
         same_as!(core::ptr::NonNull<T>);
     }
-    unsafe impl<T: IStable> IStable for crate::alloc::sync::Arc<T> {
+    unsafe impl<T: IStable> IStable for alloc::sync::Arc<T> {
         same_as!(core::ptr::NonNull<T>);
     }
-    unsafe impl<T: IStable> IStable for crate::alloc::sync::Weak<T> {
+    unsafe impl<T: IStable> IStable for alloc::sync::Weak<T> {
         same_as!(core::ptr::NonNull<T>);
     }
 }

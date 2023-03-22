@@ -7,7 +7,7 @@ use super::{
     vtable::{H, T},
     IStable,
 };
-use crate::abi::*;
+use crate::*;
 
 pub trait IDiscriminant: IStable {
     /// # Safety
@@ -199,7 +199,7 @@ pub(crate) type UnionMemberUnusedBits<Ok, Err, OkShift> =
     >;
 
 /// Prevents the compiler from doing infinite recursion when evaluating `IDiscriminantProvider`
-type DefaultRecursionBudget = T<T<T<T<H>>>>;
+type DefaultRecursionBudget = T<T<T<T<T<T<T<T<H>>>>>>>>;
 
 /// Enter the type-fu recursion
 impl<Ok: IStable, Err: IStable> IDiscriminantProvider for (Ok, Err)
@@ -421,9 +421,9 @@ impl<Ok: IStable, Err: IStable, OkS: Unsigned, ErrS: Unsigned, Budget> IDiscrimi
     type OkShift = U0;
     type NicheExporter = ();
 }
-/// If Ok is bigger, check if shifting it by its aligment would fit in the current union size
+/// If Ok is smaller, check if shifting it by its aligment would fit in the current union size
 impl<Ok: IStable, Err: IStable, OkS: Unsigned, Budget> IDiscriminantProvider
-    for (Ok, Err, OkS, U0, T<Budget>, End, End, End, Greater)
+    for (Ok, Err, OkS, U0, T<Budget>, End, End, End, Lesser)
 where
     (
         Ok,
@@ -434,7 +434,7 @@ where
         End,
         End,
         End,
-        Greater,
+        Lesser,
         <tyeval!((Ok::Size + Ok::Align) + OkS) as Unsigned>::SmallerOrEq<
             UnionSize<Ok, Err, U0, U0>,
         >,
@@ -449,14 +449,14 @@ where
         End,
         End,
         End,
-        Greater,
+        Lesser,
         <tyeval!((Ok::Size + Ok::Align) + OkS) as Unsigned>::SmallerOrEq<
             UnionSize<Ok, Err, U0, U0>,
         >,
     ));
 }
 impl<Ok: IStable, Err: IStable, OkS: Unsigned, Budget> IDiscriminantProvider
-    for (Ok, Err, OkS, U0, T<Budget>, End, End, End, Greater, B0)
+    for (Ok, Err, OkS, U0, T<Budget>, End, End, End, Lesser, B0)
 {
     type Discriminant = BitDiscriminant;
     type ErrShift = U0;
@@ -464,7 +464,7 @@ impl<Ok: IStable, Err: IStable, OkS: Unsigned, Budget> IDiscriminantProvider
     type NicheExporter = ();
 }
 impl<Ok: IStable, Err: IStable, OkS: Unsigned, Budget> IDiscriminantProvider
-    for (Ok, Err, OkS, U0, T<Budget>, End, End, End, Greater, B1)
+    for (Ok, Err, OkS, U0, T<Budget>, End, End, End, Lesser, B1)
 where
     (Ok, Err, tyeval!(OkS + Ok::Align), U0, Budget): IDiscriminantProvider,
 {
@@ -473,7 +473,7 @@ where
 
 /// If Err is bigger, check shift
 impl<Ok: IStable, Err: IStable, ErrS: Unsigned, Budget> IDiscriminantProvider
-    for (Ok, Err, U0, ErrS, T<Budget>, End, End, End, Lesser)
+    for (Ok, Err, U0, ErrS, T<Budget>, End, End, End, Greater)
 where
     (
         Ok,
@@ -484,7 +484,7 @@ where
         End,
         End,
         End,
-        Lesser,
+        Greater,
         <tyeval!((Err::Size + Err::Align) + ErrS) as Unsigned>::SmallerOrEq<
             UnionSize<Ok, Err, U0, U0>,
         >,
@@ -499,14 +499,14 @@ where
         End,
         End,
         End,
-        Lesser,
+        Greater,
         <tyeval!((Err::Size + Err::Align) + ErrS) as Unsigned>::SmallerOrEq<
             UnionSize<Ok, Err, U0, U0>,
         >,
     ));
 }
 impl<Ok: IStable, Err: IStable, ErrS: Unsigned, Budget> IDiscriminantProvider
-    for (Ok, Err, U0, ErrS, T<Budget>, End, End, End, Lesser, B0)
+    for (Ok, Err, U0, ErrS, T<Budget>, End, End, End, Greater, B0)
 {
     type Discriminant = BitDiscriminant;
     type ErrShift = U0;
@@ -515,7 +515,7 @@ impl<Ok: IStable, Err: IStable, ErrS: Unsigned, Budget> IDiscriminantProvider
 }
 
 impl<Ok: IStable, Err: IStable, ErrS: Unsigned, Budget> IDiscriminantProvider
-    for (Ok, Err, U0, ErrS, T<Budget>, End, End, End, Lesser, B1)
+    for (Ok, Err, U0, ErrS, T<Budget>, End, End, End, Greater, B1)
 where
     (Ok, Err, U0, tyeval!(ErrS + Err::Align), Budget): IDiscriminantProvider,
 {
