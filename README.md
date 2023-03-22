@@ -43,3 +43,12 @@ Future plans include:
 
 ## Async
 `stabby` supports futures through the `stabby::future::Future` trait. Async functions (usable in traits) are turned into functions that return a `Dyn<Box<()>, vtable!(stabby::future::Future + Send + Sync)>` (the `Send` and `Sync` bounds may be removed by using `#[stabby::stabby(unsync, unsend)]`), which itself implements `core::future::Future`.
+
+# The `stabby` "manifesto"
+`stabby` was built in response to the lack of ABI-stability in the Rust ecosystem, which makes writing plugins and other dynamic linkage based programs painful. Currently, Rust's only stable ABI is the C ABI, which has no concept of sum-types, let alone niche exploitation.
+
+However, our experience in software engineering has shown that type-size matters a lot to performance, and that sum-types should therefore be encoded in the least space-occupying manner.
+
+My hope with `stabby` comes in two flavors:
+- Adoption in the Rust ecosystem: this is my least favorite option, but this would at least let people have a better time with Rust in situations where they need dynamic linkage.
+- Triggering a discussion about providing not a stable, but versionned ABI for Rust: `stabby` essentially provides a versionned ABI already through the selected version of the `stabby-abi` crate. In my opinion, a `abi = "1.xx"` (where `xx` would be a subset of `rustc`'s version that the compiler team is willing to support for a given amount of times) key in the cargo manifest would be a much better way to do this.
