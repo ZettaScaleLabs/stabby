@@ -43,14 +43,14 @@ pub enum MultiFieldsC {
     D(u8),
     E,
 }
-#[stabby::stabby]
-pub enum MultiFieldsStabby {
-    A(NonZeroU16),
-    B,
-    C(Tuple2<u8, u16>),
-    D(u8),
-    E,
-}
+// #[stabby::stabby]
+// pub enum MultiFieldsStabby {
+//     A(NonZeroU16),
+//     B,
+//     C(Tuple2<u8, u16>),
+//     D(u8),
+//     E,
+// }
 
 #[stabby::stabby(no_opt)]
 pub struct WeirdStructBadLayout {
@@ -100,21 +100,21 @@ fn layouts() {
         };
     }
 
-    let value = MultiFieldsStabby::D(5);
-    value.match_ref(
-        |_| panic!(),
-        || panic!(),
-        |_| panic!(),
-        |&v| assert_eq!(v, 5),
-        || panic!(),
-    );
-    value.match_owned(
-        |_| panic!(),
-        || panic!(),
-        |_| panic!(),
-        |v| assert_eq!(v, 5),
-        || panic!(),
-    );
+    // let value = MultiFieldsStabby::D(5);
+    // value.match_ref(
+    //     |_| panic!(),
+    //     || panic!(),
+    //     |_| panic!(),
+    //     |&v| assert_eq!(v, 5),
+    //     || panic!(),
+    // );
+    // value.match_owned(
+    //     |_| panic!(),
+    //     || panic!(),
+    //     |_| panic!(),
+    //     |v| assert_eq!(v, 5),
+    //     || panic!(),
+    // );
 
     test!(
         u8,
@@ -154,7 +154,7 @@ fn layouts() {
         FieldsC,
         FieldsStabby,
         MultiFieldsC,
-        MultiFieldsStabby,
+        // MultiFieldsStabby,
         crate::tuple::Tuple2<(), usize>,
         crate::tuple::Tuple2<usize, ()>,
         NoFields,

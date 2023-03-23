@@ -55,7 +55,7 @@ pub fn stabby(stabby_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
             syn::Data::Union(data) => unions::stabby(attrs, vis, ident, generics, data),
         }
     } else if let Ok(fn_spec) = syn::parse(tokens.clone()) {
-        functions::stabby(fn_spec)
+        functions::stabby(stabby_attrs, fn_spec)
     } else if let Ok(trait_spec) = syn::parse(tokens) {
         traits::stabby(trait_spec)
     } else {

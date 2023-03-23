@@ -149,6 +149,7 @@ pub trait IForbiddenValues {
     type Shift<O: Unsigned>: IForbiddenValues;
     type Or<T: IForbiddenValues>: IForbiddenValues;
     type SelectFrom<Mask: IBitMask>: ISingleForbiddenValue;
+    type SelectOne: ISingleForbiddenValue;
 }
 pub trait ISingleForbiddenValue {
     type Push<O: Unsigned, T>: ISingleForbiddenValue;
@@ -160,6 +161,7 @@ impl IForbiddenValues for End {
     type Shift<O: Unsigned> = End;
     type Or<T: IForbiddenValues> = T;
     type SelectFrom<Mask: IBitMask> = End;
+    type SelectOne = End;
 }
 impl ISingleForbiddenValue for Saturator {
     type Push<O: Unsigned, T> = Saturator;
@@ -188,12 +190,14 @@ impl<Offset: Unsigned, T, Rest: IForbiddenValues> IForbiddenValues for Array<Off
         <<Mask::HasFreeByteAt<Offset> as IBitBase>::AsForbiddenValue as ISingleForbiddenValue>::And<
             <Rest::SelectFrom<Mask> as ISingleForbiddenValue>::Push<Offset, T>,
         >;
+    type SelectOne = Array<Offset, T, Rest::SelectOne>;
 }
 impl<A: IForbiddenValues, B: IForbiddenValues> IForbiddenValues for Or<A, B> {
     type Shift<O: Unsigned> = Or<A::Shift<O>, B::Shift<O>>;
     type Or<T: IForbiddenValues> = Or<T, Self>;
     type SelectFrom<Mask: IBitMask> =
         <A::SelectFrom<Mask> as ISingleForbiddenValue>::Or<B::SelectFrom<Mask>>;
+    type SelectOne = A::SelectOne;
 }
 pub struct Or<A, B>(core::marker::PhantomData<(A, B)>);
 pub trait IsEnd {
