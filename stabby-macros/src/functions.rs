@@ -70,10 +70,21 @@ pub fn stabby(attrs: proc_macro::TokenStream, fn_spec: syn::ItemFn) -> proc_macr
         ident,
         ..
     } = &sig;
-    assert!(
-        abi.is_none(),
-        "stabby will attribute a stable ABI to your function on its own"
-    );
+    let abi = match abi {
+        None | Some(syn::Abi { name: None, .. }) => {
+            quote!(extern "C")
+        }
+        Some(syn::Abi {
+            name: Some(name), ..
+        }) if [
+            "C", "system", "stdcall", "aapcs", "cdecl", "fastcall", "win64", "sysv64",
+        ]
+        .contains(&name.value().as_str()) =>
+        {
+            quote!(#abi)
+        }
+        _ => panic!("stabby traits must use a stable ABI"),
+    };
     let mut stable_asserts = Vec::new();
     if let syn::ReturnType::Type(_, ty) = output {
         stable_asserts.push(assert_stable(&st, ty));
@@ -101,7 +112,7 @@ pub fn stabby(attrs: proc_macro::TokenStream, fn_spec: syn::ItemFn) -> proc_macr
     };
     quote! {
         #(#attrs)*
-        #vis #unsafety #constness extern "C" fn #ident #generics (#inputs) #output {
+        #vis #unsafety #constness #abi fn #ident #generics (#inputs) #output {
             #(#stable_asserts)*
             #block
         }

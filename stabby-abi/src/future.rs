@@ -102,14 +102,14 @@ mod stable_waker {
 #[crate::stabby]
 pub trait Future {
     type Output: IDiscriminantProvider<()>;
-    fn poll(&mut self, waker: StableWaker) -> Option<Self::Output>;
+    extern "C" fn poll(&mut self, waker: StableWaker) -> Option<Self::Output>;
 }
 impl<T: core::future::Future> Future for T
 where
     T::Output: IDiscriminantProvider<()>,
 {
     type Output = T::Output;
-    fn poll(&mut self, waker: StableWaker) -> Option<Self::Output> {
+    extern "C" fn poll(&mut self, waker: StableWaker) -> Option<Self::Output> {
         waker.with_waker(|waker| {
             match core::future::Future::poll(
                 unsafe { core::pin::Pin::new_unchecked(self) },

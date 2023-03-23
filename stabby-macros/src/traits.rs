@@ -225,6 +225,22 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
                     {
                         panic!("generic methods are not trait object safe")
                     }
+                    let abi = match abi {
+                        Some(syn::Abi { name: None, .. }) => {
+                            quote!(extern "C")
+                        }
+                        Some(syn::Abi {
+                            name: Some(name), ..
+                        }) if [
+                            "C", "system", "stdcall", "aapcs", "cdecl", "fastcall", "win64",
+                            "sysv64",
+                        ]
+                        .contains(&name.value().as_str()) =>
+                        {
+                            quote!(#abi)
+                        }
+                        _ => panic!("stabby traits must use a stable ABI"),
+                    };
                     let mut inputs = inputs.iter();
                     let receiver = match inputs.next() {
                         Some(syn::FnArg::Receiver(Receiver {
@@ -255,7 +271,7 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
                         ident,
                         generics,
                         unsafety: *unsafety,
-                        abi: quote!(#abi),
+                        abi,
                         receiver,
                         inputs: inputs.collect(),
                         output: if let syn::ReturnType::Type(_, ty) = output {
