@@ -46,7 +46,24 @@ Future plans include:
 - `#[stabby::import]` will act similarly to `#[link]`. Its exact behaviour is still to be defined, but the goal is to obtain the same reliability with shared-dependencies as what `stabby` will grant you with dynamically-loaded libraries.
 
 ## Async
-`stabby` supports futures through the `stabby::future::Future` trait. Async functions (usable in traits) are turned into functions that return a `Dyn<Box<()>, vtable!(stabby::future::Future + Send + Sync)>` (the `Send` and `Sync` bounds may be removed by using `#[stabby::stabby(unsync, unsend)]`), which itself implements `core::future::Future`.
+Any implementation of `core::future::Future` on a stable type will work regardless of which side of the FFI-boundary that stable type was constructed. However, futures created by async blocks and async functions aren't ABI-stable, so they must be used through trait objects.
+
+`stabby` supports futures through the `stabby::future::Future` trait. Async functions are turned by #[stabby::stabby] into functions that return a `Dyn<Box<()>, vtable!(stabby::future::Future + Send + Sync)>` (the `Send` and `Sync` bounds may be removed by using `#[stabby::stabby(unsync, unsend)]`), which itself implements `core::future::Future`.
+
+`stabby` doesn't support async traits yet, but you can use the following pattern to implement them:
+```rust
+#[stabby::stabby]
+pub trait AsyncRead {
+	extern "C" fn read<'a>(&'a mut self, buffer: &'a mut [u8]) -> stabby::future::DynFuture<'a, usize>;
+}
+impl MyAsyncTrait for SocketReader {
+	extern "C" fn read<'a>(&'a mut self, buffer: &'a mut [u8]) -> stabby::future::DynFuture<'a, usize> {
+		Box::new(
+			async move {SocketReader::read_async(buffer).await}
+		).into()
+	}
+}
+```
 
 # The `stabby` "manifesto"
 `stabby` was built in response to the lack of ABI-stability in the Rust ecosystem, which makes writing plugins and other dynamic linkage based programs painful. Currently, Rust's only stable ABI is the C ABI, which has no concept of sum-types, let alone niche exploitation.

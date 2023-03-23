@@ -56,8 +56,10 @@ pub fn stabby(stabby_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
         }
     } else if let Ok(fn_spec) = syn::parse(tokens.clone()) {
         functions::stabby(stabby_attrs, fn_spec)
-    } else if let Ok(trait_spec) = syn::parse(tokens) {
+    } else if let Ok(trait_spec) = syn::parse(tokens.clone()) {
         traits::stabby(trait_spec)
+    } else if let Ok(async_block) = syn::parse::<syn::ExprAsync>(tokens) {
+        quote!(Box::new(#async_block).into())
     } else {
         panic!("Expected a type declaration, a trait declaration or a function declaration")
     }

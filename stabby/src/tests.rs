@@ -2,6 +2,7 @@ use core::num::{NonZeroU16, NonZeroU32};
 
 use crate::{
     self as stabby,
+    slice::SliceMut,
     tuple::{Tuple2, Tuple3},
 };
 
@@ -241,6 +242,30 @@ impl MyTrait3<Box<()>> for u16 {
     }
     extern "C" fn gen_stuff3(&mut self, _with: Box<()>) -> Self::A {
         (*self) as u8
+    }
+}
+
+#[stabby::stabby]
+pub trait AsyncRead {
+    extern "C" fn read<'a>(
+        &'a mut self,
+        buffer: crate::slice::SliceMut<'a, u8>,
+    ) -> crate::future::DynFuture<'a, usize>;
+}
+impl<'b> AsyncRead for SliceMut<'b, u8> {
+    extern "C" fn read<'a>(
+        &'a mut self,
+        mut buffer: stabby::slice::SliceMut<'a, u8>,
+    ) -> stabby::future::DynFuture<'a, usize> {
+        Box::new(async move {
+            let len = self.len().min(buffer.len());
+            let (l, r) = self.split_at_mut(len);
+            let r = unsafe { core::mem::transmute::<_, &mut [u8]>(r) };
+            buffer[..len].copy_from_slice(l);
+            *self = r.into();
+            len
+        })
+        .into()
     }
 }
 

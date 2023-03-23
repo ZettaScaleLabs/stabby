@@ -89,10 +89,10 @@ impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
     }
 }
 #[stabby::stabby]
-pub struct Dyn<'a, P: IPtrOwned, Vt: HasDropVt + 'a> {
+pub struct Dyn<'a, P: IPtrOwned + 'a, Vt: HasDropVt + 'static> {
     ptr: core::mem::ManuallyDrop<P>,
-    vtable: &'a Vt,
-    unsend: core::marker::PhantomData<*mut P>,
+    vtable: &'static Vt,
+    unsend: core::marker::PhantomData<&'a P>,
 }
 
 impl<'a, P: IPtrOwned, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
@@ -152,8 +152,11 @@ impl<'a, P: IPtrOwned, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
     }
 }
 
-impl<'a, Vt: HasDropVt + Copy + IConstConstructor<'a, P::Target> + 'a, P: IntoDyn> From<P>
-    for Dyn<'a, P::Anonymized, Vt>
+impl<
+        'a,
+        Vt: HasDropVt + Copy + IConstConstructor<'static, P::Target> + 'static,
+        P: IntoDyn + 'a,
+    > From<P> for Dyn<'a, P::Anonymized, Vt>
 where
     P::Anonymized: IPtrOwned,
 {
