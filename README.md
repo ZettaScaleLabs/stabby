@@ -52,14 +52,20 @@ Any implementation of `core::future::Future` on a stable type will work regardle
 
 `stabby` doesn't support async traits yet, but you can use the following pattern to implement them:
 ```rust
+use stabby::{slice::SliceMut, future::DynFuture};
 #[stabby::stabby]
 pub trait AsyncRead {
-	extern "C" fn read<'a>(&'a mut self, buffer: &'a mut [u8]) -> stabby::future::DynFuture<'a, usize>;
+	extern "C" fn read<'a>(&'a mut self, buffer: SliceMut<'a, [u8]>) -> DynFuture<'a, usize>;
 }
 impl MyAsyncTrait for SocketReader {
-	extern "C" fn read<'a>(&'a mut self, buffer: &'a mut [u8]) -> stabby::future::DynFuture<'a, usize> {
+	extern "C" fn read<'a>(&'a mut self, mut buffer: SliceMut<'a, [u8]>) -> DynFuture<'a, usize> {
 		Box::new(
-			async move {SocketReader::read_async(buffer).await}
+			async move {
+				let slice = buffer.deref_mut();
+				let read = SocketReader::read_async(&mut self.socket, slice).await;
+				buffer = slice.into();
+				read
+			}
 		).into()
 	}
 }
