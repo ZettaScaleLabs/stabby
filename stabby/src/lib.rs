@@ -10,11 +10,14 @@ pub use stabby_abi as abi;
 mod allocs;
 #[cfg(feature = "alloc")]
 pub use allocs::*;
-pub mod option;
-pub use crate::abi::result;
+
 pub mod slice;
 pub mod str;
 pub mod tuple;
+
+pub use crate::abi::future;
+pub use crate::abi::option;
+pub use crate::abi::result;
 
 #[cfg(test)]
 mod tests;

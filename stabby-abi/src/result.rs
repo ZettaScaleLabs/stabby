@@ -1,27 +1,30 @@
 use core::ops::DerefMut;
 
-use crate as stabby;
-pub use crate::enums::{IDiscriminant, IDiscriminantProvider};
+use crate::enums::IDiscriminantProvider;
+pub use crate::enums::{IDiscriminant, IDiscriminantProviderInner};
 use crate::padding::Padded;
 use crate::Union;
+use crate::{self as stabby, IStable};
 
 #[stabby::stabby]
 pub struct Result<Ok, Err>
 where
-    (Ok, Err): IDiscriminantProvider,
+    Ok: IDiscriminantProvider<Err>,
+    Err: IStable,
 {
-    niche_exporter: <(Ok, Err) as IDiscriminantProvider>::NicheExporter,
-    discriminant: <(Ok, Err) as IDiscriminantProvider>::Discriminant,
+    niche_exporter: <Ok as IDiscriminantProvider<Err>>::NicheExporter,
+    discriminant: <Ok as IDiscriminantProvider<Err>>::Discriminant,
     #[allow(clippy::type_complexity)]
     union: Union<
-        Padded<<(Ok, Err) as IDiscriminantProvider>::OkShift, Ok>,
-        Padded<<(Ok, Err) as IDiscriminantProvider>::ErrShift, Err>,
+        Padded<<Ok as IDiscriminantProvider<Err>>::OkShift, Ok>,
+        Padded<<Ok as IDiscriminantProvider<Err>>::ErrShift, Err>,
     >,
 }
 
 impl<Ok: Clone, Err: Clone> Clone for Result<Ok, Err>
 where
-    (Ok, Err): IDiscriminantProvider,
+    Ok: IDiscriminantProvider<Err>,
+    Err: IStable,
 {
     fn clone(&self) -> Self {
         self.match_ref(|ok| Self::Ok(ok.clone()), |err| Self::Err(err.clone()))
@@ -29,7 +32,8 @@ where
 }
 impl<Ok, Err> core::fmt::Debug for Result<Ok, Err>
 where
-    (Ok, Err): IDiscriminantProvider,
+    Ok: IDiscriminantProvider<Err>,
+    Err: IStable,
     Ok: core::fmt::Debug,
     Err: core::fmt::Debug,
 {
@@ -39,7 +43,8 @@ where
 }
 impl<Ok, Err> core::hash::Hash for Result<Ok, Err>
 where
-    (Ok, Err): IDiscriminantProvider,
+    Ok: IDiscriminantProvider<Err>,
+    Err: IStable,
     Ok: core::hash::Hash,
     Err: core::hash::Hash,
 {
@@ -55,7 +60,8 @@ where
 }
 impl<Ok, Err> core::cmp::PartialEq for Result<Ok, Err>
 where
-    (Ok, Err): IDiscriminantProvider,
+    Ok: IDiscriminantProvider<Err>,
+    Err: IStable,
     Ok: core::cmp::PartialEq,
     Err: core::cmp::PartialEq,
 {
@@ -69,14 +75,16 @@ where
 }
 impl<Ok, Err> core::cmp::Eq for Result<Ok, Err>
 where
-    (Ok, Err): IDiscriminantProvider,
+    Ok: IDiscriminantProvider<Err>,
+    Err: IStable,
     Ok: core::cmp::Eq,
     Err: core::cmp::Eq,
 {
 }
 impl<Ok, Err> From<core::result::Result<Ok, Err>> for Result<Ok, Err>
 where
-    (Ok, Err): IDiscriminantProvider,
+    Ok: IDiscriminantProvider<Err>,
+    Err: IStable,
 {
     fn from(value: core::result::Result<Ok, Err>) -> Self {
         match value {
@@ -87,7 +95,8 @@ where
 }
 impl<Ok, Err> From<Result<Ok, Err>> for core::result::Result<Ok, Err>
 where
-    (Ok, Err): IDiscriminantProvider,
+    Ok: IDiscriminantProvider<Err>,
+    Err: IStable,
 {
     fn from(value: Result<Ok, Err>) -> Self {
         value.match_owned(Ok, Err)
@@ -95,7 +104,8 @@ where
 }
 impl<Ok, Err> Drop for Result<Ok, Err>
 where
-    (Ok, Err): IDiscriminantProvider,
+    Ok: IDiscriminantProvider<Err>,
+    Err: IStable,
 {
     fn drop(&mut self) {
         self.match_mut(
@@ -106,7 +116,8 @@ where
 }
 impl<Ok, Err> Result<Ok, Err>
 where
-    (Ok, Err): IDiscriminantProvider,
+    Ok: IDiscriminantProvider<Err>,
+    Err: IStable,
 {
     #[allow(non_snake_case)]
     pub fn Ok(value: Ok) -> Self {
@@ -119,9 +130,7 @@ where
         Self {
             niche_exporter: Default::default(),
             discriminant: unsafe {
-                <(Ok, Err) as IDiscriminantProvider>::Discriminant::ok(
-                    &mut union as *mut _ as *mut _,
-                )
+                <Ok as IDiscriminantProvider<Err>>::Discriminant::ok(&mut union as *mut _ as *mut _)
             },
             union,
         }
@@ -137,7 +146,7 @@ where
         Self {
             niche_exporter: Default::default(),
             discriminant: unsafe {
-                <(Ok, Err) as IDiscriminantProvider>::Discriminant::err(
+                <Ok as IDiscriminantProvider<Err>>::Discriminant::err(
                     &mut union as *mut _ as *mut _,
                 )
             },
@@ -171,12 +180,12 @@ where
         if self.is_ok() {
             unsafe {
                 r = ok(&mut self.union.ok.deref_mut().value);
-                self.discriminant = <(Ok, Err) as IDiscriminantProvider>::Discriminant::ok(union);
+                self.discriminant = <Ok as IDiscriminantProvider<Err>>::Discriminant::ok(union);
             }
         } else {
             unsafe {
                 r = err(&mut self.union.err.deref_mut().value);
-                self.discriminant = <(Ok, Err) as IDiscriminantProvider>::Discriminant::err(union);
+                self.discriminant = <Ok as IDiscriminantProvider<Err>>::Discriminant::err(union);
             }
         }
         r
@@ -219,11 +228,17 @@ where
     pub fn err_mut(&mut self) -> Option<&mut Err> {
         self.match_mut(|_| None, Some)
     }
-    pub fn and_then<F: FnOnce(Ok) -> U, U>(self, f: F) -> Result<U, Err>
+    pub fn map<F: FnOnce(Ok) -> U, U>(self, f: F) -> Result<U, Err>
     where
-        (U, Err): IDiscriminantProvider,
+        U: IDiscriminantProvider<Err>,
     {
         self.match_owned(move |x| Result::Ok(f(x)), |x| Result::Err(x))
+    }
+    pub fn and_then<F: FnOnce(Ok) -> Result<U, Err>, U>(self, f: F) -> Result<U, Err>
+    where
+        U: IDiscriminantProvider<Err>,
+    {
+        self.match_owned(f, |x| Result::Err(x))
     }
     pub fn unwrap_or_else<F: FnOnce(Err) -> Ok>(self, f: F) -> Ok {
         self.match_owned(|x| x, f)

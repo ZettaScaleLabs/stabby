@@ -90,12 +90,21 @@ impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
 }
 #[stabby::stabby]
 pub struct Dyn<'a, P: IPtrOwned, Vt: HasDropVt + 'a> {
-    pub ptr: core::mem::ManuallyDrop<P>,
-    pub vtable: &'a Vt,
+    ptr: core::mem::ManuallyDrop<P>,
+    vtable: &'a Vt,
     unsend: core::marker::PhantomData<*mut P>,
 }
 
 impl<'a, P: IPtrOwned, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
+    pub fn ptr(&self) -> &P {
+        &self.ptr
+    }
+    pub fn ptr_mut(&mut self) -> &mut P {
+        &mut self.ptr
+    }
+    pub fn vtable(&self) -> &'a Vt {
+        self.vtable
+    }
     pub fn as_ref(&self) -> DynRef<'_, Vt> {
         DynRef {
             ptr: unsafe { self.ptr.as_ref() },

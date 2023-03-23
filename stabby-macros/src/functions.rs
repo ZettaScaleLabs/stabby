@@ -1,3 +1,4 @@
+use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
 pub fn stabby(fn_spec: syn::ItemFn) -> proc_macro2::TokenStream {
@@ -16,6 +17,11 @@ pub fn stabby(fn_spec: syn::ItemFn) -> proc_macro2::TokenStream {
         abi,
         inputs,
         output,
+        asyncness,
+        generics,
+        unsafety,
+        constness,
+        ident,
         ..
     } = &sig;
     assert!(
@@ -30,9 +36,20 @@ pub fn stabby(fn_spec: syn::ItemFn) -> proc_macro2::TokenStream {
         syn::FnArg::Receiver(_) => assert_stable(&st, quote!(Self)),
         syn::FnArg::Typed(syn::PatType { ty, .. }) => assert_stable(&st, ty),
     }));
+    let (output, block) = if asyncness.is_some() {
+        let future = match output {
+            syn::ReturnType::Default => quote!(#st::future::Future<Output=()>),
+            syn::ReturnType::Type(_, ty) => quote!(#st::future::Future<Output=#ty>),
+        };
+        let vt: TokenStream = crate::vtable(future.into()).into();
+        let output = quote!( -> #st::Dyn<'static, Box<()>, #vt>);
+        (output, quote!(Box::new(async {#block}).into()))
+    } else {
+        (quote!(#output), quote!(#block))
+    };
     quote! {
         #(#attrs)*
-        #vis extern "C" #sig {
+        #vis #unsafety #constness extern "C" fn #ident #generics (#inputs) #output {
             #(#stable_asserts)*
             #block
         }

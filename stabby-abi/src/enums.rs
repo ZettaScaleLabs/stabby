@@ -157,7 +157,13 @@ where
 }
 
 // "And now for the tricky bit..."
-pub trait IDiscriminantProvider {
+pub trait IDiscriminantProvider<Other>: IStable {
+    type OkShift: Unsigned;
+    type ErrShift: Unsigned;
+    type Discriminant: IDiscriminant;
+    type NicheExporter: IStable + Default + Copy;
+}
+pub trait IDiscriminantProviderInner {
     type OkShift: Unsigned;
     type ErrShift: Unsigned;
     type Discriminant: IDiscriminant;
@@ -165,11 +171,17 @@ pub trait IDiscriminantProvider {
 }
 macro_rules! same_as {
     ($T: ty) => {
-        type OkShift = <$T as IDiscriminantProvider>::OkShift;
-        type ErrShift = <$T as IDiscriminantProvider>::ErrShift;
-        type Discriminant = <$T as IDiscriminantProvider>::Discriminant;
-        type NicheExporter = <$T as IDiscriminantProvider>::NicheExporter;
+        type OkShift = <$T as IDiscriminantProviderInner>::OkShift;
+        type ErrShift = <$T as IDiscriminantProviderInner>::ErrShift;
+        type Discriminant = <$T as IDiscriminantProviderInner>::Discriminant;
+        type NicheExporter = <$T as IDiscriminantProviderInner>::NicheExporter;
     };
+}
+impl<A: IStable, B: IStable> IDiscriminantProvider<B> for A
+where
+    (A, B): IDiscriminantProviderInner,
+{
+    same_as!((A, B));
 }
 
 /// The alignment of `Union<Ok, Err>`
@@ -202,15 +214,15 @@ pub(crate) type UnionMemberUnusedBits<Ok, Err, OkShift> =
 type DefaultRecursionBudget = T<T<T<T<T<T<T<T<H>>>>>>>>;
 
 /// Enter the type-fu recursion
-impl<Ok: IStable, Err: IStable> IDiscriminantProvider for (Ok, Err)
+impl<Ok: IStable, Err: IStable> IDiscriminantProviderInner for (Ok, Err)
 where
-    (Ok, Err, U0, U0, DefaultRecursionBudget): IDiscriminantProvider,
+    (Ok, Err, U0, U0, DefaultRecursionBudget): IDiscriminantProviderInner,
 {
     same_as!((Ok, Err, U0, U0, DefaultRecursionBudget));
 }
 
 /// Branch on whether some forbidden values for Err fit inside Ok's unused bits
-impl<Ok: IStable, Err: IStable, OkS: Unsigned, ErrS: Unsigned, Budget> IDiscriminantProvider
+impl<Ok: IStable, Err: IStable, OkS: Unsigned, ErrS: Unsigned, Budget> IDiscriminantProviderInner
     for (Ok, Err, OkS, ErrS, T<Budget>)
 where
     (
@@ -222,7 +234,7 @@ where
         <<ShiftedForbiddenValues<Err, ErrS> as IForbiddenValues>::SelectFrom<
             UnionMemberUnusedBits<Ok, Err, OkS>,
         > as ISingleForbiddenValue>::Resolve,
-    ): IDiscriminantProvider,
+    ): IDiscriminantProviderInner,
 {
     same_as!((
         Ok,
@@ -235,7 +247,7 @@ where
         > as ISingleForbiddenValue>::Resolve,
     ));
 }
-impl<Ok: IStable, Err: IStable, OkS: Unsigned, ErrS: Unsigned> IDiscriminantProvider
+impl<Ok: IStable, Err: IStable, OkS: Unsigned, ErrS: Unsigned> IDiscriminantProviderInner
     for (Ok, Err, OkS, ErrS, H)
 {
     type Discriminant = BitDiscriminant;
@@ -254,7 +266,7 @@ impl<
         V: Unsigned,
         Tail: IForbiddenValues + IntoValueIsErr,
         Budget,
-    > IDiscriminantProvider for (Ok, Err, OkS, ErrS, T<Budget>, Array<Offset, V, Tail>)
+    > IDiscriminantProviderInner for (Ok, Err, OkS, ErrS, T<Budget>, Array<Offset, V, Tail>)
 {
     type OkShift = OkS;
     type ErrShift = ErrS;
@@ -270,7 +282,7 @@ impl<
 
 /// None of Err's forbidden values fit into Ok's unused bits, so branch on wherther
 /// some of Ok's forbidden values fit into Err's forbidden value
-impl<Ok: IStable, Err: IStable, OkS: Unsigned, ErrS: Unsigned, Budget> IDiscriminantProvider
+impl<Ok: IStable, Err: IStable, OkS: Unsigned, ErrS: Unsigned, Budget> IDiscriminantProviderInner
     for (Ok, Err, OkS, ErrS, T<Budget>, End)
 where
     (
@@ -283,7 +295,7 @@ where
         <<ShiftedForbiddenValues<Ok, OkS> as IForbiddenValues>::SelectFrom<
             UnionMemberUnusedBits<Err, Ok, ErrS>,
         > as ISingleForbiddenValue>::Resolve,
-    ): IDiscriminantProvider,
+    ): IDiscriminantProviderInner,
 {
     same_as!((
         Ok,
@@ -308,7 +320,7 @@ impl<
         V: Unsigned,
         Tail: IForbiddenValues + IntoValueIsErr,
         Budget,
-    > IDiscriminantProvider for (Ok, Err, OkS, ErrS, T<Budget>, End, Array<Offset, V, Tail>)
+    > IDiscriminantProviderInner for (Ok, Err, OkS, ErrS, T<Budget>, End, Array<Offset, V, Tail>)
 {
     type OkShift = OkS;
     type ErrShift = ErrS;
@@ -324,7 +336,7 @@ impl<
 
 /// If neither Err nor Ok's unused bits can fit any of the other's forbidden value,
 /// check if their unused bits have an intersection
-impl<Ok: IStable, Err: IStable, OkS: Unsigned, ErrS: Unsigned, Budget> IDiscriminantProvider
+impl<Ok: IStable, Err: IStable, OkS: Unsigned, ErrS: Unsigned, Budget> IDiscriminantProviderInner
     for (Ok, Err, OkS, ErrS, T<Budget>, End, End)
 where
     (
@@ -338,7 +350,7 @@ where
         <UnionMemberUnusedBits<Ok, Err, OkS> as IBitMask>::BitAnd<
             UnionMemberUnusedBits<Err, Ok, ErrS>,
         >,
-    ): IDiscriminantProvider,
+    ): IDiscriminantProviderInner,
 {
     same_as!((
         Ok,
@@ -363,7 +375,7 @@ impl<
         V: NonZero,
         Rest: IBitMask,
         Budget,
-    > IDiscriminantProvider
+    > IDiscriminantProviderInner
     for (
         Ok,
         Err,
@@ -385,7 +397,7 @@ impl<
         NicheExporter<End, <Array<Offset, V, Rest> as IBitMask>::ExtractBit, Saturator>;
 }
 /// If no niche was found, compare Ok and Err's sizes to push the smallest to the right
-impl<Ok: IStable, Err: IStable, OkS: Unsigned, ErrS: Unsigned, Budget> IDiscriminantProvider
+impl<Ok: IStable, Err: IStable, OkS: Unsigned, ErrS: Unsigned, Budget> IDiscriminantProviderInner
     for (Ok, Err, OkS, ErrS, T<Budget>, End, End, End)
 where
     (
@@ -398,7 +410,7 @@ where
         End,
         End,
         <Ok::Size as Unsigned>::Cmp<Err::Size>,
-    ): IDiscriminantProvider,
+    ): IDiscriminantProviderInner,
 {
     same_as!((
         Ok,
@@ -413,7 +425,7 @@ where
     ));
 }
 /// If Ok and Err are the same size, give up on niche optimization and just place a bit-discriminant
-impl<Ok: IStable, Err: IStable, OkS: Unsigned, ErrS: Unsigned, Budget> IDiscriminantProvider
+impl<Ok: IStable, Err: IStable, OkS: Unsigned, ErrS: Unsigned, Budget> IDiscriminantProviderInner
     for (Ok, Err, OkS, ErrS, T<Budget>, End, End, End, Equal)
 {
     type Discriminant = BitDiscriminant;
@@ -422,7 +434,7 @@ impl<Ok: IStable, Err: IStable, OkS: Unsigned, ErrS: Unsigned, Budget> IDiscrimi
     type NicheExporter = ();
 }
 /// If Ok is smaller, check if shifting it by its aligment would fit in the current union size
-impl<Ok: IStable, Err: IStable, OkS: Unsigned, Budget> IDiscriminantProvider
+impl<Ok: IStable, Err: IStable, OkS: Unsigned, Budget> IDiscriminantProviderInner
     for (Ok, Err, OkS, U0, T<Budget>, End, End, End, Lesser)
 where
     (
@@ -438,7 +450,7 @@ where
         <tyeval!((Ok::Size + Ok::Align) + OkS) as Unsigned>::SmallerOrEq<
             UnionSize<Ok, Err, U0, U0>,
         >,
-    ): IDiscriminantProvider,
+    ): IDiscriminantProviderInner,
 {
     same_as!((
         Ok,
@@ -455,7 +467,7 @@ where
         >,
     ));
 }
-impl<Ok: IStable, Err: IStable, OkS: Unsigned, Budget> IDiscriminantProvider
+impl<Ok: IStable, Err: IStable, OkS: Unsigned, Budget> IDiscriminantProviderInner
     for (Ok, Err, OkS, U0, T<Budget>, End, End, End, Lesser, B0)
 {
     type Discriminant = BitDiscriminant;
@@ -463,16 +475,16 @@ impl<Ok: IStable, Err: IStable, OkS: Unsigned, Budget> IDiscriminantProvider
     type OkShift = U0;
     type NicheExporter = ();
 }
-impl<Ok: IStable, Err: IStable, OkS: Unsigned, Budget> IDiscriminantProvider
+impl<Ok: IStable, Err: IStable, OkS: Unsigned, Budget> IDiscriminantProviderInner
     for (Ok, Err, OkS, U0, T<Budget>, End, End, End, Lesser, B1)
 where
-    (Ok, Err, tyeval!(OkS + Ok::Align), U0, Budget): IDiscriminantProvider,
+    (Ok, Err, tyeval!(OkS + Ok::Align), U0, Budget): IDiscriminantProviderInner,
 {
     same_as!((Ok, Err, tyeval!(OkS + Ok::Align), U0, Budget));
 }
 
 /// If Err is bigger, check shift
-impl<Ok: IStable, Err: IStable, ErrS: Unsigned, Budget> IDiscriminantProvider
+impl<Ok: IStable, Err: IStable, ErrS: Unsigned, Budget> IDiscriminantProviderInner
     for (Ok, Err, U0, ErrS, T<Budget>, End, End, End, Greater)
 where
     (
@@ -488,7 +500,7 @@ where
         <tyeval!((Err::Size + Err::Align) + ErrS) as Unsigned>::SmallerOrEq<
             UnionSize<Ok, Err, U0, U0>,
         >,
-    ): IDiscriminantProvider,
+    ): IDiscriminantProviderInner,
 {
     same_as!((
         Ok,
@@ -505,7 +517,7 @@ where
         >,
     ));
 }
-impl<Ok: IStable, Err: IStable, ErrS: Unsigned, Budget> IDiscriminantProvider
+impl<Ok: IStable, Err: IStable, ErrS: Unsigned, Budget> IDiscriminantProviderInner
     for (Ok, Err, U0, ErrS, T<Budget>, End, End, End, Greater, B0)
 {
     type Discriminant = BitDiscriminant;
@@ -514,10 +526,10 @@ impl<Ok: IStable, Err: IStable, ErrS: Unsigned, Budget> IDiscriminantProvider
     type NicheExporter = ();
 }
 
-impl<Ok: IStable, Err: IStable, ErrS: Unsigned, Budget> IDiscriminantProvider
+impl<Ok: IStable, Err: IStable, ErrS: Unsigned, Budget> IDiscriminantProviderInner
     for (Ok, Err, U0, ErrS, T<Budget>, End, End, End, Greater, B1)
 where
-    (Ok, Err, U0, tyeval!(ErrS + Err::Align), Budget): IDiscriminantProvider,
+    (Ok, Err, U0, tyeval!(ErrS + Err::Align), Budget): IDiscriminantProviderInner,
 {
     same_as!((Ok, Err, U0, tyeval!(ErrS + Err::Align), Budget));
 }

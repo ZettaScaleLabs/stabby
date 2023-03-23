@@ -508,6 +508,34 @@ impl<'a> DynTraitDescription<'a> {
             .unselfed_iter()
             .collect::<Vec<_>>();
         let sdts: &[_] = &self.self_dependent_types;
+        let sdtbounds = sdts.iter().map(|ty| {
+            self.bounds
+                .iter()
+                .fold(
+                    None,
+                    |acc,
+                     DynTraitBound {
+                         target,
+                         lifetimes,
+                         bound,
+                     }| {
+                        let Ty::SelfReferencial(target) = target else {return acc};
+                        if &**target == ty {
+                            let bound = match bound {
+                                Ok(bound) => quote!(#lifetimes #bound),
+                                Err(lt) => quote!(#lt),
+                            };
+                            Some(match acc {
+                                Some(acc) => quote!(#acc + #bound),
+                                None => quote!(#bound),
+                            })
+                        } else {
+                            acc
+                        }
+                    },
+                )
+                .map(|bounds| quote!(: #bounds))
+        });
         let trait_to_vt_bindings = self
             .self_dependent_types
             .iter()
@@ -534,11 +562,15 @@ impl<'a> DynTraitDescription<'a> {
         let traitid_dyn = quote::format_ident!("{}Dyn", trait_id);
         let traitid_dynmut = quote::format_ident!("{}DynMut", trait_id);
 
-        quote! {
-            #[stabby::stabby]
+        let mut vtable_decl = quote! {
             #vis struct #vtid < #vt_generics > where #(#vt_bounds)* {
                 #(pub #all_fn_ids: #st::StableLike<#all_fn_fts, core::num::NonZeroUsize>,)*
             }
+        };
+        vtable_decl = crate::stabby(proc_macro::TokenStream::new(), vtable_decl.into()).into();
+
+        quote! {
+            #vtable_decl
 
             impl< #vt_generics > Clone for #vtid < #nbvt_generics > where #(#vt_bounds)* {
                 fn clone(&self) -> Self {
@@ -588,8 +620,8 @@ impl<'a> DynTraitDescription<'a> {
                 #(#dyntrait_types,)*
                 #(#trait_types,)*
                 #(#trait_consts,)*
-            > {
-                #(type #sdts;)*
+            > where #(#vt_bounds)* {
+                #(type #sdts #sdtbounds;)*
                 #(#fns;)*
             }
             impl<
@@ -610,7 +642,7 @@ impl<'a> DynTraitDescription<'a> {
                 #(#unbound_trait_types,)*
                 #(#unbound_trait_consts,)*
             >
-            for #st::DynRef<'_, StabbyVtProvider>
+            for #st::DynRef<'_, StabbyVtProvider> where #(#vt_bounds)*
             {
                 #(type #trait_to_vt_bindings;)*
                 #(#fns {
@@ -636,11 +668,11 @@ impl<'a> DynTraitDescription<'a> {
                 #(#unbound_trait_types,)*
                 #(#unbound_trait_consts,)*
             >
-            for #st::Dyn<'_, StabbyPtrProvider, StabbyVtProvider>
+            for #st::Dyn<'_, StabbyPtrProvider, StabbyVtProvider> where #(#vt_bounds)*
             {
                 #(type #trait_to_vt_bindings;)*
                 #(#fns {
-                    (self.vtable.tderef().#fn_ids)(unsafe{self.ptr.as_ref()}, #fn_args)
+                    (self.vtable().tderef().#fn_ids)(unsafe{self.ptr().as_ref()}, #fn_args)
                 })*
             }
 
@@ -657,7 +689,7 @@ impl<'a> DynTraitDescription<'a> {
                 #(#dyntrait_types,)*
                 #(#unbound_trait_types,)*
                 #(#unbound_trait_consts,)*
-            > {
+            > where #(#vt_bounds)* {
                 #(#mut_fns;)*
             }
             impl<
@@ -679,53 +711,12 @@ impl<'a> DynTraitDescription<'a> {
                 #(#unbound_trait_types,)*
                 #(#unbound_trait_consts,)*
             >
-            for #st::Dyn<'_, StabbyPtrProvider, StabbyVtProvider>
+            for #st::Dyn<'_, StabbyPtrProvider, StabbyVtProvider> where #(#vt_bounds)*
             {
                 #(#mut_fns {
-                    (self.vtable.tderef().#mut_fn_ids)(unsafe {self.ptr.as_mut()}, #mut_fn_args)
+                    (self.vtable().tderef().#mut_fn_ids)(unsafe {self.ptr_mut().as_mut()}, #mut_fn_args)
                 })*
             }
-
-            // impl<
-            //     #(#trait_lts,)*
-            //     StabbyPtrProvider: #st::IPtrOwned + #st::IPtrMut,
-            //     StabbyNextVtable,
-            //     #(#dyntrait_types,)*
-            //     #(#trait_types,)*
-            //     #(#trait_consts,)*
-            // >
-            // #trait_id <
-            //     #(#unbound_trait_lts,)*
-            //     #(#unbound_trait_types,)*
-            //     #(#unbound_trait_consts,)*
-            // >
-            // for #st::Dyn<'_, StabbyPtrProvider,
-            //     <dyn #trait_id <
-            //         #(#unbound_trait_lts,)*
-            //         #(#unbound_trait_types,)*
-            //         #(#unbound_trait_consts,)*
-            //         #(#trait_to_vt_bindings,)*
-            //         > as #st::vtable::CompoundVt>::Vt<StabbyNextVtable>>
-            // where
-            // <dyn #trait_id <
-            //         #(#unbound_trait_lts,)*
-            //         #(#unbound_trait_types,)*
-            //         #(#unbound_trait_consts,)*
-            //         #(#trait_to_vt_bindings,)*
-            //         > as #st::vtable::CompoundVt>::Vt<StabbyNextVtable>: #st::vtable::HasDropVt + Copy + #st::vtable::TransitiveDeref<
-            //         #vt_signature,
-            //         #st::vtable::H
-            //         >,
-            // #(#vt_bounds)*
-            //     {
-            //     #(type #trait_to_vt_bindings;)*
-            //     #(#fns {
-            //         (self.vtable.tderef().#fn_ids)(unsafe{self.ptr.as_ref()}, #fn_args)
-            //     })*
-            //     #(#mut_fns {
-            //         (self.vtable.tderef().#mut_fn_ids)(unsafe {self.ptr.as_mut()}, #mut_fn_args)
-            //     })*
-            // }
         }
     }
 }
@@ -773,6 +764,84 @@ enum Ty {
         as_trait: Box<Self>,
         next: Box<Self>,
     },
+}
+impl PartialEq for Ty {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Arbitrary {
+                    prefix: l_prefix,
+                    next: l_next,
+                },
+                Self::Arbitrary {
+                    prefix: r_prefix,
+                    next: r_next,
+                },
+            ) => l_prefix.to_string() == r_prefix.to_string() && l_next == r_next,
+            (Self::SelfReferencial(l0), Self::SelfReferencial(r0)) => l0 == r0,
+            (
+                Self::Reference {
+                    lifetime: l_lifetime,
+                    mutability: l_mutability,
+                    elem: l_elem,
+                },
+                Self::Reference {
+                    lifetime: r_lifetime,
+                    mutability: r_mutability,
+                    elem: r_elem,
+                },
+            ) => {
+                l_lifetime == r_lifetime
+                    && l_mutability.is_some() == r_mutability.is_some()
+                    && l_elem == r_elem
+            }
+            (
+                Self::Ptr {
+                    const_token: l_const_token,
+                    mutability: l_mutability,
+                    elem: l_elem,
+                },
+                Self::Ptr {
+                    const_token: r_const_token,
+                    mutability: r_mutability,
+                    elem: r_elem,
+                },
+            ) => {
+                l_const_token.is_some() == r_const_token.is_some()
+                    && l_mutability.is_some() == r_mutability.is_some()
+                    && l_elem == r_elem
+            }
+            (Self::Array { .. }, _) | (Self::BareFn { .. }, _) => false,
+            (
+                Self::Path {
+                    segment: l_segment,
+                    arguments: _,
+                    next: l_next,
+                },
+                Self::Path {
+                    segment: r_segment,
+                    arguments: _,
+                    next: r_next,
+                },
+            ) => l_segment == r_segment && l_next == r_next,
+            (Self::LeadingColon { next: l_next }, Self::LeadingColon { next: r_next }) => {
+                l_next == r_next
+            }
+            (
+                Self::Qualified {
+                    target: l_target,
+                    as_trait: l_as_trait,
+                    next: l_next,
+                },
+                Self::Qualified {
+                    target: r_target,
+                    as_trait: r_as_trait,
+                    next: r_next,
+                },
+            ) => l_target == r_target && l_as_trait == r_as_trait && l_next == r_next,
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
 }
 impl core::fmt::Display for Ty {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

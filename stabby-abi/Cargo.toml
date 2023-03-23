@@ -12,6 +12,11 @@ readme = { workspace = true }
 default = ["std"]
 std = ["alloc"]
 alloc = []
+# Since there currently isn't any way to construct guaranteed ABI-stable wakers from `core::task::Waker`
+# `stabby::future::Future::poll` may need to allocate in order to provide stable wakers.
+# If you're confident enough that `core::task::Waker`'s ABI will not change between your targetted versions
+# of rustc, you may enable this feature to pass them across the FFI boundary directly.
+unsafe_wakers = []
 
 [dependencies]
 stabby-macros = { path = "../stabby-macros/" }

@@ -24,6 +24,7 @@ pub use fatptr::*;
 mod fatptr;
 // pub use istabilize::IStabilize;
 // mod istabilize;
+pub mod future;
 mod stable_impls;
 pub mod vtable;
 
@@ -104,6 +105,8 @@ pub mod enums;
 pub mod padding;
 pub mod result;
 pub use result::Result;
+pub mod option;
+pub use option::Option;
 
 pub use istable::{Array, End, IStable};
 

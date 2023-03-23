@@ -3,6 +3,20 @@ use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::{parse::Parser, DeriveInput, TypeParamBound};
 
+#[allow(dead_code)]
+pub(crate) fn logfile() -> impl std::io::Write {
+    use std::{fs::OpenOptions, io::BufWriter, path::PathBuf};
+    let logfile = PathBuf::from("logfile.txt");
+    let logfile = BufWriter::new(
+        OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(logfile)
+            .unwrap(),
+    );
+    logfile
+}
+
 pub(crate) fn tl_mod() -> proc_macro2::TokenStream {
     match proc_macro_crate::crate_name("stabby-abi") {
         Ok(proc_macro_crate::FoundCrate::Itself) => return quote!(crate),

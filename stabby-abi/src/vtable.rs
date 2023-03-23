@@ -20,8 +20,8 @@ pub struct T<T>(T);
 #[stabby::stabby]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct VTable<Head, Tail = VtDrop> {
-    head: Head,
-    tail: Tail,
+    pub head: Head,
+    pub tail: Tail,
 }
 
 pub trait CompoundVt {
@@ -117,7 +117,7 @@ impl<'a, T> IConstConstructor<'a, T> for VtDrop {
 /// A marker for vtables for types that are `Send`
 #[stabby::stabby]
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct VtSend<T>(T);
+pub struct VtSend<T>(pub T);
 impl CompoundVt for dyn Send {
     type Vt<T> = VtSend<T>;
 }
@@ -138,7 +138,7 @@ impl<'a, T: Send, Vt: IConstConstructor<'a, T>> IConstConstructor<'a, T> for VtS
 /// A marker for vtables for types that are `Sync`
 #[stabby::stabby]
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct VtSync<T>(T);
+pub struct VtSync<T>(pub T);
 impl CompoundVt for dyn Sync {
     type Vt<T> = VtSync<T>;
 }

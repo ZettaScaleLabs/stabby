@@ -1,5 +1,3 @@
-use std::{fs::File, io::BufWriter, path::PathBuf};
-
 fn u(mut i: u128) -> String {
     let mut result = "UTerm".into();
     let mut ids = Vec::new();
@@ -15,7 +13,11 @@ fn u(mut i: u128) -> String {
 }
 
 fn main() {
-    use std::io::Write;
+    use std::{
+        fs::File,
+        io::{BufWriter, Write},
+        path::PathBuf,
+    };
     let padding_rs = PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("unsigned.rs");
     let mut padding_file = BufWriter::new(File::create(padding_rs).unwrap());
     const SEQ_MAX: u128 = 1000;

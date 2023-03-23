@@ -18,7 +18,7 @@ where
 impl<Borrowed: IStable + ToOwned> Cow<'_, Borrowed>
 where
     <Borrowed as ToOwned>::Owned: IStable,
-    for<'a> (&'a Borrowed, <Borrowed as ToOwned>::Owned): IDiscriminantProvider,
+    for<'a> &'a Borrowed: IDiscriminantProvider<<Borrowed as ToOwned>::Owned>,
 {
     pub fn into_owned(self) -> <Borrowed as ToOwned>::Owned {
         self.match_owned(|b| b.to_owned(), |o| o)
@@ -30,7 +30,7 @@ where
 impl<Borrowed: IStable + ToOwned> Borrow<Borrowed> for Cow<'_, Borrowed>
 where
     <Borrowed as ToOwned>::Owned: IStable,
-    for<'a> (&'a Borrowed, <Borrowed as ToOwned>::Owned): IDiscriminantProvider,
+    for<'a> &'a Borrowed: IDiscriminantProvider<<Borrowed as ToOwned>::Owned>,
 {
     fn borrow(&self) -> &Borrowed {
         self.match_ref(|&b| b, |o| o.borrow())

@@ -350,13 +350,13 @@ unsafe impl<T: IStable> IStable for core::pin::Pin<T> {
 }
 
 pub struct HasExactlyOneNiche<A, B>(core::marker::PhantomData<(A, B)>);
-unsafe impl<T: IStable> IStable for Option<T>
+unsafe impl<T: IStable> IStable for core::option::Option<T>
 where
-    HasExactlyOneNiche<Option<T>, T::HasExactlyOneNiche>: IStable,
+    HasExactlyOneNiche<core::option::Option<T>, T::HasExactlyOneNiche>: IStable,
 {
-    same_as!(HasExactlyOneNiche<Option<T>, T::HasExactlyOneNiche>);
+    same_as!(HasExactlyOneNiche<core::option::Option<T>, T::HasExactlyOneNiche>);
 }
-unsafe impl<T: IStable> IStable for HasExactlyOneNiche<Option<T>, B1> {
+unsafe impl<T: IStable> IStable for HasExactlyOneNiche<core::option::Option<T>, B1> {
     type Size = T::Size;
     type Align = T::Align;
     type ForbiddenValues = End;

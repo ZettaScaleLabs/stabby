@@ -258,7 +258,7 @@ pub fn repr_stabby(
         |(aty, abound), (bty, bbound)| {
             (
                 quote!(#st::Result<#aty, #bty>),
-                quote!((#aty, #bty): #st::IDiscriminantProvider, #abound #bbound),
+                quote!(#aty: #st::IDiscriminantProvider<#bty>, #abound #bbound),
             )
         },
     );
@@ -302,9 +302,17 @@ pub fn repr_stabby(
     let ref_matcher = matcher(quote!(match_ref));
     let mut_matcher = matcher(quote!(match_mut));
     let layout = &result;
-    quote! {
+
+    let bounds2 = generics.where_clause.as_ref().map(|c| &c.predicates);
+    let bounds = quote!(#bounds #bounds2);
+
+    let enum_as_struct = quote! {
         #(#attrs)*
         #vis struct #ident #generics (#result) where #bounds;
+    };
+
+    quote! {
+        #enum_as_struct
         #[automatically_derived]
         unsafe impl #generics #st::IStable for #ident < #unbound_generics > where #bounds #layout: #st::IStable {
             type ForbiddenValues = <#layout as #st::IStable>::ForbiddenValues;

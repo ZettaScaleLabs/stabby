@@ -1,18 +1,14 @@
-use crate as stabby;
-use crate::abi::enums::IDiscriminantProvider;
-use crate::abi::IStable;
+use crate::enums::IDiscriminantProvider;
+use crate::IStable;
 
-#[stabby::stabby]
+#[crate::stabby]
 // #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Option<T: IStable>
-where
-    (T, ()): IDiscriminantProvider,
-{
+pub struct Option<T: IStable + IDiscriminantProvider<()>> {
     inner: crate::result::Result<T, ()>,
 }
 impl<T: IStable> core::fmt::Debug for Option<T>
 where
-    (T, ()): IDiscriminantProvider,
+    T: IDiscriminantProvider<()>,
     T: core::fmt::Debug,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -21,7 +17,7 @@ where
 }
 impl<T: IStable> From<core::option::Option<T>> for Option<T>
 where
-    (T, ()): IDiscriminantProvider,
+    T: IDiscriminantProvider<()>,
 {
     fn from(value: core::option::Option<T>) -> Self {
         match value {
@@ -36,7 +32,7 @@ where
 }
 impl<T: IStable> From<Option<T>> for core::option::Option<T>
 where
-    (T, ()): IDiscriminantProvider,
+    T: IDiscriminantProvider<()>,
 {
     fn from(value: Option<T>) -> Self {
         value.inner.ok()
@@ -44,7 +40,7 @@ where
 }
 impl<T: IStable> Default for Option<T>
 where
-    (T, ()): IDiscriminantProvider,
+    T: IDiscriminantProvider<()>,
 {
     fn default() -> Self {
         Self::None()
@@ -52,7 +48,7 @@ where
 }
 impl<T: IStable> Option<T>
 where
-    (T, ()): IDiscriminantProvider,
+    T: IDiscriminantProvider<()>,
 {
     #[allow(non_snake_case)]
     pub fn Some(value: T) -> Self {

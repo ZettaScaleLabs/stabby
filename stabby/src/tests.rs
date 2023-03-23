@@ -274,8 +274,8 @@ fn enums() {
     where
         A: Clone + PartialEq + core::fmt::Debug + IStable,
         B: Clone + PartialEq + core::fmt::Debug + IStable,
-        (A, B): IDiscriminantProvider,
-        <(A, B) as IDiscriminantProvider>::Discriminant: core::fmt::Debug,
+        A: IDiscriminantProvider<B>,
+        <A as IDiscriminantProvider<B>>::Discriminant: core::fmt::Debug,
         Result<A, B>: IStable,
     {
         println!(
@@ -290,9 +290,9 @@ fn enums() {
         let a: Result<_, _> = a.into();
         println!(
             "discriminant: {}, OkShift: {}, ErrShift: {}",
-            core::any::type_name::<<(A, B) as IDiscriminantProvider>::Discriminant>(),
-            <<(A, B) as IDiscriminantProvider>::OkShift as typenum2::Unsigned>::USIZE,
-            <<(A, B) as IDiscriminantProvider>::ErrShift as typenum2::Unsigned>::USIZE,
+            core::any::type_name::<<A as IDiscriminantProvider<B>>::Discriminant>(),
+            <<A as IDiscriminantProvider<B>>::OkShift as typenum2::Unsigned>::USIZE,
+            <<A as IDiscriminantProvider<B>>::ErrShift as typenum2::Unsigned>::USIZE,
         );
         assert!(a.is_ok());
         let b: Result<_, _> = b.into();
