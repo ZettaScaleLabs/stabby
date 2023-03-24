@@ -414,6 +414,67 @@ unsafe impl<T: IStable> IStable for HasExactlyOneNiche<core::option::Option<T>, 
         tyty: report::TyTy::Enum(Str::new("rust")),
     };
 }
+unsafe impl<Ok: IStable, Err: IStable> IStable for core::result::Result<Ok, Err>
+where
+    HasExactlyOneNiche<Self, (Ok::HasExactlyOneNiche, Err::Size)>: IStable,
+{
+    same_as!(HasExactlyOneNiche<Self, (Ok::HasExactlyOneNiche, Err::Size)>);
+    const REPORT: &'static report::TypeReport =
+        <HasExactlyOneNiche<Self, (Ok::HasExactlyOneNiche, Err::Size)> as IStable>::REPORT;
+}
+unsafe impl<Ok: IStable, Err: IStable> IStable
+    for HasExactlyOneNiche<core::result::Result<Ok, Err>, (B1, U0)>
+{
+    type Size = Ok::Size;
+    type Align = Ok::Align;
+    type ForbiddenValues = End;
+    type UnusedBits = End;
+    type HasExactlyOneNiche = B0;
+    const REPORT: &'static report::TypeReport = &report::TypeReport {
+        name: Str::new("Result"),
+        module: Str::new("core::result"),
+        fields: unsafe {
+            StableLike::new(Some(&report::FieldReport {
+                name: Str::new("Ok"),
+                ty: Ok::REPORT,
+                next_field: StableLike::new(None),
+            }))
+        },
+        last_break: report::Version::NEVER,
+        tyty: report::TyTy::Enum(Str::new("rust")),
+    };
+}
+unsafe impl<Ok: IStable, Err: IStable, BO, B: Bit, I: Unsigned> IStable
+    for HasExactlyOneNiche<core::result::Result<Ok, Err>, (BO, UInt<I, B>)>
+where
+    HasExactlyOneNiche<Self, (Err::HasExactlyOneNiche, Ok::Size)>: IStable,
+{
+    same_as!(HasExactlyOneNiche<Self, (Err::HasExactlyOneNiche, Ok::Size)>);
+    const REPORT: &'static report::TypeReport =
+        <HasExactlyOneNiche<Self, (Err::HasExactlyOneNiche, Ok::Size)> as IStable>::REPORT;
+}
+unsafe impl<Ok: IStable, Err: IStable, T> IStable
+    for HasExactlyOneNiche<HasExactlyOneNiche<core::result::Result<Ok, Err>, T>, (B1, U0)>
+{
+    type Size = Err::Size;
+    type Align = Err::Align;
+    type ForbiddenValues = End;
+    type UnusedBits = End;
+    type HasExactlyOneNiche = B0;
+    const REPORT: &'static report::TypeReport = &report::TypeReport {
+        name: Str::new("Result"),
+        module: Str::new("core::result"),
+        fields: unsafe {
+            StableLike::new(Some(&report::FieldReport {
+                name: Str::new("Err"),
+                ty: Err::REPORT,
+                next_field: StableLike::new(None),
+            }))
+        },
+        last_break: report::Version::NEVER,
+        tyty: report::TyTy::Enum(Str::new("rust")),
+    };
+}
 
 #[cfg(feature = "alloc")]
 mod cfgalloc {

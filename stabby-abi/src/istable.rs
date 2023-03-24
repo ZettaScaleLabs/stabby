@@ -35,11 +35,21 @@ macro_rules! same_as {
 /// # Safety
 /// Mis-implementing this trait can lead to memory corruption in sum tyoes
 pub unsafe trait IStable: Sized {
+    /// The size of the annotated type.
     type Size: Unsigned;
+    /// The alignment of the annotated type.
     type Align: PowerOf2;
+    /// The values that the annotated type cannot occupy.
     type ForbiddenValues: IForbiddenValues;
+    /// The padding bits in the annotated types
     type UnusedBits: IBitMask;
+    /// Allows the detection of whether or not [`core::option::Option`]s are stable:
+    /// - [`B0`] if the type is known to have 0 niches knowable by rustc
+    /// - [`B1`] if the type has exactly one niche value, and that niche is known by rustc
+    /// - [`Saturator`] if the type has more than a single value, which would mean rustc could change its
+    ///     way of representing the [`None`] variant.
     type HasExactlyOneNiche: ISaturatingAdd;
+    /// A compile-time generated report of the fields of the type, allowing for compatibility inspection.
     const REPORT: &'static TypeReport;
     fn size() -> usize {
         let size = Self::Size::USIZE;
