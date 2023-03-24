@@ -18,9 +18,8 @@ use quote::quote;
 use syn::{parse::Parser, DeriveInput, TypeParamBound};
 
 #[allow(dead_code)]
-pub(crate) fn logfile() -> impl std::io::Write {
-    use std::{fs::OpenOptions, io::BufWriter, path::PathBuf};
-    let logfile = PathBuf::from("logfile.txt");
+pub(crate) fn logfile(logfile: std::path::PathBuf) -> impl std::io::Write {
+    use std::{fs::OpenOptions, io::BufWriter};
     let logfile = BufWriter::new(
         OpenOptions::new()
             .append(true)
@@ -29,6 +28,20 @@ pub(crate) fn logfile() -> impl std::io::Write {
             .unwrap(),
     );
     logfile
+}
+
+#[allow(unused_macros)]
+macro_rules! log {
+    ($path: literal, $e: expr) => {{
+        let logfile = std::path::PathBuf::from($path);
+        use std::io::Write;
+        let e = $e;
+        writeln!(crate::logfile(logfile), "{e}");
+        e
+    }};
+    ($e: expr) => {
+        log!("logfile.txt", $e)
+    };
 }
 
 pub(crate) fn tl_mod() -> proc_macro2::TokenStream {
@@ -91,10 +104,103 @@ pub fn vtable(tokens: TokenStream) -> TokenStream {
     for bound in bounds {
         match &bound {
             TypeParamBound::Trait(t) => vt = quote!(< dyn #t as #st::vtable::CompoundVt >::Vt<#vt>),
-            TypeParamBound::Lifetime(_) => todo!(),
+            TypeParamBound::Lifetime(lt) => panic!("Cannot give lifetimes to vtables, use `Dyn<{lt}, P, Vt>` or `DynRef<{lt}, Vt> instead`"),
         }
     }
     vt.into()
+}
+
+enum PtrType {
+    Path(proc_macro2::TokenStream),
+    Ref,
+    RefMut,
+}
+struct DynPtr {
+    ptr: PtrType,
+    bounds: Vec<syn::TraitBound>,
+    lifetime: Option<syn::Lifetime>,
+}
+impl syn::parse::Parse for DynPtr {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let (mut this, elem) = match input.parse::<syn::Type>()? {
+            syn::Type::Path(syn::TypePath {
+                path:
+                    syn::Path {
+                        leading_colon,
+                        mut segments,
+                    },
+                ..
+            }) => {
+                let syn::PathSegment { ident, arguments: syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments { colon2_token: None, mut args, ..}) } = segments.pop().unwrap().into_value() else {panic!()};
+                if args.len() != 1 {
+                    panic!("Pointer-type must have exactly one generic argument containing `dyn Bounds`")
+                }
+                let arg = args.pop().unwrap().into_value();
+                let syn::GenericArgument::Type(ty) = arg else {panic!()};
+                (
+                    DynPtr {
+                        ptr: PtrType::Path(quote!(#leading_colon #segments #ident)),
+                        lifetime: None,
+                        bounds: Vec::new(),
+                    },
+                    ty,
+                )
+            }
+            syn::Type::Reference(syn::TypeReference {
+                lifetime,
+                mutability,
+                elem,
+                ..
+            }) => (
+                DynPtr {
+                    ptr: if mutability.is_some() {
+                        PtrType::RefMut
+                    } else {
+                        PtrType::Ref
+                    },
+                    lifetime,
+                    bounds: Vec::new(),
+                },
+                *elem,
+            ),
+            _ => panic!("Only references and paths are supported by this macro"),
+        };
+        let syn::Type::TraitObject(syn::TypeTraitObject {  bounds, .. }) = elem else {panic!("expected `dyn` not found")};
+        for bound in bounds {
+            match bound {
+                TypeParamBound::Trait(t) => this.bounds.push(t),
+                TypeParamBound::Lifetime(lt) => {
+                    if this.lifetime.is_some() {
+                        panic!("Only a single lifetime is supported in this macro")
+                    } else {
+                        this.lifetime = Some(lt)
+                    }
+                }
+            }
+        }
+        Ok(this)
+    }
+}
+
+#[proc_macro]
+pub fn dynptr(tokens: TokenStream) -> TokenStream {
+    let st = tl_mod();
+    let DynPtr {
+        ptr,
+        bounds,
+        lifetime,
+    } = syn::parse(tokens).unwrap();
+    let mut vt = quote!(#st::vtable::VtDrop);
+    for bound in bounds {
+        vt = quote!(< dyn #bound as #st::vtable::CompoundVt >::Vt<#vt>);
+    }
+    let lifetime = lifetime.unwrap_or(syn::Lifetime::new("'static", Span::call_site()));
+    match ptr {
+        PtrType::Path(path) => quote!(#st::Dyn<#lifetime, #path<()>, #vt>),
+        PtrType::RefMut => quote!(#st::Dyn<#lifetime, &#lifetime mut (), #vt>),
+        PtrType::Ref => quote!(#st::DynRef<#lifetime, #vt>),
+    }
+    .into()
 }
 
 mod enums;
@@ -108,4 +214,10 @@ mod tyops;
 #[proc_macro]
 pub fn tyeval(tokens: TokenStream) -> TokenStream {
     tyops::tyeval(&tokens.into()).into()
+}
+
+mod gen_closures;
+#[proc_macro]
+pub fn gen_closures_impl(_: TokenStream) -> TokenStream {
+    gen_closures::gen_closures().into()
 }

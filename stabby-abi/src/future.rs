@@ -34,7 +34,7 @@ mod stable_waker {
     }
     impl<'a> From<&'a Waker> for StableWaker<'a> {
         fn from(value: &'a Waker) -> Self {
-            unsafe { Self(StableLike::stable(value)) }
+            unsafe { Self(StableLike::new(value)) }
         }
     }
 }
@@ -101,8 +101,8 @@ mod stable_waker {
                         value: ManuallyDrop::new(value.clone()),
                         marker: core::marker::PhantomData,
                     },
-                    wake_by_ref: StableLike::stable(wake_by_ref),
-                    drop: StableLike::stable(drop_waker),
+                    wake_by_ref: StableLike::new(wake_by_ref),
+                    drop: StableLike::new(drop_waker),
                 }
             };
             StableWaker {
@@ -116,7 +116,7 @@ mod stable_waker {
 #[crate::stabby]
 pub trait Future {
     type Output: IDiscriminantProvider<()>;
-    extern "C" fn poll(&mut self, waker: StableWaker) -> Option<Self::Output>;
+    extern "C" fn poll<'a>(&'a mut self, waker: StableWaker<'a>) -> Option<Self::Output>;
 }
 impl<T: core::future::Future> Future for T
 where

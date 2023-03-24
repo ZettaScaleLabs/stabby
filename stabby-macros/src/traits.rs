@@ -14,7 +14,7 @@
 
 use std::ops::Deref;
 
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::{
     token::{Const, Mut, Unsafe},
@@ -408,6 +408,30 @@ impl DynTraitFn<'_> {
         let inputs = inputs.iter().map(|ty| ty.replace_self(self_as_trait));
         quote!(#forgen #generics #abi #unsafety fn(#receiver, #(#inputs),*) #output)
     }
+    fn stability_cond(&self, sdts: &SelfDependentTypes) -> TokenStream {
+        let st = crate::tl_mod();
+        let Self { inputs, output, .. } = self;
+        let mut cond = match output {
+            Some(ty) => {
+                let mut uty = sdts.unselfed(ty);
+                if uty == *ty {
+                    uty.elide_lifetime();
+                    quote!(#uty)
+                } else {
+                    quote!(())
+                }
+            }
+            None => quote!(()),
+        };
+        for ty in inputs {
+            let mut uty = sdts.unselfed(ty);
+            if uty == *ty {
+                uty.elide_lifetime();
+                cond = quote!(#st::Union<#cond, #uty>);
+            }
+        }
+        cond
+    }
     fn field_signature(&self, sdts: &SelfDependentTypes) -> TokenStream {
         let Self {
             ident: _,
@@ -525,6 +549,11 @@ impl<'a> DynTraitDescription<'a> {
             .iter()
             .chain(&self.mut_functions)
             .map(|f| f.field_signature(&self.self_dependent_types));
+        let all_fn_conds = self
+            .functions
+            .iter()
+            .chain(&self.mut_functions)
+            .map(|f| f.stability_cond(&self.self_dependent_types));
         let trait_id = self.ident;
         let trait_generics = &self.generics.params;
         let trait_lts = trait_generics.lifetimes().collect::<Vec<_>>();
@@ -594,7 +623,7 @@ impl<'a> DynTraitDescription<'a> {
 
         let mut vtable_decl = quote! {
             #vis struct #vtid < #vt_generics > where #(#vt_bounds)* {
-                #(pub #all_fn_ids: #st::StableLike<#all_fn_fts, core::num::NonZeroUsize>,)*
+                #(pub #all_fn_ids: #st::StableIf<#st::StableLike<#all_fn_fts, core::num::NonZeroUsize>, #all_fn_conds>,)*
             }
         };
         vtable_decl = crate::stabby(proc_macro::TokenStream::new(), vtable_decl.into()).into();
@@ -612,7 +641,7 @@ impl<'a> DynTraitDescription<'a> {
             impl< #vt_generics > Copy for #vtid < #nbvt_generics > where #(#vt_bounds)* {}
             impl< #vt_generics > core::cmp::PartialEq for #vtid < #nbvt_generics > where #(#vt_bounds)*{
                 fn eq(&self, other: &Self) -> bool {
-                    #(core::ptr::eq((*self.#all_fn_ids) as *const (), (*other.#all_fn_ids) as *const _) &&)* true
+                    #(core::ptr::eq((**self.#all_fn_ids) as *const (), (**other.#all_fn_ids) as *const _) &&)* true
                 }
             }
 
@@ -959,6 +988,46 @@ impl quote::ToTokens for Ty {
     }
 }
 impl Ty {
+    fn elide_lifetime(&mut self) {
+        match self {
+            Ty::Never | Ty::Unit => {}
+            Ty::Reference { lifetime, elem, .. } => {
+                if let Some(lt) = lifetime {
+                    *lt = syn::Lifetime::new("'static", Span::call_site())
+                }
+                elem.elide_lifetime();
+            }
+            Ty::Array { elem, .. }
+            | Ty::Ptr { elem, .. }
+            | Ty::LeadingColon { next: elem }
+            | Ty::Arbitrary { next: elem, .. }
+            | Ty::SelfReferencial(elem) => elem.elide_lifetime(),
+            Ty::BareFn { .. } => {}
+            Ty::Path {
+                arguments, next, ..
+            } => {
+                if let Some(e) = next {
+                    e.elide_lifetime()
+                }
+                if let Arguments::AngleBracketed { generics } = arguments {
+                    for arg in generics {
+                        if let GenericArgument::Lifetime(lt) = arg {
+                            *lt = syn::Lifetime::new("'static", Span::call_site())
+                        }
+                    }
+                }
+            }
+            Ty::Qualified {
+                target,
+                as_trait,
+                next,
+            } => {
+                target.elide_lifetime();
+                as_trait.elide_lifetime();
+                next.elide_lifetime();
+            }
+        }
+    }
     fn from_iter<'a, T: Iterator<Item = &'a PathSegment> + ExactSizeIterator>(mut iter: T) -> Self {
         let PathSegment { ident, arguments } = iter.next().unwrap();
         if *ident == "Self" {

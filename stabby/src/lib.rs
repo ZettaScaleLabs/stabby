@@ -17,7 +17,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-pub use stabby_macros::{stabby, vtable};
+pub use stabby_macros::{dynptr, stabby, vtable};
 
 pub use stabby_abi as abi;
 
@@ -26,6 +26,7 @@ mod allocs;
 #[cfg(feature = "alloc")]
 pub use allocs::*;
 
+pub use stabby_abi::{Dyn, DynRef};
 pub mod slice;
 pub mod str;
 pub mod tuple;
@@ -33,20 +34,17 @@ pub mod tuple;
 pub mod future {
     pub use crate::abi::future::*;
     #[cfg(feature = "alloc")]
-    pub type DynFuture<'a, Output> = crate::abi::Dyn<
-        'a,
-        Box<()>,
-        crate::vtable!(crate::future::Future<Output = Output> + Send + Sync),
-    >;
+    pub type DynFuture<'a, Output> =
+        crate::dynptr!(Box<dyn Future<Output = Output> + Send + Sync + 'a>);
     #[cfg(feature = "alloc")]
     pub type DynFutureUnsync<'a, Output> =
-        crate::abi::Dyn<'a, Box<()>, crate::vtable!(crate::future::Future<Output = Output> + Send)>;
+        crate::dynptr!(Box<dyn Future<Output = Output> + Send + 'a>);
     #[cfg(feature = "alloc")]
-    pub type DynFutureUnsend<'a, Output> =
-        crate::abi::Dyn<'a, Box<()>, crate::vtable!(crate::future::Future<Output = Output>)>;
+    pub type DynFutureUnsend<'a, Output> = crate::dynptr!(Box<dyn Future<Output = Output> + 'a>);
 }
+pub use crate::abi::closure;
 pub use crate::abi::option;
 pub use crate::abi::result;
 
-#[cfg(test)]
+// #[cfg(test)]
 mod tests;

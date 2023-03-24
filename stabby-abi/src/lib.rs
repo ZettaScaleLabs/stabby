@@ -39,6 +39,7 @@ pub use fatptr::*;
 mod fatptr;
 // pub use istabilize::IStabilize;
 // mod istabilize;
+pub mod closure;
 pub mod future;
 mod stable_impls;
 pub mod vtable;
@@ -56,6 +57,7 @@ impl<T: IStable> AssertStable<T> {
 /// Lets you tell `stabby` that `T` has the same stable layout as `As`.
 ///
 /// Lying about this link between `T` and `As` will cause UB.
+#[repr(C)]
 pub struct StableLike<T, As> {
     pub value: T,
     marker: core::marker::PhantomData<As>,
@@ -72,7 +74,7 @@ impl<T: Copy, As> Copy for StableLike<T, As> {}
 impl<T, As: IStable> StableLike<T, As> {
     /// # Safety
     /// Refer to type documentation
-    pub const unsafe fn stable(value: T) -> Self {
+    pub const unsafe fn new(value: T) -> Self {
         Self {
             value,
             marker: core::marker::PhantomData,
@@ -97,6 +99,50 @@ unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
     type ForbiddenValues = As::ForbiddenValues;
     type UnusedBits = As::UnusedBits;
     type HasExactlyOneNiche = As::HasExactlyOneNiche;
+}
+
+#[repr(C)]
+pub struct StableIf<T, Cond> {
+    pub value: T,
+    marker: core::marker::PhantomData<Cond>,
+}
+impl<T: Clone, Cond> Clone for StableIf<T, Cond> {
+    fn clone(&self) -> Self {
+        Self {
+            value: self.value.clone(),
+            marker: self.marker,
+        }
+    }
+}
+impl<T: Copy, Cond> Copy for StableIf<T, Cond> {}
+impl<T, Cond> StableIf<T, Cond> {
+    /// # Safety
+    /// Refer to type documentation
+    pub const unsafe fn new(value: T) -> Self {
+        Self {
+            value,
+            marker: core::marker::PhantomData,
+        }
+    }
+}
+
+impl<T, Cond> core::ops::Deref for StableIf<T, Cond> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+impl<T, Cond> core::ops::DerefMut for StableIf<T, Cond> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
+    }
+}
+unsafe impl<T: IStable, Cond: IStable> IStable for StableIf<T, Cond> {
+    type Size = T::Size;
+    type Align = T::Align;
+    type ForbiddenValues = T::ForbiddenValues;
+    type UnusedBits = T::UnusedBits;
+    type HasExactlyOneNiche = T::HasExactlyOneNiche;
 }
 
 #[repr(C)]

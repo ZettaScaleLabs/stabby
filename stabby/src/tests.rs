@@ -58,14 +58,15 @@ pub enum MultiFieldsC {
     D(u8),
     E,
 }
-// #[stabby::stabby]
-// pub enum MultiFieldsStabby {
-//     A(NonZeroU16),
-//     B,
-//     C(Tuple2<u8, u16>),
-//     D(u8),
-//     E,
-// }
+
+#[stabby::stabby]
+pub enum MultiFieldsStabby {
+    A(NonZeroU16),
+    B,
+    C(Tuple2<u8, u16>),
+    D(u8),
+    E,
+}
 
 #[stabby::stabby(no_opt)]
 pub struct WeirdStructBadLayout {
@@ -115,21 +116,21 @@ fn layouts() {
         };
     }
 
-    // let value = MultiFieldsStabby::D(5);
-    // value.match_ref(
-    //     |_| panic!(),
-    //     || panic!(),
-    //     |_| panic!(),
-    //     |&v| assert_eq!(v, 5),
-    //     || panic!(),
-    // );
-    // value.match_owned(
-    //     |_| panic!(),
-    //     || panic!(),
-    //     |_| panic!(),
-    //     |v| assert_eq!(v, 5),
-    //     || panic!(),
-    // );
+    let value = MultiFieldsStabby::D(5);
+    value.match_ref(
+        |_| panic!(),
+        || panic!(),
+        |_| panic!(),
+        |&v| assert_eq!(v, 5),
+        || panic!(),
+    );
+    value.match_owned(
+        |_| panic!(),
+        || panic!(),
+        |_| panic!(),
+        |v| assert_eq!(v, 5),
+        || panic!(),
+    );
 
     test!(
         u8,
@@ -186,7 +187,7 @@ fn layouts() {
 #[stabby::stabby]
 pub trait MyTrait {
     type Output;
-    extern "C" fn do_stuff<'a>(&'a self, with: &Self::Output) -> &'a u8;
+    extern "C" fn do_stuff<'a>(&'a self, with: &'a Self::Output) -> &'a u8;
     extern "C" fn gen_stuff(&mut self) -> Self::Output;
 }
 
@@ -194,7 +195,7 @@ pub trait MyTrait {
 
 impl MyTrait for u8 {
     type Output = u8;
-    extern "C" fn do_stuff<'a>(&'a self, _: &Self::Output) -> &'a u8 {
+    extern "C" fn do_stuff<'a>(&'a self, _: &'a Self::Output) -> &'a u8 {
         self
     }
     extern "C" fn gen_stuff(&mut self) -> Self::Output {
@@ -203,7 +204,7 @@ impl MyTrait for u8 {
 }
 impl MyTrait for u16 {
     type Output = u8;
-    extern "C" fn do_stuff<'a>(&'a self, _: &Self::Output) -> &'a u8 {
+    extern "C" fn do_stuff<'a>(&'a self, _: &'a Self::Output) -> &'a u8 {
         &0
     }
     extern "C" fn gen_stuff(&mut self) -> Self::Output {
@@ -286,12 +287,9 @@ impl<'b> AsyncRead for SliceMut<'b, u8> {
 #[test]
 fn dyn_traits() {
     let boxed = Box::new(6u8);
-    let mut dyned = crate::abi::Dyn::<
-        _,
-        stabby::vtable!(
-            Send + MyTrait2 + MyTrait3<Box<()>, A = u8, B = u8> + Sync + MyTrait<Output = u8>
-        ),
-    >::from(boxed);
+    let mut dyned = <stabby::dynptr!(
+        Box<dyn Send + MyTrait2 + MyTrait3<Box<()>, A = u8, B = u8> + Sync + MyTrait<Output = u8>>
+    )>::from(boxed);
     assert_eq!(dyned.downcast_ref::<u8>(), Some(&6));
     assert_eq!(dyned.do_stuff(&0), &6);
     assert_eq!(dyned.gen_stuff(), 6);
