@@ -46,5 +46,5 @@ pub use crate::abi::closure;
 pub use crate::abi::option;
 pub use crate::abi::result;
 
-// #[cfg(test)]
+#[cfg(test)]
 mod tests;

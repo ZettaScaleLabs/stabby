@@ -123,6 +123,7 @@ where
     T::Output: IDiscriminantProvider<()>,
 {
     type Output = T::Output;
+    #[allow(improper_ctypes_definitions)]
     extern "C" fn poll(&mut self, waker: StableWaker) -> Option<Self::Output> {
         waker.with_waker(|waker| {
             match core::future::Future::poll(
