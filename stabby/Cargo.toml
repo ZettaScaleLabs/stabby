@@ -14,7 +14,7 @@
 
 [package]
 name = "stabby"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }
@@ -27,6 +27,7 @@ description = "A Stable ABI for Rust with compact sum-types."
 default = ["std"]
 std = ["alloc"]
 alloc = ["stabby-abi/alloc"]
+unsafe_wakers = ["stabby-abi/unsafe_wakers"]
 
 [dependencies]
 stabby-abi = { path = "../stabby-abi/", version = "0.1.0" }
