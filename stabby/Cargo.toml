@@ -21,6 +21,7 @@ license = { workspace = true }
 categories = { workspace = true }
 repository = { workspace = true }
 readme = { workspace = true }
+description = "A Stable ABI for Rust with compact sum-types."
 
 [features]
 default = ["std"]

@@ -21,6 +21,7 @@ license = { workspace = true }
 categories = { workspace = true }
 repository = { workspace = true }
 readme = { workspace = true }
+description = "stabby's core ABI, you shouldn't add this crate to your dependencies, only `stabby`."
 
 [features]
 default = ["std"]
