@@ -12,9 +12,17 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-use crate::{istable::Or, *};
+use crate::{istable::Or, str::Str, *};
 
 macro_rules! same_as {
+    ($t: ty, $($name: tt)*) => {
+        type Align = <$t as IStable>::Align;
+        type Size = <$t as IStable>::Size;
+        type UnusedBits = <$t as IStable>::UnusedBits;
+        type ForbiddenValues = <$t as IStable>::ForbiddenValues;
+        type HasExactlyOneNiche = <$t as IStable>::HasExactlyOneNiche;
+        primitive_report!($($name)*);
+    };
     ($t: ty) => {
         type Align = <$t as IStable>::Align;
         type Size = <$t as IStable>::Size;
@@ -37,6 +45,7 @@ unsafe impl IStable for () {
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
+    primitive_report!("()");
 }
 unsafe impl<T> IStable for core::marker::PhantomData<T> {
     type Size = U0;
@@ -44,6 +53,7 @@ unsafe impl<T> IStable for core::marker::PhantomData<T> {
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
+    primitive_report!("core::marker::PhantomData");
 }
 unsafe impl IStable for core::marker::PhantomPinned {
     type Size = U0;
@@ -51,6 +61,7 @@ unsafe impl IStable for core::marker::PhantomPinned {
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
+    primitive_report!("core::marker::PhantomPinned");
 }
 macro_rules! illegal_values {
     ([$($l: tt)*], [$($r: tt)*]) => {
@@ -162,6 +173,7 @@ unsafe impl IStable for bool {
     );
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
+    primitive_report!("bool");
 }
 
 unsafe impl IStable for u8 {
@@ -170,6 +182,7 @@ unsafe impl IStable for u8 {
     type Align = U1;
     type Size = U1;
     type HasExactlyOneNiche = B0;
+    primitive_report!("u8");
 }
 unsafe impl IStable for core::num::NonZeroU8 {
     type Align = U1;
@@ -177,6 +190,7 @@ unsafe impl IStable for core::num::NonZeroU8 {
     type UnusedBits = End;
     type ForbiddenValues = nz_holes!(U0);
     type HasExactlyOneNiche = B1;
+    primitive_report!("core::num::NonZeroU8");
 }
 unsafe impl IStable for u16 {
     type UnusedBits = End;
@@ -184,6 +198,7 @@ unsafe impl IStable for u16 {
     type Align = U2;
     type Size = U2;
     type HasExactlyOneNiche = B0;
+    primitive_report!("u16");
 }
 unsafe impl IStable for core::num::NonZeroU16 {
     type ForbiddenValues = nz_holes!(U0, U1);
@@ -191,6 +206,7 @@ unsafe impl IStable for core::num::NonZeroU16 {
     type Align = U2;
     type Size = U2;
     type HasExactlyOneNiche = B1;
+    primitive_report!("core::num::NonZeroU16");
 }
 unsafe impl IStable for u32 {
     type UnusedBits = End;
@@ -198,6 +214,7 @@ unsafe impl IStable for u32 {
     type Align = U4;
     type Size = U4;
     type HasExactlyOneNiche = B0;
+    primitive_report!("u32");
 }
 unsafe impl IStable for core::num::NonZeroU32 {
     type ForbiddenValues = nz_holes!(U0, U1, U2, U3);
@@ -205,6 +222,7 @@ unsafe impl IStable for core::num::NonZeroU32 {
     type Align = U4;
     type Size = U4;
     type HasExactlyOneNiche = B1;
+    primitive_report!("core::num::NonZeroU32");
 }
 unsafe impl IStable for u64 {
     type UnusedBits = End;
@@ -212,6 +230,7 @@ unsafe impl IStable for u64 {
     type Align = U8;
     type Size = U8;
     type HasExactlyOneNiche = B0;
+    primitive_report!("u64");
 }
 unsafe impl IStable for core::num::NonZeroU64 {
     type UnusedBits = End;
@@ -219,6 +238,7 @@ unsafe impl IStable for core::num::NonZeroU64 {
     type Align = U8;
     type Size = U8;
     type HasExactlyOneNiche = B1;
+    primitive_report!("core::num::NonZeroU64");
 }
 
 unsafe impl IStable for u128 {
@@ -230,6 +250,7 @@ unsafe impl IStable for u128 {
     type Align = U8;
     #[cfg(any(target_arch = "aarch64"))]
     type Align = U16;
+    primitive_report!("u128");
 }
 unsafe impl IStable for core::num::NonZeroU128 {
     type UnusedBits = End;
@@ -238,129 +259,130 @@ unsafe impl IStable for core::num::NonZeroU128 {
     type Size = U16;
     type HasExactlyOneNiche = B1;
     type Align = <u128 as IStable>::Align;
+    primitive_report!("core::num::NonZeroU128");
 }
 
 unsafe impl IStable for usize {
     #[cfg(target_pointer_width = "64")]
-    same_as!(u64);
+    same_as!(u64, "usize");
     #[cfg(target_pointer_width = "32")]
-    same_as!(u32);
+    same_as!(u32, "usize");
     #[cfg(target_pointer_width = "16")]
-    same_as!(u16);
+    same_as!(u16, "usize");
     #[cfg(target_pointer_width = "8")]
-    same_as!(u8);
+    same_as!(u8, "usize");
 }
 unsafe impl IStable for core::num::NonZeroUsize {
     #[cfg(target_pointer_width = "64")]
-    same_as!(core::num::NonZeroU64);
+    same_as!(core::num::NonZeroU64, "core::num::NonZeroUsize");
     #[cfg(target_pointer_width = "32")]
-    same_as!(core::num::NonZeroU32);
+    same_as!(core::num::NonZeroU32, "core::num::NonZeroUsize");
     #[cfg(target_pointer_width = "16")]
-    same_as!(core::num::NonZeroU16);
+    same_as!(core::num::NonZeroU16, "core::num::NonZeroUsize");
     #[cfg(target_pointer_width = "8")]
-    same_as!(core::num::NonZeroU8);
+    same_as!(core::num::NonZeroU8, "core::num::NonZeroUsize");
 }
 
 unsafe impl IStable for i8 {
-    same_as!(u8);
+    same_as!(u8, "i8");
 }
 unsafe impl IStable for core::num::NonZeroI8 {
-    same_as!(core::num::NonZeroU8);
+    same_as!(core::num::NonZeroU8, "core::num::NonZeroI8");
 }
 unsafe impl IStable for i16 {
-    same_as!(u16);
+    same_as!(u16, "i16");
 }
 unsafe impl IStable for core::num::NonZeroI16 {
-    same_as!(core::num::NonZeroU16);
+    same_as!(core::num::NonZeroU16, "core::num::NonZeroI16");
 }
 unsafe impl IStable for i32 {
-    same_as!(u32);
+    same_as!(u32, "i32");
 }
 unsafe impl IStable for core::num::NonZeroI32 {
-    same_as!(core::num::NonZeroU32);
+    same_as!(core::num::NonZeroU32, "core::num::NonZeroI32");
 }
 unsafe impl IStable for i64 {
-    same_as!(u64);
+    same_as!(u64, "i64");
 }
 unsafe impl IStable for core::num::NonZeroI64 {
-    same_as!(core::num::NonZeroU64);
+    same_as!(core::num::NonZeroU64, "core::num::NonZeroI64");
 }
 unsafe impl IStable for i128 {
-    same_as!(u128);
+    same_as!(u128, "i128");
 }
 unsafe impl IStable for core::num::NonZeroI128 {
-    same_as!(core::num::NonZeroU128);
+    same_as!(core::num::NonZeroU128, "core::num::NonZeroI128");
 }
 unsafe impl IStable for isize {
-    same_as!(usize);
+    same_as!(usize, "isize");
 }
 unsafe impl IStable for core::num::NonZeroIsize {
-    same_as!(core::num::NonZeroUsize);
+    same_as!(core::num::NonZeroUsize, "core::num::NonZeroIsize");
 }
 
 unsafe impl<T: IStable> IStable for core::mem::ManuallyDrop<T> {
-    same_as!(T);
+    same_as!(T, <T as IStable>::REPORT.name.as_str());
 }
 unsafe impl<T: IStable> IStable for core::mem::MaybeUninit<T> {
-    same_as!(T);
+    same_as!(T, <T as IStable>::REPORT.name.as_str());
 }
 unsafe impl<T: IStable> IStable for core::cell::UnsafeCell<T> {
-    same_as!(T);
+    same_as!(T, <T as IStable>::REPORT.name.as_str());
 }
 
 unsafe impl<T: IStable> IStable for *const T {
-    same_as!(usize);
+    same_as!(usize, "*const", T);
 }
 unsafe impl<T: IStable> IStable for *mut T {
-    same_as!(usize);
+    same_as!(usize, "*mut", T);
 }
 unsafe impl<T: IStable> IStable for core::ptr::NonNull<T> {
-    same_as!(core::num::NonZeroUsize);
+    same_as!(core::num::NonZeroUsize, "core::ptr::NonNull", T);
 }
 unsafe impl<T: IStable> IStable for core::sync::atomic::AtomicPtr<T> {
-    same_as!(*mut T);
+    same_as!(*mut T, "core::sync::atomic::AtomicPtr", T);
 }
 unsafe impl IStable for core::sync::atomic::AtomicBool {
-    same_as!(bool);
+    same_as!(bool, "core::sync::atomic::AtomicBool");
 }
 unsafe impl IStable for core::sync::atomic::AtomicI8 {
-    same_as!(i8);
+    same_as!(i8, "core::sync::atomic::AtomicI8");
 }
 unsafe impl IStable for core::sync::atomic::AtomicI16 {
-    same_as!(i16);
+    same_as!(i16, "core::sync::atomic::AtomicI16");
 }
 unsafe impl IStable for core::sync::atomic::AtomicI32 {
-    same_as!(i32);
+    same_as!(i32, "core::sync::atomic::AtomicI32");
 }
 unsafe impl IStable for core::sync::atomic::AtomicI64 {
-    same_as!(i64);
+    same_as!(i64, "core::sync::atomic::AtomicI64");
 }
 unsafe impl IStable for core::sync::atomic::AtomicIsize {
-    same_as!(isize);
+    same_as!(isize, "core::sync::atomic::AtomicIsize");
 }
 unsafe impl IStable for core::sync::atomic::AtomicU8 {
-    same_as!(u8);
+    same_as!(u8, "core::sync::atomic::AtomicU8");
 }
 unsafe impl IStable for core::sync::atomic::AtomicU16 {
-    same_as!(u16);
+    same_as!(u16, "core::sync::atomic::AtomicU16");
 }
 unsafe impl IStable for core::sync::atomic::AtomicU32 {
-    same_as!(u32);
+    same_as!(u32, "core::sync::atomic::AtomicU32");
 }
 unsafe impl IStable for core::sync::atomic::AtomicU64 {
-    same_as!(u64);
+    same_as!(u64, "core::sync::atomic::AtomicU64");
 }
 unsafe impl IStable for core::sync::atomic::AtomicUsize {
-    same_as!(usize);
+    same_as!(usize, "core::sync::atomic::AtomicUsize");
 }
 unsafe impl<T: IStable> IStable for &T {
-    same_as!(core::num::NonZeroUsize);
+    same_as!(core::num::NonZeroUsize, "&", T);
 }
 unsafe impl<T: IStable> IStable for &mut T {
-    same_as!(core::num::NonZeroUsize);
+    same_as!(core::num::NonZeroUsize, "&mut", T);
 }
 unsafe impl<T: IStable> IStable for core::pin::Pin<T> {
-    same_as!(T);
+    same_as!(T, "core::pin::Pin", T);
 }
 
 pub struct HasExactlyOneNiche<A, B>(core::marker::PhantomData<(A, B)>);
@@ -369,6 +391,8 @@ where
     HasExactlyOneNiche<core::option::Option<T>, T::HasExactlyOneNiche>: IStable,
 {
     same_as!(HasExactlyOneNiche<core::option::Option<T>, T::HasExactlyOneNiche>);
+    const REPORT: &'static report::TypeReport =
+        <HasExactlyOneNiche<core::option::Option<T>, T::HasExactlyOneNiche> as IStable>::REPORT;
 }
 unsafe impl<T: IStable> IStable for HasExactlyOneNiche<core::option::Option<T>, B1> {
     type Size = T::Size;
@@ -376,38 +400,51 @@ unsafe impl<T: IStable> IStable for HasExactlyOneNiche<core::option::Option<T>, 
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
+    const REPORT: &'static report::TypeReport = &report::TypeReport {
+        name: Str::new("Option"),
+        module: Str::new("core::option"),
+        fields: unsafe {
+            StableLike::new(Some(&report::FieldReport {
+                name: Str::new("Some"),
+                ty: T::REPORT,
+                next_field: StableLike::new(None),
+            }))
+        },
+        last_break: report::Version::NEVER,
+        tyty: report::TyTy::Enum(Str::new("rust")),
+    };
 }
 
 #[cfg(feature = "alloc")]
 mod cfgalloc {
     use super::*;
     unsafe impl<T: IStable> IStable for alloc::boxed::Box<T> {
-        same_as!(core::ptr::NonNull<T>);
+        same_as!(core::ptr::NonNull<T>, "alloc::boxed::Box", T);
     }
     unsafe impl<T: IStable> IStable for alloc::sync::Arc<T> {
-        same_as!(core::ptr::NonNull<T>);
+        same_as!(core::ptr::NonNull<T>, "alloc::sync::Arc", T);
     }
     unsafe impl<T: IStable> IStable for alloc::sync::Weak<T> {
-        same_as!(core::ptr::NonNull<T>);
+        same_as!(core::ptr::NonNull<T>, "alloc::sync::Weak", T);
     }
 }
 
 macro_rules! fnstable {
     (-> $o: ident) => {
         unsafe impl<$o: IStable > IStable for extern "C" fn() -> $o {
-            same_as!(core::num::NonZeroUsize);
+            same_as!(core::num::NonZeroUsize, "fn");
         }
         unsafe impl<$o: IStable > IStable for unsafe extern "C" fn() -> $o {
-            same_as!(core::num::NonZeroUsize);
+            same_as!(core::num::NonZeroUsize, "fn");
         }
     };
     ($t: ident, $($tt: ident, )* -> $o: ident) => {
         unsafe impl< $o , $t, $($tt,)* > IStable for extern "C" fn($t, $($tt,)*) -> $o
         where $o : IStable, $t: IStable, $($tt: IStable,)* {
-            same_as!(core::num::NonZeroUsize);
+            same_as!(core::num::NonZeroUsize, "fn");
         }
         unsafe impl< $o : IStable, $t: IStable, $($tt: IStable,)* > IStable for unsafe extern "C" fn($t, $($tt,)*) -> $o {
-            same_as!(core::num::NonZeroUsize);
+            same_as!(core::num::NonZeroUsize, "fn");
         }
         fnstable!($($tt,)* -> $o);
     };

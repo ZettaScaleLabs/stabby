@@ -79,9 +79,8 @@ pub struct BoxedStr {
 }
 impl BoxedStr {
     pub(crate) fn leak(self) -> StrMut<'static> {
-        StrMut {
-            inner: self.inner.leak(),
-        }
+        let slice = unsafe { core::str::from_utf8_unchecked_mut(self.inner.leak().into()) };
+        StrMut::from(slice)
     }
 }
 impl Deref for BoxedStr {

@@ -27,8 +27,6 @@ mod allocs;
 pub use allocs::*;
 
 pub use stabby_abi::{Dyn, DynRef};
-pub mod slice;
-pub mod str;
 pub mod tuple;
 
 pub mod future {
@@ -42,9 +40,7 @@ pub mod future {
     #[cfg(feature = "alloc")]
     pub type DynFutureUnsend<'a, Output> = crate::dynptr!(Box<dyn Future<Output = Output> + 'a>);
 }
-pub use crate::abi::closure;
-pub use crate::abi::option;
-pub use crate::abi::result;
+pub use crate::abi::{closure, option, result, slice, str};
 
 #[cfg(test)]
 mod tests;

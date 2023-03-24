@@ -29,10 +29,14 @@ pub fn stabby(
     } = &data;
     let unbound_generics = &generics.params;
     let mut layout = quote!(());
+    let mut report = Vec::new();
     for field in &fields.named {
         let ty = &field.ty;
-        layout = quote!(#st::Union<#layout, #ty>)
+        layout = quote!(#st::Union<#layout, #ty>);
+        report.push((field.ident.as_ref().unwrap().to_string(), ty));
     }
+    let sident = format!("{ident}");
+    let (report, report_bounds) = crate::report(&report);
     quote! {
         #(#attrs)*
         #[repr(C)]
@@ -40,12 +44,19 @@ pub fn stabby(
             #fields
 
         #[automatically_derived]
-        unsafe impl #generics #st::IStable for #ident <#unbound_generics> where #layout: #st::IStable {
+        unsafe impl #generics #st::IStable for #ident <#unbound_generics> where #report_bounds #layout: #st::IStable {
             type ForbiddenValues = #st::End;
             type UnusedBits = #st::End;
             type Size = <#layout as #st::IStable>::Size;
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
+            const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
+                name: #st::str::Str::new(#sident),
+                module: #st::str::Str::new(core::stringify!(core::module_path!())),
+                fields: unsafe{#st::StableLike::new(#report)},
+                last_break: #st::report::Version::NEVER,
+                tyty: #st::report::TyTy::Struct,
+            };
         }
     }
 }

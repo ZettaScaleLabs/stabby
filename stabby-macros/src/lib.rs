@@ -221,3 +221,22 @@ mod gen_closures;
 pub fn gen_closures_impl(_: TokenStream) -> TokenStream {
     gen_closures::gen_closures().into()
 }
+
+pub(crate) fn report(
+    fields: &[(String, &syn::Type)],
+) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
+    let st = crate::tl_mod();
+    let mut report_bounds = quote!();
+    let mut report = quote!(None);
+    for (name, ty) in fields.iter().rev() {
+        report_bounds = quote!(#ty: #st::IStable, #report_bounds);
+        report = quote! {
+            Some(& #st::report::FieldReport {
+                name: #st::str::Str::new(#name),
+                ty: <#ty as #st::IStable>::REPORT,
+                next_field: #st::StableLike::new(#report)
+            })
+        };
+    }
+    (report, report_bounds)
+}

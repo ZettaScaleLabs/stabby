@@ -31,6 +31,7 @@ unsafe impl<Left: Unsigned, T: IStable> IStable for Padded<Left, T> {
         <T::UnusedBits as IBitMask>::Shift<Left>,
     >;
     type HasExactlyOneNiche = Saturator;
+    const REPORT: &'static report::TypeReport = T::REPORT;
 }
 impl<Left: Unsigned, T> From<T> for Padded<Left, T> {
     fn from(value: T) -> Self {

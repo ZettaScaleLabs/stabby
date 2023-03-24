@@ -37,6 +37,7 @@ unsafe impl IStable for PadByte {
     type ForbiddenValues = End;
     type UnusedBits = Array<U0, UxFF, End>;
     type HasExactlyOneNiche = B0;
+    primitive_report!("PadByte");
 }
 
 pub trait IBitBase {
@@ -271,6 +272,7 @@ unsafe impl<L: IStable + Copy + Default> IStable for OneMoreByte<L> {
     type ForbiddenValues = L::ForbiddenValues;
     type UnusedBits = Array<L::Size, UxFF, L::UnusedBits>;
     type HasExactlyOneNiche = L::HasExactlyOneNiche;
+    primitive_report!("OneMoreByte");
 }
 impl<Msb: IUnsigned, Bit: IBit> NonZero for UInt<Msb, Bit> {
     type Decrement =

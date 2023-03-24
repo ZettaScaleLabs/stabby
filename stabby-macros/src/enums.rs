@@ -83,6 +83,8 @@ pub fn stabby(
     let mut layout = quote!(());
     let DataEnum { variants, .. } = &data;
     let mut has_non_empty_fields = false;
+    let unit = syn::parse2(quote!(())).unwrap();
+    let mut report = Vec::new();
     for variant in variants {
         match &variant.fields {
             syn::Fields::Named(_) => {
@@ -97,52 +99,60 @@ pub fn stabby(
                 has_non_empty_fields = true;
                 let f = f.unnamed.first().unwrap();
                 let ty = &f.ty;
-                layout = quote!(#st::Union<#layout, core::mem::ManuallyDrop<#ty>>)
+                layout = quote!(#st::Union<#layout, core::mem::ManuallyDrop<#ty>>);
+                report.push((variant.ident.to_string(), ty));
             }
-            syn::Fields::Unit => {}
+            syn::Fields::Unit => {
+                report.push((variant.ident.to_string(), &unit));
+            }
         }
     }
+    let report = crate::report(&report);
     let repr = repr.unwrap_or(Repr::Stabby);
-    let declaration = {
-        let repr = match repr {
-            Repr::Stabby => {
-                if !has_non_empty_fields {
-                    panic!("Your enum doesn't have any field with values: use #[repr(C)] or #[repr(u*)] instead")
-                }
-                return repr_stabby(&new_attrs, &vis, &ident, &generics, data);
+    let repr = match repr {
+        Repr::Stabby => {
+            if !has_non_empty_fields {
+                panic!("Your enum doesn't have any field with values: use #[repr(C)] or #[repr(u*)] instead")
             }
-            Repr::C => "u8",
-            Repr::U8 => "u8",
-            Repr::U16 => "u16",
-            Repr::U32 => "u32",
-            Repr::U64 => "u64",
-            Repr::Usize => "usize",
-            Repr::I8 => "i8",
-            Repr::I16 => "i16",
-            Repr::I32 => "i32",
-            Repr::I64 => "i64",
-            Repr::Isize => "isize",
-        };
-        let repr = quote::format_ident!("{}", repr);
-        layout = quote!(#st::FieldPair<#repr, #layout>);
-        quote! {
-            #(#new_attrs)*
-            #[repr(#repr)]
-            #vis enum #ident #generics {
-                #variants
-            }
+            return repr_stabby(&new_attrs, &vis, &ident, &generics, data, report);
         }
+        Repr::C => "u8",
+        Repr::U8 => "u8",
+        Repr::U16 => "u16",
+        Repr::U32 => "u32",
+        Repr::U64 => "u64",
+        Repr::Usize => "usize",
+        Repr::I8 => "i8",
+        Repr::I16 => "i16",
+        Repr::I32 => "i32",
+        Repr::I64 => "i64",
+        Repr::Isize => "isize",
     };
+    let reprid = quote::format_ident!("{}", repr);
+    layout = quote!(#st::FieldPair<#reprid, #layout>);
+    let sident = format!("{ident}");
+    let (report, report_bounds) = report;
     quote! {
-        #declaration
+        #(#new_attrs)*
+        #[repr(#reprid)]
+        #vis enum #ident #generics {
+            #variants
+        }
 
         #[automatically_derived]
-        unsafe impl #generics #st::IStable for #ident <#unbound_generics> where #layout: #st::IStable {
+        unsafe impl #generics #st::IStable for #ident <#unbound_generics> where #report_bounds #layout: #st::IStable {
             type ForbiddenValues = <#layout as #st::IStable>::ForbiddenValues;
             type UnusedBits =<#layout as #st::IStable>::UnusedBits;
             type Size = <#layout as #st::IStable>::Size;
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
+            const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
+                name: #st::str::Str::new(#sident),
+                module: #st::str::Str::new(core::stringify!(core::module_path!())),
+                fields: unsafe {#st::StableLike::new(#report)},
+                last_break: #st::report::Version::NEVER,
+                tyty: #st::report::TyTy::Enum(#st::str::Str::new(#repr)),
+            };
         }
     }
 }
@@ -245,6 +255,7 @@ pub fn repr_stabby(
     ident: &Ident,
     generics: &Generics,
     data: DataEnum,
+    report: (TokenStream, TokenStream),
 ) -> TokenStream {
     let st = crate::tl_mod();
     let unbound_generics = crate::utils::unbound_generics(&generics.params);
@@ -324,16 +335,24 @@ pub fn repr_stabby(
         #(#attrs)*
         #vis struct #ident #generics (#result) where #bounds;
     };
-
+    let sident = format!("{ident}");
+    let (report, report_bounds) = report;
     quote! {
         #enum_as_struct
         #[automatically_derived]
-        unsafe impl #generics #st::IStable for #ident < #unbound_generics > where #bounds #layout: #st::IStable {
+        unsafe impl #generics #st::IStable for #ident < #unbound_generics > where #report_bounds #bounds #layout: #st::IStable {
             type ForbiddenValues = <#layout as #st::IStable>::ForbiddenValues;
             type UnusedBits =<#layout as #st::IStable>::UnusedBits;
             type Size = <#layout as #st::IStable>::Size;
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
+            const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
+                name: #st::str::Str::new(#sident),
+                module: #st::str::Str::new(core::stringify!(core::module_path!())),
+                fields: unsafe {#st::StableLike::new(#report)},
+                last_break: #st::report::Version::NEVER,
+                tyty: #st::report::TyTy::Enum(#st::str::Str::new("stabby")),
+            };
         }
         #[automatically_derived]
         impl #generics #ident < #unbound_generics > where #bounds {

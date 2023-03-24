@@ -22,11 +22,19 @@ use core::ops::{Deref, DerefMut};
 pub struct Str<'a> {
     pub(crate) inner: crate::slice::Slice<'a, u8>,
 }
+impl<'a> Str<'a> {
+    pub const fn new(s: &'a str) -> Self {
+        Self {
+            inner: crate::slice::Slice::new(s.as_bytes()),
+        }
+    }
+    pub const fn as_str(self) -> &'a str {
+        unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
+    }
+}
 impl<'a> From<&'a str> for Str<'a> {
     fn from(value: &'a str) -> Self {
-        Self {
-            inner: value.as_bytes().into(),
-        }
+        Self::new(value)
     }
 }
 impl<'a> From<&'a mut str> for Str<'a> {

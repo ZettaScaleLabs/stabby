@@ -70,13 +70,9 @@ impl From<alloc::string::String> for String {
 }
 impl From<String> for alloc::string::String {
     fn from(value: String) -> Self {
-        let slice = BoxedStr::leak(value.slice);
+        let slice: &mut str = BoxedStr::leak(value.slice).into();
         unsafe {
-            alloc::string::String::from_raw_parts(
-                slice.inner.start,
-                slice.inner.len,
-                value.capacity,
-            )
+            alloc::string::String::from_raw_parts(slice.as_mut_ptr(), slice.len(), value.capacity)
         }
     }
 }

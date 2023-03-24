@@ -12,6 +12,8 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use crate::report::TypeReport;
+
 use super::typenum2::*;
 use super::unsigned::{IBitBase, NonZero};
 use super::{FieldPair, Struct, Union};
@@ -23,6 +25,7 @@ macro_rules! same_as {
         type UnusedBits = <$t as IStable>::UnusedBits;
         type ForbiddenValues = <$t as IStable>::ForbiddenValues;
         type HasExactlyOneNiche = <$t as IStable>::HasExactlyOneNiche;
+        const REPORT: &'static TypeReport = <$t as IStable>::REPORT;
     };
 }
 /// A trait to describe the layout of a type.
@@ -37,6 +40,7 @@ pub unsafe trait IStable: Sized {
     type ForbiddenValues: IForbiddenValues;
     type UnusedBits: IBitMask;
     type HasExactlyOneNiche: ISaturatingAdd;
+    const REPORT: &'static TypeReport;
     fn size() -> usize {
         let size = Self::Size::USIZE;
         let align = Self::Align::USIZE;
@@ -98,6 +102,7 @@ unsafe impl<
     type ForbiddenValues = ForbiddenValues;
     type UnusedBits = UnusedBits;
     type HasExactlyOneNiche = HasExactlyOneNiche;
+    primitive_report!("NicheExporter");
 }
 
 #[crate::stabby]
@@ -237,6 +242,7 @@ where
     type HasExactlyOneNiche = <A::HasExactlyOneNiche as ISaturatingAdd>::SaturatingAdd<
         <AlignedAfter<B, A::Size> as IStable>::HasExactlyOneNiche,
     >;
+    primitive_report!("FP");
 }
 pub trait ISaturatingAdd {
     type SaturatingAddB1: ISaturatingAdd;
@@ -347,6 +353,7 @@ unsafe impl<A: IStable, B: IStable> IStable for (Union<A, B>, B1) {
     type Size = <A::Size as Unsigned>::Max<B::Size>;
     type Align = <A::Align as PowerOf2>::Max<B::Align>;
     type HasExactlyOneNiche = B0;
+    primitive_report!("Union");
 }
 unsafe impl<A: IStable, B: IStable> IStable for (Union<A, B>, B0)
 where
@@ -375,6 +382,7 @@ unsafe impl<T: IStable, Start: Unsigned> IStable for (AlignedAfter<T, Start>, U1
     type UnusedBits = <T::UnusedBits as IBitMask>::Shift<Start>;
     type ForbiddenValues = <T::ForbiddenValues as IForbiddenValues>::Shift<Start>;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
+    primitive_report!("FP");
 }
 // non-ZST aligned after a non-ZST
 unsafe impl<T: IStable, Start: Unsigned, TAlignB1: Bit, TAlignB2: Bit, TAlignInt: Unsigned> IStable
@@ -403,6 +411,7 @@ unsafe impl<T: IStable, Start: Unsigned, TAlignB: Unsigned, TAlignInt: Bit> ISta
     type UnusedBits = <T::UnusedBits as IBitMask>::Shift<Start>;
     type ForbiddenValues = <T::ForbiddenValues as IForbiddenValues>::Shift<Start>;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
+    primitive_report!("FP");
 }
 // non-ZST needs alignment
 unsafe impl<T: IStable, Start: Unsigned, TAlignB: Unsigned, TAlignInt: Bit, B: Unsigned, Int: Bit>
@@ -421,6 +430,7 @@ where
     type ForbiddenValues =
         <T::ForbiddenValues as IForbiddenValues>::Shift<tyeval!(Start + (T::Align - UInt<B, Int>))>;
     type HasExactlyOneNiche = Saturator;
+    primitive_report!("FP");
 }
 
 unsafe impl<T: IStable> IStable for Struct<T>
@@ -453,4 +463,5 @@ where
     type UnusedBits = <T::UnusedBits as IBitMask>::BitOr<
         <<<tyeval!(T::Align - UInt<RemU, RemB>) as Unsigned>::Padding as IStable>::UnusedBits as IBitMask>::Shift<T::Size>>;
     type HasExactlyOneNiche = Saturator;
+    primitive_report!("FP");
 }

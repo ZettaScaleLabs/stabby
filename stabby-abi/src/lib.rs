@@ -19,6 +19,35 @@ extern crate alloc;
 #[cfg(feature = "alloc")]
 mod allocs;
 
+use core::fmt::{Debug, Display};
+
+macro_rules! primitive_report {
+    ($name: expr, $ty: ty) => {
+        const REPORT: &'static $crate::report::TypeReport = &$crate::report::TypeReport {
+            name: $crate::str::Str::new($name),
+            module: $crate::str::Str::new(core::stringify!(core::module_path!())),
+            fields: unsafe {
+                $crate::StableLike::new(Some(&$crate::report::FieldReport {
+                    name: $crate::str::Str::new("inner"),
+                    ty: <$ty as $crate::IStable>::REPORT,
+                    next_field: $crate::StableLike::new(None),
+                }))
+            },
+            last_break: $crate::report::Version::NEVER,
+            tyty: $crate::report::TyTy::Struct,
+        };
+    };
+    ($name: expr) => {
+        const REPORT: &'static $crate::report::TypeReport = &$crate::report::TypeReport {
+            name: $crate::str::Str::new($name),
+            module: $crate::str::Str::new(core::stringify!(core::module_path!())),
+            fields: unsafe { $crate::StableLike::new(None) },
+            last_break: $crate::report::Version::NEVER,
+            tyty: $crate::report::TyTy::Struct,
+        };
+    };
+}
+
 pub mod typenum2;
 #[doc(hidden)]
 pub use typenum2::*;
@@ -58,9 +87,20 @@ impl<T: IStable> AssertStable<T> {
 ///
 /// Lying about this link between `T` and `As` will cause UB.
 #[repr(C)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StableLike<T, As> {
     pub value: T,
     marker: core::marker::PhantomData<As>,
+}
+impl<T: Debug, As> Debug for StableLike<T, As> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.value.fmt(f)
+    }
+}
+impl<T: Display, As> Display for StableLike<T, As> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.value.fmt(f)
+    }
 }
 impl<T: Clone, As> Clone for StableLike<T, As> {
     fn clone(&self) -> Self {
@@ -99,6 +139,7 @@ unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
     type ForbiddenValues = As::ForbiddenValues;
     type UnusedBits = As::UnusedBits;
     type HasExactlyOneNiche = As::HasExactlyOneNiche;
+    const REPORT: &'static report::TypeReport = As::REPORT;
 }
 
 #[repr(C)]
@@ -143,6 +184,7 @@ unsafe impl<T: IStable, Cond: IStable> IStable for StableIf<T, Cond> {
     type ForbiddenValues = T::ForbiddenValues;
     type UnusedBits = T::UnusedBits;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
+    const REPORT: &'static report::TypeReport = T::REPORT;
 }
 
 #[repr(C)]
@@ -168,6 +210,9 @@ pub mod result;
 pub use result::Result;
 pub mod option;
 pub use option::Option;
+pub mod report;
+pub mod slice;
+pub mod str;
 
 pub use istable::{Array, End, IStable};
 

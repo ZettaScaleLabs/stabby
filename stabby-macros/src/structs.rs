@@ -38,6 +38,7 @@ pub fn stabby(
     let where_clause = &generics.where_clause;
     let clauses = where_clause.as_ref().map(|w| &w.predicates);
     let mut layout = None;
+    let mut report = Vec::new();
     let struct_code = match &fields {
         syn::Fields::Named(fields) => {
             let fields = &fields.named;
@@ -46,7 +47,8 @@ pub fn stabby(
                 layout = Some(layout.map_or_else(
                     || quote!(#ty),
                     |layout| quote!(#st::FieldPair<#layout, #ty>),
-                ))
+                ));
+                report.push((field.ident.as_ref().unwrap().to_string(), ty));
             }
             quote! {
                 #(#attrs)*
@@ -58,12 +60,13 @@ pub fn stabby(
         }
         syn::Fields::Unnamed(fields) => {
             let fields = &fields.unnamed;
-            for field in fields {
+            for (i, field) in fields.iter().enumerate() {
                 let ty = &field.ty;
                 layout = Some(layout.map_or_else(
                     || quote!(#ty),
                     |layout| quote!(#st::FieldPair<#layout, #ty>),
-                ))
+                ));
+                report.push((i.to_string(), ty));
             }
             quote! {
                 #(#attrs)*
@@ -104,16 +107,25 @@ pub fn stabby(
             };
         }
     });
+    let (report, report_bounds) = crate::report(&report);
+    let sident = format!("{ident}");
     quote! {
         #struct_code
 
         #[automatically_derived]
-        unsafe impl <#generics_without_defaults> #st::IStable for #ident <#unbound_generics> where #layout: #st::IStable, #clauses {
+        unsafe impl <#generics_without_defaults> #st::IStable for #ident <#unbound_generics> where #layout: #st::IStable, #report_bounds #clauses {
             type ForbiddenValues = <#layout as #st::IStable>::ForbiddenValues;
             type UnusedBits =<#layout as #st::IStable>::UnusedBits;
             type Size = <#layout as #st::IStable>::Size;
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = <#layout as #st::IStable>::HasExactlyOneNiche;
+            const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
+                name: #st::str::Str::new(#sident),
+                module: #st::str::Str::new(core::stringify!(core::module_path!())),
+                fields: unsafe{#st::StableLike::new(#report)},
+                last_break: #st::report::Version::NEVER,
+                tyty: #st::report::TyTy::Struct,
+            };
         }
         #[allow(dead_code)]
         struct #opt_id #generics #where_clause #fields #semi_token

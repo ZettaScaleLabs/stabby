@@ -22,12 +22,21 @@ pub struct Slice<'a, T: 'a> {
     start: &'a T,
     len: usize,
 }
-impl<'a, T> From<&'a [T]> for Slice<'a, T> {
-    fn from(value: &'a [T]) -> Self {
+
+impl<'a, T: 'a> Slice<'a, T> {
+    pub const fn new(value: &'a [T]) -> Self {
         Self {
             start: unsafe { &*value.as_ptr() },
             len: value.len(),
         }
+    }
+    pub const fn as_slice(self) -> &'a [T] {
+        unsafe { core::slice::from_raw_parts(self.start, self.len) }
+    }
+}
+impl<'a, T> From<&'a [T]> for Slice<'a, T> {
+    fn from(value: &'a [T]) -> Self {
+        Self::new(value)
     }
 }
 impl<'a, T> From<&'a mut [T]> for Slice<'a, T> {
