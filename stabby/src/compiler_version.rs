@@ -14,10 +14,7 @@
 
 //!	Provides ZSTs that only implement `IStable` when built with their corresponding version of the compiler.
 //!
-//! You can add a `compiler_version: CompilerVersion_VERSION<()>` marker field in your structs to ensure
-//! that they are marked as stable only if compiled with the appropriate compiler version.
-//!
-//! It also provides ZSTs that allow the `StableAs<T, CompilerVersion<Layout>>` pattern.
+//! This allow the `StableAs<T, CompilerVersion<Layout>>` pattern.
 //!
 //! `CompilerVersion_MAJ_MIN_PATCH<Layout>` will only `impl IStable` as if it was `Layout`, but only if
 //! compiled with the specified version of the compiler, providing you with a compile-time proof that you
@@ -25,5 +22,10 @@
 //!
 //! Note that it is EXTREMELY memory-unsafe to lie about `Layout`, since `CompilerVersion<Layout>` is ALWAYS
 //! a ZST, and non-`()` layouts should only be used in combination with `StableAs<T, Layout>`.
+//!
+//! You can also add a `compiler_version: CompilerVersion_VERSION<()>` marker field in your structs to ensure
+//! that they are marked as stable only if compiled with the appropriate compiler version, however since the
+//! rest of the fields of the struct need to bi ABI-stable for IStable to be implemented, I think the
+//! applications are few and far between.
 
 include!(concat!(env!("OUT_DIR"), "/compiler_versions.rs"));
