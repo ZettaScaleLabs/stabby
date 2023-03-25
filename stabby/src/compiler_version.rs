@@ -20,8 +20,9 @@
 //! compiled with the specified version of the compiler, providing you with a compile-time proof that you
 //! are using the expected compiler version.
 //!
-//! Note that it is EXTREMELY memory-unsafe to lie about `Layout`, since `CompilerVersion<Layout>` is ALWAYS
-//! a ZST, and non-`()` layouts should only be used in combination with `StableAs<T, Layout>`.
+//! Note that it is EXTREMELY memory-unsafe to lie about `Layout` if any type that contains this is
+//! used in a `#[repr(stabby)]` enum, since `CompilerVersion<Layout>` is ALWAYS a ZST, and non-`()`
+//! layouts should only be used in combination with `StableAs<T, Layout>`.
 //!
 //! You can also add a `compiler_version: CompilerVersion_VERSION<()>` marker field in your structs to ensure
 //! that they are marked as stable only if compiled with the appropriate compiler version, however since the
