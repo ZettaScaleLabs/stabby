@@ -50,6 +50,7 @@ macro_rules! primitive_report {
 }
 
 pub mod typenum2;
+use istable::{ISaturatingAdd, Saturator};
 #[doc(hidden)]
 pub use typenum2::*;
 
@@ -105,7 +106,11 @@ impl<T: IStable> AssertStable<T> {
 
 /// Lets you tell `stabby` that `T` has the same stable layout as `As`.
 ///
-/// Lying about this link between `T` and `As` will cause UB.
+/// Lying about this link between `T` and `As` will cause UB if a `#[repr(stabby)]` enum transitively contains
+/// a value of this type.
+///
+/// If you want to be safe when using this, use [`NoNiches`] with the correct size and alignment for your
+/// type.
 #[repr(C)]
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StableLike<T, As> {
@@ -141,7 +146,6 @@ impl<T, As: IStable> StableLike<T, As> {
         }
     }
 }
-
 impl<T, As: IStable> core::ops::Deref for StableLike<T, As> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
@@ -160,6 +164,27 @@ unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
     type UnusedBits = As::UnusedBits;
     type HasExactlyOneNiche = As::HasExactlyOneNiche;
     const REPORT: &'static report::TypeReport = As::REPORT;
+}
+
+/// Emulates a type of size `Size` and alignment `Align`.
+///
+/// Note that this is not a ZST, and that you may pass [`B0`] or [`B1`] as the this generic parameter if you
+/// want to inform `stabby` that the type it emulates has exactly zero or one niche respectively that the
+/// compiler knows about. This information can be used by `stabby` to determine that `core::option::Option`s
+/// transitively containing the emulated type are indeed ABI-stable.
+pub struct NoNiches<Size: Unsigned, Align: PowerOf2, HasExactlyOneNiche: ISaturatingAdd = Saturator>(
+    Size::Padding,
+    core::marker::PhantomData<(Size, Align, HasExactlyOneNiche)>,
+);
+unsafe impl<Size: Unsigned, Align: PowerOf2, HasExactlyOneNiche: ISaturatingAdd> IStable
+    for NoNiches<Size, Align, HasExactlyOneNiche>
+{
+    type Size = Size;
+    type Align = Align;
+    type ForbiddenValues = End;
+    type UnusedBits = End;
+    type HasExactlyOneNiche = HasExactlyOneNiche;
+    primitive_report!("NoNiches");
 }
 
 #[repr(C)]
