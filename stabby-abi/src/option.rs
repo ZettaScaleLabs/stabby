@@ -12,6 +12,8 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+//! A stable option for when rust's `Option<T>` isn't!
+
 use crate::enums::IDiscriminantProvider;
 use crate::IStable;
 

@@ -19,6 +19,8 @@ extern crate alloc;
 #[cfg(feature = "alloc")]
 mod allocs;
 
+pub use stabby_macros::{dynptr, stabby, vtable as vtmacro};
+
 use core::fmt::{Debug, Display};
 
 #[macro_export]
@@ -63,7 +65,6 @@ macro_rules! assert_optimal_layout {
     };
 }
 pub use crate::enums::IDiscriminantProvider;
-pub use stabby_macros::stabby;
 // pub use crate::Result;
 pub mod as_mut;
 
@@ -187,6 +188,10 @@ unsafe impl<Size: Unsigned, Align: PowerOf2, HasExactlyOneNiche: ISaturatingAdd>
     primitive_report!("NoNiches");
 }
 
+/// Allows removing the [`IStable`] implementation from `T` if `Cond` is not also ABI-stable.
+///
+/// This is typically used in combination with [`StableLike`], for example in vtables to mark function
+/// pointers as stable only if all of their arguments are stable.
 #[repr(C)]
 pub struct StableIf<T, Cond> {
     pub value: T,

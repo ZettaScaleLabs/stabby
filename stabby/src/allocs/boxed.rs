@@ -12,6 +12,8 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+//! Stable boxed slices and strings!
+
 use crate::slice::SliceMut;
 use crate::str::StrMut;
 use crate::{self as stabby};

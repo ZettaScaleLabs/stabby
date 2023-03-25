@@ -28,7 +28,7 @@ macro_rules! same_as {
         const REPORT: &'static TypeReport = <$t as IStable>::REPORT;
     };
 }
-/// A trait to describe the layout of a type.
+/// A trait to describe the layout of a type, marking it as ABI-stable.
 ///
 /// Every layout is assumed to start at the type's first byte.
 ///

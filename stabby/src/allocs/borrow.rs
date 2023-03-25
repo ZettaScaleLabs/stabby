@@ -12,6 +12,8 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+//! Stable Cows!
+
 use core::borrow::Borrow;
 
 use crate::{

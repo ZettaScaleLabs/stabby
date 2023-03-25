@@ -12,6 +12,8 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+//! Stable vectors!
+
 use core::ops::{Deref, DerefMut};
 
 use crate::boxed::BoxedSlice;

@@ -64,6 +64,9 @@ pub(crate) fn tl_mod() -> proc_macro2::TokenStream {
     }
 }
 
+/// The lifeblood of stabby.
+///
+/// The README should provide all the necessary explainations.
 #[proc_macro_attribute]
 pub fn stabby(stabby_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     if let Ok(DeriveInput {
@@ -93,6 +96,10 @@ pub fn stabby(stabby_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     .into()
 }
 
+/// Returns the appropriate type of vtable for a trait object.
+///
+/// Usage: `vtable!(TraitA + TraitB<Output=u16> + Send + Sync)`
+/// Note that the ordering of traits is significant.
 #[proc_macro]
 pub fn vtable(tokens: TokenStream) -> TokenStream {
     let st = tl_mod();
@@ -182,6 +189,10 @@ impl syn::parse::Parse for DynPtr {
     }
 }
 
+/// Returns the appropriate type for a stabby equivalent of a trait object.
+///
+/// Usage: `dynptr!(Box<dyn TraitA + TraitB<Output=u16> + Send + Sync + 'a>)`
+/// Note that the ordering of traits is significant.
 #[proc_macro]
 pub fn dynptr(tokens: TokenStream) -> TokenStream {
     let st = tl_mod();

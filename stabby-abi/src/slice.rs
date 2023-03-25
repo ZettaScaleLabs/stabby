@@ -12,10 +12,12 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+//! Stable slices!
+
 use crate as stabby;
 use core::ops::{Deref, DerefMut};
 
-/// An ABI stable equivalent of `&'a T`
+/// An ABI stable equivalent of `&'a [T]`
 #[stabby::stabby]
 pub struct Slice<'a, T: 'a> {
     start: &'a T,

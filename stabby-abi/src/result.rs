@@ -12,6 +12,8 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+//! Stable results!
+
 use core::ops::DerefMut;
 
 use crate::enums::IDiscriminantProvider;

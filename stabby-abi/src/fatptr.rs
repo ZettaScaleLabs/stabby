@@ -80,6 +80,7 @@ impl<'a, T> IntoDyn for &'a mut T {
 
 #[stabby::stabby]
 #[derive(Clone, Copy)]
+/// A stable `&'a dyn Traits`
 pub struct DynRef<'a, Vt: 'static> {
     ptr: &'a (),
     vtable: &'a Vt,
@@ -103,6 +104,7 @@ impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
     }
 }
 #[stabby::stabby]
+/// A stable trait object (or a stable `&mut dyn`)
 pub struct Dyn<'a, P: IPtrOwned + 'a, Vt: HasDropVt + 'static> {
     ptr: core::mem::ManuallyDrop<P>,
     vtable: &'static Vt,

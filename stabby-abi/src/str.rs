@@ -12,6 +12,8 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+//! Stable strs!
+
 use crate as stabby;
 
 use core::ops::{Deref, DerefMut};
