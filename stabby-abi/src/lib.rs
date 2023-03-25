@@ -21,6 +21,7 @@ mod allocs;
 
 use core::fmt::{Debug, Display};
 
+#[macro_export]
 macro_rules! primitive_report {
     ($name: expr, $ty: ty) => {
         const REPORT: &'static $crate::report::TypeReport = &$crate::report::TypeReport {
@@ -232,8 +233,6 @@ pub use option::Option;
 pub mod report;
 pub mod slice;
 pub mod str;
-
-pub mod compiler_version;
 
 pub use istable::{Array, End, IStable};
 

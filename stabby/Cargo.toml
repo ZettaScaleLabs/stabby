@@ -32,3 +32,5 @@ unsafe_wakers = ["stabby-abi/unsafe_wakers"]
 [dependencies]
 stabby-abi = { path = "../stabby-abi/", version = "0.1.0" }
 stabby-macros = { path = "../stabby-macros/", version = "0.1.0" }
+
+rustversion = "1.0"

@@ -27,6 +27,7 @@ mod allocs;
 pub use allocs::*;
 
 pub use stabby_abi::{Dyn, DynRef};
+pub mod compiler_version;
 pub mod tuple;
 
 pub mod future {
