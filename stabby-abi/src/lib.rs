@@ -63,6 +63,25 @@ macro_rules! assert_optimal_layout {
 pub use crate::enums::IDiscriminantProvider;
 pub use stabby_macros::stabby;
 // pub use crate::Result;
+pub mod as_mut;
+
+/// Provides access to a value _as if_ it were of another type.
+///
+/// This is done by the following process:
+/// - memcopy `self` into `copy`
+/// - convert `copy` into `target: ManuallyDrop<Target>`
+/// - provide a guard that can `Deref` or `DerefMut` into `target`
+/// - upon dropping the mutable guard, convert `target` and assing `target` to `self`
+///
+/// This is always safe for non-self-referencial types.
+pub trait AccessAs {
+    fn ref_as<T: ?Sized>(&self) -> <Self as as_mut::IGuardRef<T>>::Guard<'_>
+    where
+        Self: as_mut::IGuardRef<T>;
+    fn mut_as<T: ?Sized>(&mut self) -> <Self as as_mut::IGuardMut<T>>::GuardMut<'_>
+    where
+        Self: as_mut::IGuardMut<T>;
+}
 
 pub use fatptr::*;
 mod fatptr;

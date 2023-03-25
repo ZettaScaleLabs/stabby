@@ -17,11 +17,16 @@ use core::ops::{Deref, DerefMut};
 
 /// An ABI stable equivalent of `&'a T`
 #[stabby::stabby]
-#[derive(Clone, Copy)]
 pub struct Slice<'a, T: 'a> {
     start: &'a T,
     len: usize,
 }
+impl<'a, T: 'a> Clone for Slice<'a, T> {
+    fn clone(&self) -> Self {
+        unsafe { core::ptr::read(self) }
+    }
+}
+impl<'a, T: 'a> Copy for Slice<'a, T> {}
 
 impl<'a, T: 'a> Slice<'a, T> {
     pub const fn new(value: &'a [T]) -> Self {
@@ -47,6 +52,7 @@ impl<'a, T> From<&'a mut [T]> for Slice<'a, T> {
         }
     }
 }
+
 impl<'a, T> From<Slice<'a, T>> for &'a [T] {
     fn from(value: Slice<'a, T>) -> Self {
         unsafe { core::slice::from_raw_parts(value.start, value.len) }

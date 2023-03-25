@@ -45,3 +45,14 @@ impl<T> From<Vec<T>> for alloc::vec::Vec<T> {
         unsafe { alloc::vec::Vec::from_raw_parts(slice.start, slice.len, value.capacity) }
     }
 }
+
+#[test]
+fn mut_as() {
+    use stabby_abi::AccessAs;
+    let mut vec = Vec::from(vec![0]);
+    {
+        let mut guard = vec.mut_as::<alloc::vec::Vec<_>>();
+        guard.push(5);
+    }
+    assert_eq!(&*vec, &[0, 5])
+}
