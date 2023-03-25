@@ -233,6 +233,8 @@ pub mod report;
 pub mod slice;
 pub mod str;
 
+pub mod compiler_version;
+
 pub use istable::{Array, End, IStable};
 
 pub(crate) mod istable;

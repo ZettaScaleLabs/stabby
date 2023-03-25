@@ -55,4 +55,33 @@ fn main() {
         let u = u(1 << i);
         writeln!(padding_file, "pub type U2pow{i} = {u};").unwrap();
     }
+
+    let compiler_versions =
+        PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("compiler_versions.rs");
+    let mut compiler_versions = BufWriter::new(File::create(compiler_versions).unwrap());
+    writeln!(
+        compiler_versions,
+        "use crate::typenum2::{{U0, U1, B0}}; use crate::End;"
+    )
+    .unwrap();
+    for version in ["1.65.0", "1.66.0", "1.66.1", "1.67.0", "1.67.1", "1.68.0"] {
+        let snake_version = version.replace('.', "_");
+        writeln!(
+            compiler_versions,
+            r#"
+#[allow(non_camel_case_types)]
+pub struct CompilerVersion_{snake_version};
+#[rustversion::stable({version})]
+unsafe impl crate::IStable for CompilerVersion_{snake_version} {{
+    type Size = U0;
+    type Align = U1;
+    type ForbiddenValues = End;
+    type UnusedBits = End;
+    type HasExactlyOneNiche = B0;
+    primitive_report!("CompilerVersion_{snake_version}");
+}}
+"#
+        )
+        .unwrap();
+    }
 }
