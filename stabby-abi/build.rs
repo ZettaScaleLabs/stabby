@@ -59,25 +59,24 @@ fn main() {
     let compiler_versions =
         PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("compiler_versions.rs");
     let mut compiler_versions = BufWriter::new(File::create(compiler_versions).unwrap());
-    writeln!(
-        compiler_versions,
-        "use crate::typenum2::{{U0, U1, B0}}; use crate::End;"
-    )
-    .unwrap();
+    writeln!(compiler_versions, r"use crate::IStable;").unwrap();
     for version in ["1.65.0", "1.66.0", "1.66.1", "1.67.0", "1.67.1", "1.68.0"] {
         let snake_version = version.replace('.', "_");
         writeln!(
             compiler_versions,
             r#"
 #[allow(non_camel_case_types)]
-pub struct CompilerVersion_{snake_version};
+pub struct CompilerVersion_{snake_version}<Layout: IStable>(core::marker::PhantomData<Layout>);
+impl<Layout: IStable> CompilerVersion_{snake_version}<Layout> {{
+    pub const UNIT: Self = Self(core::marker::PhantomData);
+}}
 #[rustversion::stable({version})]
-unsafe impl crate::IStable for CompilerVersion_{snake_version} {{
-    type Size = U0;
-    type Align = U1;
-    type ForbiddenValues = End;
-    type UnusedBits = End;
-    type HasExactlyOneNiche = B0;
+unsafe impl<Layout: IStable> crate::IStable for CompilerVersion_{snake_version}<Layout> {{
+    type Size = Layout::Size;
+    type Align = Layout::Align;
+    type ForbiddenValues = Layout::ForbiddenValues;
+    type UnusedBits = Layout::UnusedBits;
+    type HasExactlyOneNiche = Layout::HasExactlyOneNiche;
     primitive_report!("CompilerVersion_{snake_version}");
 }}
 "#

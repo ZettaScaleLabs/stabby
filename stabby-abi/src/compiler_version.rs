@@ -17,6 +17,6 @@
 //! `CompilerVersion_MAJ_MIN_PATCH` will only `impl IStable` if compiled with that exact version
 //! of the compiler, providing you with a compile-time proof that you are using the expected compiler version.
 //!
-//! You can also add a `compiler_version` marker field in your structs to ensure that they are marked as stable only if compiled with the appropriate compiler version.
+//! You can also add a `compiler_version: CompilerVersion_VERSION<()>` marker field in your structs to ensure that they are marked as stable only if compiled with the appropriate compiler version.
 
 include!(concat!(env!("OUT_DIR"), "/compiler_versions.rs"));
