@@ -77,6 +77,11 @@ impl MyAsyncTrait for SocketReader {
 }
 ```
 
+## Incremental stability
+`stabby` also lets you tell it that something is ABI-stable even if you couldn't chain `#[stabby::stabby]` all along using `stabby::abi::StableLike`.
+
+Combined with the ZSTs in `stabby::compiler_version` that implement `stabby::IStable` however you tell them to, but only when compiled with their respective versions of the compiler, this lets you state that some types are only stable if compiled with the appropriate compiler version. But the ZSTs will still exist even if not, so the types will still be usable anywhere that doesn't have a `stabby::IStable` bound.
+
 # The `stabby` "manifesto"
 `stabby` was built in response to the lack of ABI-stability in the Rust ecosystem, which makes writing plugins and other dynamic linkage based programs painful. Currently, Rust's only stable ABI is the C ABI, which has no concept of sum-types, let alone niche exploitation.
 
