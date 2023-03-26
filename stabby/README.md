@@ -15,7 +15,7 @@ Note that `#[repr(stabby)]` does lose you the ability to pattern-match.
 
 Due to limitations of the trait solver, `#[repr(stabby)]` enums have a few papercuts:
 - Compilation times suffer from `#[repr(stabby)]` enums: on my machine, adding one typically adds about one second to compilation time.
-- Additional trait bounds are required when writing `impl`-blocks generic enums. They will always be of the form of one or multiple `(A, B): stabby::abi::IDiscriminantProvider` bounds (although `rustc`'s error may suggest more complex tuples, the 2 element tuple will always be the one you should use).
+- Additional trait bounds are required when writing `impl`-blocks generic enums. They will always be of the form of one or multiple `A: stabby::abi::IDiscriminantProvider<B>` bounds (although `rustc`'s error may suggest more complex tuples, the 2 element tuple will always be the one you should use).
 
 `#[repr(stabby)]` enums are implemented as a balanced binary tree of `stabby::result::Result<Ok, Err>`, so discriminants are always computed between two types through the following process:
 - If some of `Err`'s forbidden values (think `0` for non-zero types) fit inside the bits that `Ok` doesn't care for, that value is used to signify that we are in the `Ok` variant.

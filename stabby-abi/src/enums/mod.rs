@@ -201,9 +201,6 @@ type UnionSize<Ok, Err, OkShift, ErrShift> =
     > as Unsigned>::NextMultipleOf<UnionAlign<Ok, Err>>;
 /// T::Size + Shift
 type PaddedSize<T, Shift> = <<T as IStable>::Size as Unsigned>::Add<Shift>;
-/// T's forbidden values, shifted by Shift bytes
-type ShiftedForbiddenValues<T, Shift> =
-    <<T as IStable>::ForbiddenValues as IForbiddenValues>::Shift<Shift>;
 /// T's unused bits, shifted by Shift bytes
 type ShiftedUnusedBits<T, Shift> = <<T as IStable>::UnusedBits as IBitMask>::Shift<Shift>;
 
