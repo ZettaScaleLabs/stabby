@@ -16,43 +16,37 @@ pub use super::*;
 // BRANCH Ok::ForbiddenValues
 impl<Ok: IStable, Err: IStable> IDiscriminantProviderInner for (Ok, Err, UTerm)
 where
-    (
-        Ok,
-        Err,
-        UTerm,
+    DiscriminantProviderWithUnit<
         <Ok::ForbiddenValues as IForbiddenValues>::SelectOne,
-    ): IDiscriminantProviderInner,
+        Ok::UnusedBits,
+    >: IDiscriminantProviderInner,
 {
-    same_as!((
-        Ok,
-        Err,
-        UTerm,
-        <Ok::ForbiddenValues as IForbiddenValues>::SelectOne
-    ));
+    same_as!(DiscriminantProviderWithUnit<
+        <Ok::ForbiddenValues as IForbiddenValues>::SelectOne,
+        Ok::UnusedBits,
+    >);
 }
+
+pub struct DiscriminantProviderWithUnit<ForbiddenValues, UnusedBits: IBitMask>(
+    core::marker::PhantomData<(ForbiddenValues, UnusedBits)>,
+);
 // IF Ok::ForbiddenValues
 impl<
-        Ok: IStable,
-        Err: IStable,
         Offset: Unsigned,
         V: Unsigned,
         Tail: IForbiddenValues + IntoValueIsErr,
-    > IDiscriminantProviderInner for (Ok, Err, UTerm, Array<Offset, V, Tail>)
+        UnusedBits: IBitMask,
+    > IDiscriminantProviderInner
+    for DiscriminantProviderWithUnit<Array<Offset, V, Tail>, UnusedBits>
 {
     type ErrShift = U0;
     type Discriminant = <Array<Offset, V, Tail> as IntoValueIsErr>::ValueIsErr;
-    type NicheExporter = NicheExporter<End, Ok::UnusedBits, Saturator>;
+    type NicheExporter = NicheExporter<End, UnusedBits, Saturator>;
+    type Debug = Self;
 }
-// ELSE BRANCH Ok::UnusedBits
-impl<Ok: IStable, Err: IStable> IDiscriminantProviderInner for (Ok, Err, UTerm, End)
-where
-    (Ok, Err, UTerm, End, Ok::UnusedBits): IDiscriminantProviderInner,
-{
-    same_as!((Ok, Err, UTerm, End, Ok::UnusedBits));
-}
-// IF Ok::UnusedBits
-impl<Ok: IStable, Err: IStable, Offset: Unsigned, V: NonZero, Rest: IBitMask>
-    IDiscriminantProviderInner for (Ok, Err, UTerm, End, Array<Offset, V, Rest>)
+// ELSE IF Ok::UnusedBits
+impl<Offset: Unsigned, V: NonZero, Rest: IBitMask> IDiscriminantProviderInner
+    for DiscriminantProviderWithUnit<End, Array<Offset, V, Rest>>
 {
     type ErrShift = U0;
     type Discriminant = BitIsErr<
@@ -61,10 +55,12 @@ impl<Ok: IStable, Err: IStable, Offset: Unsigned, V: NonZero, Rest: IBitMask>
     >;
     type NicheExporter =
         NicheExporter<End, <Array<Offset, V, Rest> as IBitMask>::ExtractBit, Saturator>;
+    type Debug = Self;
 }
 // ELSE
-impl<Ok: IStable, Err: IStable> IDiscriminantProviderInner for (Ok, Err, UTerm, End, End) {
+impl IDiscriminantProviderInner for DiscriminantProviderWithUnit<End, End> {
     type Discriminant = BitDiscriminant;
     type ErrShift = U0;
     type NicheExporter = ();
+    type Debug = Self;
 }
