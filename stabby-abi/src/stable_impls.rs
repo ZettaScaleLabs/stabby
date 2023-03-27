@@ -384,6 +384,12 @@ unsafe impl<T: IStable> IStable for &mut T {
 unsafe impl<T: IStable> IStable for core::pin::Pin<T> {
     same_as!(T, "core::pin::Pin", T);
 }
+unsafe impl IStable for f32 {
+    same_as!(u32, "f32");
+}
+unsafe impl IStable for f64 {
+    same_as!(u64, "f64");
+}
 
 pub struct HasExactlyOneNiche<A, B>(core::marker::PhantomData<(A, B)>);
 unsafe impl<T: IStable> IStable for core::option::Option<T>
