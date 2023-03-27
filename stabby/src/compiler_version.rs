@@ -12,7 +12,7 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
-//!	Provides ZSTs that only implement `IStable` when built with their corresponding version of the compiler.
+//! Provides ZSTs that only implement `IStable` when built with their corresponding version of the compiler.
 //!
 //! This allow the `StableLike<T, CompilerVersion<Layout>>` pattern.
 //!

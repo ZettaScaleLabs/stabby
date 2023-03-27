@@ -50,7 +50,7 @@ pub struct RefAs<'a, T, As> {
 impl<'a, T, As> Deref for RefAs<'a, T, As> {
     type Target = As;
     fn deref(&self) -> &Self::Target {
-        &*self.target
+        &self.target
     }
 }
 impl<T: Into<As>, As: Into<T>> IGuardRef<As> for T {
@@ -71,12 +71,12 @@ pub struct MutAs<'a, T, As: Into<T>> {
 impl<'a, T, As: Into<T>> Deref for MutAs<'a, T, As> {
     type Target = As;
     fn deref(&self) -> &Self::Target {
-        &*self.target
+        &self.target
     }
 }
 impl<'a, T, As: Into<T>> DerefMut for MutAs<'a, T, As> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut *self.target
+        &mut self.target
     }
 }
 impl<'a, T, As: Into<T>> Drop for MutAs<'a, T, As> {

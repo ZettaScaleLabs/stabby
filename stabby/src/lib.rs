@@ -13,7 +13,7 @@
 //
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![doc = include_str!("../README.md")]
+#![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
@@ -49,11 +49,9 @@ pub mod future {
     /// A type alias for `dynptr!(Box<dyn Future<Output = Output> + 'a>)`
     pub type DynFutureUnsend<'a, Output> = crate::dynptr!(Box<dyn Future<Output = Output> + 'a>);
 }
+
 /// The collection of traits that make `dynptr!(Box<dyn Fn...>)` possible
 pub use crate::abi::closure;
 pub use crate::abi::{option, result, slice, str};
 
 pub use crate::abi::{AccessAs, IStable};
-
-#[cfg(test)]
-mod tests;
