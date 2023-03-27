@@ -13,7 +13,7 @@
 //
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![doc = include_str!("../README.md")]
+#![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
