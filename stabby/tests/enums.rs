@@ -39,10 +39,11 @@ fn enums() {
         let b: core::result::Result<A, B> = Err(b);
         let a: Result<_, _> = a.into();
         println!(
-            "discriminant: {}, OkShift: {}, ErrShift: {}",
+            "discriminant: {}, OkShift: {}, ErrShift: {}, Debug: {}",
             core::any::type_name::<<A as IDiscriminantProvider<B>>::Discriminant>(),
             <<A as IDiscriminantProvider<B>>::OkShift as typenum2::Unsigned>::USIZE,
             <<A as IDiscriminantProvider<B>>::ErrShift as typenum2::Unsigned>::USIZE,
+            core::any::type_name::<<A as IDiscriminantProvider<B>>::Debug>(),
         );
         assert!(a.is_ok());
         let b: Result<_, _> = b.into();

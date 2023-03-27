@@ -179,17 +179,20 @@ pub trait IDiscriminantProvider<Other>: IStable {
     type ErrShift: Unsigned;
     type Discriminant: IDiscriminant;
     type NicheExporter: IStable + Default + Copy;
+    type Debug;
 }
 pub trait IDiscriminantProviderInnerRev {
     type OkShift: Unsigned;
     type ErrShift: Unsigned;
     type Discriminant: IDiscriminant;
     type NicheExporter: IStable + Default + Copy;
+    type Debug;
 }
 pub trait IDiscriminantProviderInner {
     type ErrShift: Unsigned;
     type Discriminant: IDiscriminant;
     type NicheExporter: IStable + Default + Copy;
+    type Debug;
 }
 
 /// The alignment of `Union<Ok, Err>`
@@ -220,12 +223,14 @@ macro_rules! same_as {
         type ErrShift = <$T as IDiscriminantProviderInner>::ErrShift;
         type Discriminant = <$T as IDiscriminantProviderInner>::Discriminant;
         type NicheExporter = <$T as IDiscriminantProviderInner>::NicheExporter;
+        type Debug = <$T as IDiscriminantProviderInner>::Debug;
     };
     ($T: ty, $Trait: ty) => {
         type OkShift = <$T as $Trait>::OkShift;
         type ErrShift = <$T as $Trait>::ErrShift;
         type Discriminant = <$T as $Trait>::Discriminant;
         type NicheExporter = <$T as $Trait>::NicheExporter;
+        type Debug = <$T as $Trait>::Debug;
     };
 }
 
@@ -239,7 +244,7 @@ where
     );
 }
 
-// IF Ok::Size >= Err::Size
+// IF Ok::Size < Err::Size
 impl<Ok: IStable, Err: IStable> IDiscriminantProviderInnerRev for (Ok, Err, B0)
 where
     (Err, Ok, Ok::Size): IDiscriminantProviderInner,
@@ -248,6 +253,7 @@ where
     type ErrShift = U0;
     type Discriminant = Not<<(Err, Ok, Ok::Size) as IDiscriminantProviderInner>::Discriminant>;
     type NicheExporter = <(Err, Ok, Ok::Size) as IDiscriminantProviderInner>::NicheExporter;
+    type Debug = <(Err, Ok, Ok::Size) as IDiscriminantProviderInner>::Debug;
 }
 // ELSE
 impl<Ok: IStable, Err: IStable> IDiscriminantProviderInnerRev for (Ok, Err, B1)

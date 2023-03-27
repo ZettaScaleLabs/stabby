@@ -42,6 +42,7 @@ impl<
     type ErrShift = U0;
     type Discriminant = <Array<Offset, V, Tail> as IntoValueIsErr>::ValueIsErr;
     type NicheExporter = NicheExporter<End, UnusedBits, Saturator>;
+    type Debug = Self;
 }
 // ELSE IF Ok::UnusedBits
 impl<Offset: Unsigned, V: NonZero, Rest: IBitMask> IDiscriminantProviderInner
@@ -54,10 +55,12 @@ impl<Offset: Unsigned, V: NonZero, Rest: IBitMask> IDiscriminantProviderInner
     >;
     type NicheExporter =
         NicheExporter<End, <Array<Offset, V, Rest> as IBitMask>::ExtractBit, Saturator>;
+    type Debug = Self;
 }
 // ELSE
 impl IDiscriminantProviderInner for DiscriminantProviderWithUnit<End, End> {
     type Discriminant = BitDiscriminant;
     type ErrShift = U0;
     type NicheExporter = ();
+    type Debug = Self;
 }

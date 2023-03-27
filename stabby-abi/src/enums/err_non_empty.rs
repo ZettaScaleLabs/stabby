@@ -12,11 +12,13 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+#![allow(clippy::type_complexity)] // I mean, what did you expect?
+
 use self::err_size_0::DiscriminantProviderWithUnit;
 
 pub use super::*;
 
-pub struct DiscriminantProvider<
+pub struct Layout<
     UnionSize: Unsigned,
     Budget,
     OkFv: IForbiddenValues,
@@ -39,19 +41,20 @@ pub struct DiscriminantProvider<
         ErrOffset,
     )>,
 );
-pub struct DiscriminantProviderBranch<
-    Provider,
+pub struct DiscriminantProvider<
+    Layout,
     ErrFvInOkUb: ISingleForbiddenValue,
     OkFvInErrUb: ISingleForbiddenValue,
     UbIntersect: IBitMask,
->(core::marker::PhantomData<(Provider, ErrFvInOkUb, OkFvInErrUb, UbIntersect)>);
+>(core::marker::PhantomData<(Layout, ErrFvInOkUb, OkFvInErrUb, UbIntersect)>);
+
 /// Prevents the compiler from doing infinite recursion when evaluating `IDiscriminantProvider`
 type DefaultRecursionBudget = T<T<T<T<T<T<T<T<H>>>>>>>>;
 // ENTER LOOP ON Budget
 impl<Ok: IStable, Err: IStable, EI: Unsigned, EB: Bit> IDiscriminantProviderInner
     for (Ok, Err, UInt<EI, EB>)
 where
-    DiscriminantProvider<
+    Layout<
         UnionSize<Ok, Err, U0, U0>,
         DefaultRecursionBudget,
         Ok::ForbiddenValues,
@@ -64,7 +67,7 @@ where
     >: IDiscriminantProviderInner,
 {
     same_as!(
-        DiscriminantProvider<
+        Layout<
             UnionSize<Ok, Err, U0, U0>,
             DefaultRecursionBudget,
             Ok::ForbiddenValues,
@@ -77,6 +80,7 @@ where
         >
     );
 }
+
 // EXIT LOOP
 impl<
         UnionSize: Unsigned,
@@ -88,28 +92,28 @@ impl<
         ErrAlign: PowerOf2,
         ErrOffset: Unsigned,
     > IDiscriminantProviderInner
-    for DiscriminantProvider<UnionSize, H, OkFv, OkUb, ErrFv, ErrUb, ErrSize, ErrAlign, ErrOffset>
+    for Layout<UnionSize, H, OkFv, OkUb, ErrFv, ErrUb, ErrSize, ErrAlign, ErrOffset>
 {
     same_as!(DiscriminantProviderWithUnit<End, End>);
 }
 
-type UnusedBits<UnionSize, ErrUb, ErrSize, ErrOffset> = <<<ErrOffset as Unsigned>::Padding as IStable>::UnusedBits as IBitMask>::BitOr<<<ErrUb as IBitMask>::Shift<ErrOffset> as IBitMask>::BitOr<<<tyeval!(UnionSize - (ErrSize + ErrOffset)) as Unsigned>::Padding as IStable>::UnusedBits>>;
+type UnusedBits<UnionSize, ErrUb, ErrSize, ErrOffset> = <<<ErrOffset as Unsigned>::Padding as IStable>::UnusedBits as IBitMask>::BitOr<<<ErrUb as IBitMask>::Shift<ErrOffset> as IBitMask>::BitOr<<<<tyeval!(UnionSize - (ErrSize + ErrOffset)) as Unsigned>::Padding as IStable>::UnusedBits as IBitMask>::Shift<tyeval!(ErrSize + ErrOffset)>>>;
 
 /// Branch on whether some forbidden values for Err fit inside Ok's unused bits
 impl<
-UnionSize: Unsigned,
-Budget,
-OkFv: IForbiddenValues,
-OkUb: IBitMask,
-ErrFv: IForbiddenValues,
-ErrUb: IBitMask,
-ErrSize: Unsigned,
-ErrAlign: PowerOf2,
-ErrOffset: Unsigned,
->
-    IDiscriminantProviderInner for DiscriminantProvider<UnionSize, T<Budget>, OkFv, OkUb, ErrFv, ErrUb, ErrSize, ErrAlign, ErrOffset>
+        UnionSize: Unsigned,
+        Budget,
+        OkFv: IForbiddenValues,
+        OkUb: IBitMask,
+        ErrFv: IForbiddenValues,
+        ErrUb: IBitMask,
+        ErrSize: Unsigned,
+        ErrAlign: PowerOf2,
+        ErrOffset: Unsigned,
+    > IDiscriminantProviderInner
+    for Layout<UnionSize, T<Budget>, OkFv, OkUb, ErrFv, ErrUb, ErrSize, ErrAlign, ErrOffset>
 where
-DiscriminantProviderBranch<
+DiscriminantProvider<
         Self,
         <<ErrFv::Shift<ErrOffset> as IForbiddenValues>::SelectFrom<
             OkUb
@@ -120,7 +124,7 @@ DiscriminantProviderBranch<
         OkUb::BitAnd<UnusedBits<UnionSize, ErrUb, ErrSize, ErrOffset>>
  >: IDiscriminantProviderInner,
 {
-    same_as!(DiscriminantProviderBranch<
+    same_as!(DiscriminantProvider<
         Self,
         <<ErrFv::Shift<ErrOffset> as IForbiddenValues>::SelectFrom<
             OkUb
@@ -149,18 +153,8 @@ impl<
         OkFvInErrUb: ISingleForbiddenValue,
         UbIntersect: IBitMask,
     > IDiscriminantProviderInner
-    for DiscriminantProviderBranch<
-        DiscriminantProvider<
-            UnionSize,
-            Budget,
-            OkFv,
-            OkUb,
-            ErrFv,
-            ErrUb,
-            ErrSize,
-            ErrAlign,
-            ErrOffset,
-        >,
+    for DiscriminantProvider<
+        Layout<UnionSize, Budget, OkFv, OkUb, ErrFv, ErrUb, ErrSize, ErrAlign, ErrOffset>,
         Array<Offset, V, Tail>,
         OkFvInErrUb,
         UbIntersect,
@@ -169,6 +163,7 @@ impl<
     type ErrShift = ErrOffset;
     type Discriminant = Not<<Array<Offset, V, Tail> as IntoValueIsErr>::ValueIsErr>;
     type NicheExporter = NicheExporter<End, UbIntersect, Saturator>;
+    type Debug = Self;
 }
 
 /// None of Err's forbidden values fit into Ok's unused bits, so branch on wherther
@@ -191,18 +186,8 @@ impl<
         Tail: IForbiddenValues + ISingleForbiddenValue + IntoValueIsErr,
         UbIntersect: IBitMask,
     > IDiscriminantProviderInner
-    for DiscriminantProviderBranch<
-        DiscriminantProvider<
-            UnionSize,
-            Budget,
-            OkFv,
-            OkUb,
-            ErrFv,
-            ErrUb,
-            ErrSize,
-            ErrAlign,
-            ErrOffset,
-        >,
+    for DiscriminantProvider<
+        Layout<UnionSize, Budget, OkFv, OkUb, ErrFv, ErrUb, ErrSize, ErrAlign, ErrOffset>,
         End,
         Array<Offset, V, Tail>,
         UbIntersect,
@@ -211,6 +196,7 @@ impl<
     type ErrShift = ErrOffset;
     type Discriminant = <Array<Offset, V, Tail> as IntoValueIsErr>::ValueIsErr;
     type NicheExporter = NicheExporter<End, UbIntersect, Saturator>;
+    type Debug = Self;
 }
 
 /// If neither Err nor Ok's unused bits can fit any of the other's forbidden value,
@@ -231,18 +217,8 @@ impl<
         V: NonZero,
         Tail: IBitMask,
     > IDiscriminantProviderInner
-    for DiscriminantProviderBranch<
-        DiscriminantProvider<
-            UnionSize,
-            Budget,
-            OkFv,
-            OkUb,
-            ErrFv,
-            ErrUb,
-            ErrSize,
-            ErrAlign,
-            ErrOffset,
-        >,
+    for DiscriminantProvider<
+        Layout<UnionSize, Budget, OkFv, OkUb, ErrFv, ErrUb, ErrSize, ErrAlign, ErrOffset>,
         End,
         End,
         Array<Offset, V, Tail>,
@@ -255,6 +231,7 @@ impl<
     >;
     type NicheExporter =
         NicheExporter<End, <Array<Offset, V, Tail> as IBitMask>::ExtractBit, Saturator>;
+    type Debug = Self;
 }
 /// If no niche was found, check if Err can still be shifted to the right by its alignment.
 impl<
@@ -268,50 +245,20 @@ impl<
         ErrAlign: PowerOf2,
         ErrOffset: Unsigned,
     > IDiscriminantProviderInner
-    for DiscriminantProviderBranch<
-        DiscriminantProvider<
-            UnionSize,
-            Budget,
-            OkFv,
-            OkUb,
-            ErrFv,
-            ErrUb,
-            ErrSize,
-            ErrAlign,
-            ErrOffset,
-        >,
+    for DiscriminantProvider<
+        Layout<UnionSize, Budget, OkFv, OkUb, ErrFv, ErrUb, ErrSize, ErrAlign, ErrOffset>,
         End,
         End,
         End,
     >
 where
     (
-        DiscriminantProvider<
-            UnionSize,
-            Budget,
-            OkFv,
-            OkUb,
-            ErrFv,
-            ErrUb,
-            ErrSize,
-            ErrAlign,
-            ErrOffset,
-        >,
+        Layout<UnionSize, Budget, OkFv, OkUb, ErrFv, ErrUb, ErrSize, ErrAlign, ErrOffset>,
         <tyeval!((ErrSize + ErrAlign) + ErrOffset) as Unsigned>::SmallerOrEq<UnionSize>,
     ): IDiscriminantProviderInner,
 {
     same_as!((
-        DiscriminantProvider<
-            UnionSize,
-            Budget,
-            OkFv,
-            OkUb,
-            ErrFv,
-            ErrUb,
-            ErrSize,
-            ErrAlign,
-            ErrOffset,
-        >,
+        Layout<UnionSize, Budget, OkFv, OkUb, ErrFv, ErrUb, ErrSize, ErrAlign, ErrOffset>,
         <tyeval!((ErrSize + ErrAlign) + ErrOffset) as Unsigned>::SmallerOrEq<UnionSize>
     ));
 }
@@ -328,24 +275,14 @@ impl<
         ErrOffset: Unsigned,
     > IDiscriminantProviderInner
     for (
-        DiscriminantProvider<
-            UnionSize,
-            Budget,
-            OkFv,
-            OkUb,
-            ErrFv,
-            ErrUb,
-            ErrSize,
-            ErrAlign,
-            ErrOffset,
-        >,
+        Layout<UnionSize, Budget, OkFv, OkUb, ErrFv, ErrUb, ErrSize, ErrAlign, ErrOffset>,
         B0,
     )
 {
     same_as!(DiscriminantProviderWithUnit<End, End>);
 }
-/// If it can be shifted
 
+/// If it can be shifted
 impl<
         UnionSize: Unsigned,
         Budget,
@@ -358,21 +295,11 @@ impl<
         ErrOffset: Unsigned,
     > IDiscriminantProviderInner
     for (
-        DiscriminantProvider<
-            UnionSize,
-            T<Budget>,
-            OkFv,
-            OkUb,
-            ErrFv,
-            ErrUb,
-            ErrSize,
-            ErrAlign,
-            ErrOffset,
-        >,
+        Layout<UnionSize, T<Budget>, OkFv, OkUb, ErrFv, ErrUb, ErrSize, ErrAlign, ErrOffset>,
         B1,
     )
 where
-    DiscriminantProvider<
+    Layout<
         UnionSize,
         Budget,
         OkFv,
@@ -381,10 +308,10 @@ where
         ErrUb,
         ErrSize,
         ErrAlign,
-        tyeval!(ErrAlign + ErrOffset),
+        ErrAlign::Add<ErrOffset>,
     >: IDiscriminantProviderInner,
 {
-    same_as!(DiscriminantProvider<
+    same_as!(Layout<
         UnionSize,
         Budget,
         OkFv,
@@ -393,6 +320,6 @@ where
         ErrUb,
         ErrSize,
         ErrAlign,
-        tyeval!(ErrAlign + ErrOffset),
+        ErrAlign::Add<ErrOffset>,
     >);
 }
