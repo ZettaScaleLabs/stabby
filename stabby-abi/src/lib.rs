@@ -29,13 +29,11 @@ macro_rules! primitive_report {
         const REPORT: &'static $crate::report::TypeReport = &$crate::report::TypeReport {
             name: $crate::str::Str::new($name),
             module: $crate::str::Str::new(core::stringify!(core::module_path!())),
-            fields: unsafe {
-                $crate::StableLike::new(Some(&$crate::report::FieldReport {
-                    name: $crate::str::Str::new("inner"),
-                    ty: <$ty as $crate::IStable>::REPORT,
-                    next_field: $crate::StableLike::new(None),
-                }))
-            },
+            fields: $crate::StableLike::new(Some(&$crate::report::FieldReport {
+                name: $crate::str::Str::new("inner"),
+                ty: <$ty as $crate::IStable>::REPORT,
+                next_field: $crate::StableLike::new(None),
+            })),
             last_break: $crate::report::Version::NEVER,
             tyty: $crate::report::TyTy::Struct,
         };
@@ -44,7 +42,7 @@ macro_rules! primitive_report {
         const REPORT: &'static $crate::report::TypeReport = &$crate::report::TypeReport {
             name: $crate::str::Str::new($name),
             module: $crate::str::Str::new(core::stringify!(core::module_path!())),
-            fields: unsafe { $crate::StableLike::new(None) },
+            fields: $crate::StableLike::new(None),
             last_break: $crate::report::Version::NEVER,
             tyty: $crate::report::TyTy::Struct,
         };
@@ -115,7 +113,7 @@ impl<T: IStable> AssertStable<T> {
 #[repr(C)]
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StableLike<T, As> {
-    pub value: T,
+    value: T,
     marker: core::marker::PhantomData<As>,
 }
 impl<T: Debug, As> Debug for StableLike<T, As> {
@@ -138,24 +136,52 @@ impl<T: Clone, As> Clone for StableLike<T, As> {
 }
 impl<T: Copy, As> Copy for StableLike<T, As> {}
 impl<T, As: IStable> StableLike<T, As> {
-    /// # Safety
-    /// Refer to type documentation
-    pub const unsafe fn new(value: T) -> Self {
+    pub const fn new(value: T) -> Self {
+        if core::mem::size_of::<T>() != <As::Size as Unsigned>::USIZE {
+            panic!(
+                "Attempted to construct `StableLike<T, As>` despite As::Size not matching T's size"
+            )
+        }
         Self {
             value,
             marker: core::marker::PhantomData,
         }
     }
-}
-impl<T, As: IStable> core::ops::Deref for StableLike<T, As> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
+    /// # Safety
+    /// This is only safe if `T` is FFI-safe, or if this `self` was constructed from a value
+    /// of `T` that was instanciated within the same shared object.
+    pub const unsafe fn as_ref_unchecked(&self) -> &T {
         &self.value
     }
-}
-impl<T, As: IStable> core::ops::DerefMut for StableLike<T, As> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
+    /// # Safety
+    /// This is only safe if `T` is FFI-safe, or if this `self` was constructed from a value
+    /// of `T` that was instanciated within the same shared object.
+    pub unsafe fn as_mut_unchecked(&mut self) -> &mut T {
         &mut self.value
+    }
+    /// # Safety
+    /// This is only safe if `T` is FFI-safe, or if this `self` was constructed from a value
+    /// of `T` that was instanciated within the same shared object.
+    pub unsafe fn into_inner_unchecked(self) -> T {
+        self.value
+    }
+    pub fn into_inner(self) -> T
+    where
+        T: IStable,
+    {
+        self.value
+    }
+}
+
+impl<T: IStable, As: IStable> core::ops::Deref for StableLike<T, As> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.as_ref_unchecked() }
+    }
+}
+impl<T: IStable, As: IStable> core::ops::DerefMut for StableLike<T, As> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { self.as_mut_unchecked() }
     }
 }
 unsafe impl<T, As: IStable> IStable for StableLike<T, As> {

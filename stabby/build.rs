@@ -33,6 +33,11 @@ pub struct CompilerVersion_{snake_version}<Layout: IStable>(core::marker::Phanto
 impl<Layout: IStable> CompilerVersion_{snake_version}<Layout> {{
 	pub const UNIT: Self = Self(core::marker::PhantomData);
 }}
+
+#[rustversion::stable({version})]
+/// This type alias resolves to the compiler that is currently in use to compile the crate
+pub type LocalCompiler<Layout> = CompilerVersion_{snake_version}<Layout>;
+
 #[rustversion::stable({version})]
 unsafe impl<Layout: IStable> IStable for CompilerVersion_{snake_version}<Layout> {{
 	type Size = Layout::Size;
@@ -43,13 +48,11 @@ unsafe impl<Layout: IStable> IStable for CompilerVersion_{snake_version}<Layout>
 	const REPORT: &'static crate::abi::report::TypeReport = &crate::abi::report::TypeReport {{
 		name: crate::abi::str::Str::new("CompilerVersion_{snake_version}"),
 		module: crate::abi::str::Str::new(core::stringify!(core::module_path!())),
-		fields: unsafe {{
-			crate::abi::StableLike::new(Some(&crate::abi::report::FieldReport {{
-				name: crate::abi::str::Str::new("inner"),
-				ty: <Layout as crate::abi::IStable>::REPORT,
-				next_field: crate::abi::StableLike::new(None),
-			}}))
-		}},
+		fields: crate::abi::StableLike::new(Some(&crate::abi::report::FieldReport {{
+			name: crate::abi::str::Str::new("inner"),
+			ty: <Layout as crate::abi::IStable>::REPORT,
+			next_field: crate::abi::StableLike::new(None),
+		}})),
 		last_break: crate::abi::report::Version::NEVER,
 		tyty: crate::abi::report::TyTy::Struct,
 	}};
