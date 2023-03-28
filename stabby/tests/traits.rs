@@ -14,6 +14,8 @@
 
 // MYTRAIT
 
+#![cfg_attr(feature = "unsafe_wakers", allow(deprecated))]
+
 use std::time::Duration;
 
 use stabby::future::DynFuture;
