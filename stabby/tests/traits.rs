@@ -14,6 +14,10 @@
 
 // MYTRAIT
 
+use std::time::Duration;
+
+use stabby::future::DynFuture;
+
 #[stabby::stabby]
 pub trait MyTrait {
     type Output;
@@ -97,15 +101,15 @@ pub trait AsyncRead {
         buffer: stabby::slice::SliceMut<'a, u8>,
     ) -> stabby::future::DynFuture<'a, usize>;
 }
-impl<'b> AsyncRead for stabby::slice::SliceMut<'b, u8> {
+impl<'b> AsyncRead for stabby::slice::Slice<'b, u8> {
     extern "C" fn read<'a>(
         &'a mut self,
         mut buffer: stabby::slice::SliceMut<'a, u8>,
     ) -> stabby::future::DynFuture<'a, usize> {
         Box::new(async move {
             let len = self.len().min(buffer.len());
-            let (l, r) = self.split_at_mut(len);
-            let r = unsafe { core::mem::transmute::<_, &mut [u8]>(r) };
+            let (l, r) = self.split_at(len);
+            let r = unsafe { core::mem::transmute::<_, &[u8]>(r) };
             buffer[..len].copy_from_slice(l);
             *self = r.into();
             len
@@ -127,4 +131,29 @@ fn dyn_traits() {
     assert!(dyned.downcast_ref::<u16>().is_none());
     fn trait_assertions<T: Send + Sync + stabby::abi::IStable>(_t: T) {}
     trait_assertions(dyned);
+}
+
+#[test]
+fn async_trait() {
+    let (tx, rx) = smol::channel::bounded(5);
+    let read_task = async move {
+        let mut expected = 0;
+        while let Ok(i) = rx.recv().await {
+            assert_eq!(i, expected);
+            expected += 1;
+        }
+        assert_eq!(expected, 5)
+    };
+    let write_task = async move {
+        for i in 0..5 {
+            tx.send(i).await.unwrap();
+            smol::Timer::after(Duration::from_millis(30)).await;
+        }
+    };
+    fn check(read: DynFuture<'static, ()>, write: DynFuture<'static, ()>) {
+        let rtask = smol::spawn(read);
+        let wtask = smol::spawn(write);
+        smol::block_on(smol::future::zip(rtask, wtask));
+    }
+    check(Box::new(read_task).into(), Box::new(write_task).into())
 }

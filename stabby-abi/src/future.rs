@@ -20,25 +20,25 @@ use crate::vtable::HasDropVt;
 use crate::{IPtrMut, IPtrOwned};
 
 pub use stable_waker::StableWaker;
-// #[cfg(feature = "unsafe_wakers")]
-// mod stable_waker {
-//     use core::task::Waker;
+#[cfg(feature = "unsafe_wakers")]
+mod stable_waker {
+    use core::task::Waker;
 
-//     use crate::StableLike;
-//     #[crate::stabby]
-//     pub struct StableWaker<'a>(StableLike<&'a Waker, &'a ()>);
-//     impl StableWaker<'_> {
-//         pub fn with_waker<'a, F: FnOnce(&'a Waker) -> U, U>(&'a self, f: F) -> U {
-//             f(self.0.value)
-//         }
-//     }
-//     impl<'a> From<&'a Waker> for StableWaker<'a> {
-//         fn from(value: &'a Waker) -> Self {
-//             unsafe { Self(StableLike::new(value)) }
-//         }
-//     }
-// }
-// #[cfg(all(feature = "alloc", not(feature = "unsafe_wakers")))]
+    use crate::StableLike;
+    #[crate::stabby]
+    pub struct StableWaker<'a>(StableLike<&'a Waker, &'a ()>);
+    impl StableWaker<'_> {
+        pub fn with_waker<'a, F: FnOnce(&'a Waker) -> U, U>(&'a self, f: F) -> U {
+            f(unsafe { self.0.as_ref_unchecked() })
+        }
+    }
+    impl<'a> From<&'a Waker> for StableWaker<'a> {
+        fn from(value: &'a Waker) -> Self {
+            Self(StableLike::new(value))
+        }
+    }
+}
+#[cfg(all(feature = "alloc", not(feature = "unsafe_wakers")))]
 mod stable_waker {
     use core::{
         mem::ManuallyDrop,

@@ -35,6 +35,10 @@ pub mod compiler_version;
 pub mod tuple;
 
 /// Futures can be ABI-stable if you wish hard enough
+#[cfg_attr(
+    feature = "unsafe_wakers",
+    deprecated = "Warning! you are using the `stabby/unsafe_wakers` feature. This could cause UB if you poll a future received from another shared library! (this API isn't actually deprecated)"
+)]
 pub mod future {
     pub use crate::abi::future::*;
     #[cfg(feature = "alloc")]
