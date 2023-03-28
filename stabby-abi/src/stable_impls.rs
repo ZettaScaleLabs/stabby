@@ -409,13 +409,11 @@ unsafe impl<T: IStable> IStable for HasExactlyOneNiche<core::option::Option<T>, 
     const REPORT: &'static report::TypeReport = &report::TypeReport {
         name: Str::new("Option"),
         module: Str::new("core::option"),
-        fields: unsafe {
-            StableLike::new(Some(&report::FieldReport {
-                name: Str::new("Some"),
-                ty: T::REPORT,
-                next_field: StableLike::new(None),
-            }))
-        },
+        fields: StableLike::new(Some(&report::FieldReport {
+            name: Str::new("Some"),
+            ty: T::REPORT,
+            next_field: StableLike::new(None),
+        })),
         last_break: report::Version::NEVER,
         tyty: report::TyTy::Enum(Str::new("rust")),
     };
@@ -439,13 +437,11 @@ unsafe impl<Ok: IStable, Err: IStable> IStable
     const REPORT: &'static report::TypeReport = &report::TypeReport {
         name: Str::new("Result"),
         module: Str::new("core::result"),
-        fields: unsafe {
-            StableLike::new(Some(&report::FieldReport {
-                name: Str::new("Ok"),
-                ty: Ok::REPORT,
-                next_field: StableLike::new(None),
-            }))
-        },
+        fields: StableLike::new(Some(&report::FieldReport {
+            name: Str::new("Ok"),
+            ty: Ok::REPORT,
+            next_field: StableLike::new(None),
+        })),
         last_break: report::Version::NEVER,
         tyty: report::TyTy::Enum(Str::new("rust")),
     };
@@ -470,13 +466,11 @@ unsafe impl<Ok: IStable, Err: IStable, T> IStable
     const REPORT: &'static report::TypeReport = &report::TypeReport {
         name: Str::new("Result"),
         module: Str::new("core::result"),
-        fields: unsafe {
-            StableLike::new(Some(&report::FieldReport {
-                name: Str::new("Err"),
-                ty: Err::REPORT,
-                next_field: StableLike::new(None),
-            }))
-        },
+        fields: StableLike::new(Some(&report::FieldReport {
+            name: Str::new("Err"),
+            ty: Err::REPORT,
+            next_field: StableLike::new(None),
+        })),
         last_break: report::Version::NEVER,
         tyty: report::TyTy::Enum(Str::new("rust")),
     };

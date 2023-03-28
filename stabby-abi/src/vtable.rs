@@ -110,8 +110,8 @@ pub struct VtDrop {
 impl PartialEq for VtDrop {
     fn eq(&self, other: &Self) -> bool {
         core::ptr::eq(
-            (*self.drop) as *const unsafe extern "C" fn(&mut ()),
-            (*other.drop) as *const unsafe extern "C" fn(&mut ()),
+            unsafe { self.drop.as_ref_unchecked() } as *const unsafe extern "C" fn(&mut ()),
+            unsafe { other.drop.as_ref_unchecked() } as *const unsafe extern "C" fn(&mut ()),
         )
     }
 }

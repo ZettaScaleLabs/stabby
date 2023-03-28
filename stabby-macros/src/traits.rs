@@ -641,7 +641,7 @@ impl<'a> DynTraitDescription<'a> {
             impl< #vt_generics > Copy for #vtid < #nbvt_generics > where #(#vt_bounds)* {}
             impl< #vt_generics > core::cmp::PartialEq for #vtid < #nbvt_generics > where #(#vt_bounds)*{
                 fn eq(&self, other: &Self) -> bool {
-                    #(core::ptr::eq((**self.#all_fn_ids) as *const (), (**other.#all_fn_ids) as *const _) &&)* true
+                    #(core::ptr::eq((*unsafe{self.#all_fn_ids.as_ref_unchecked()}) as *const (), (*unsafe{other.#all_fn_ids.as_ref_unchecked()}) as *const _) &&)* true
                 }
             }
 
@@ -705,7 +705,7 @@ impl<'a> DynTraitDescription<'a> {
             {
                 #(type #trait_to_vt_bindings;)*
                 #(#fns {
-                    (self.vtable().tderef().#fn_ids)(self.ptr(), #fn_args)
+                    unsafe{(self.vtable().tderef().#fn_ids.as_ref_unchecked())(self.ptr(), #fn_args)}
                 })*
             }
             impl<
@@ -731,7 +731,7 @@ impl<'a> DynTraitDescription<'a> {
             {
                 #(type #trait_to_vt_bindings;)*
                 #(#fns {
-                    (self.vtable().tderef().#fn_ids)(unsafe{self.ptr().as_ref()}, #fn_args)
+                    unsafe{(self.vtable().tderef().#fn_ids.as_ref_unchecked())(self.ptr().as_ref(), #fn_args)}
                 })*
             }
 
@@ -773,7 +773,7 @@ impl<'a> DynTraitDescription<'a> {
             for #st::Dyn<'_, StabbyPtrProvider, StabbyVtProvider> where #(#vt_bounds)*
             {
                 #(#mut_fns {
-                    (self.vtable().tderef().#mut_fn_ids)(unsafe {self.ptr_mut().as_mut()}, #mut_fn_args)
+                    unsafe {(self.vtable().tderef().#mut_fn_ids.as_ref_unchecked())(self.ptr_mut().as_mut(), #mut_fn_args)}
                 })*
             }
         }

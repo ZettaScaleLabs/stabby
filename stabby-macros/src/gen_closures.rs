@@ -63,7 +63,7 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 				{
 					fn call_once(self #(, #args: #argtys)*) -> O {
 						let o =
-							unsafe { (self.vtable().tderef().call_once.value)(core::ptr::read(self.ptr()) #(, #args)*)};
+							unsafe { (self.vtable().tderef().call_once.into_inner_unchecked())(core::ptr::read(self.ptr()) #(, #args)*)};
 						core::mem::forget(self);
 						o
 					}

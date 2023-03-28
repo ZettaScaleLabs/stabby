@@ -20,25 +20,25 @@ use crate::vtable::HasDropVt;
 use crate::{IPtrMut, IPtrOwned};
 
 pub use stable_waker::StableWaker;
-#[cfg(feature = "unsafe_wakers")]
-mod stable_waker {
-    use core::task::Waker;
+// #[cfg(feature = "unsafe_wakers")]
+// mod stable_waker {
+//     use core::task::Waker;
 
-    use crate::StableLike;
-    #[crate::stabby]
-    pub struct StableWaker<'a>(StableLike<&'a Waker, &'a ()>);
-    impl StableWaker<'_> {
-        pub fn with_waker<'a, F: FnOnce(&'a Waker) -> U, U>(&'a self, f: F) -> U {
-            f(self.0.value)
-        }
-    }
-    impl<'a> From<&'a Waker> for StableWaker<'a> {
-        fn from(value: &'a Waker) -> Self {
-            unsafe { Self(StableLike::new(value)) }
-        }
-    }
-}
-#[cfg(all(feature = "alloc", not(feature = "unsafe_wakers")))]
+//     use crate::StableLike;
+//     #[crate::stabby]
+//     pub struct StableWaker<'a>(StableLike<&'a Waker, &'a ()>);
+//     impl StableWaker<'_> {
+//         pub fn with_waker<'a, F: FnOnce(&'a Waker) -> U, U>(&'a self, f: F) -> U {
+//             f(self.0.value)
+//         }
+//     }
+//     impl<'a> From<&'a Waker> for StableWaker<'a> {
+//         fn from(value: &'a Waker) -> Self {
+//             unsafe { Self(StableLike::new(value)) }
+//         }
+//     }
+// }
+// #[cfg(all(feature = "alloc", not(feature = "unsafe_wakers")))]
 mod stable_waker {
     use core::{
         mem::ManuallyDrop,
@@ -53,16 +53,18 @@ mod stable_waker {
     #[crate::stabby]
     pub struct StableWakerInner {
         waker: StableLike<ManuallyDrop<Waker>, Tuple2<*const (), &'static ()>>,
-        wake_by_ref: StableLike<for<'b> extern "C" fn(&'b Waker), &'static ()>,
-        drop: StableLike<extern "C" fn(&mut ManuallyDrop<Waker>), &'static ()>,
+        wake_by_ref: StableLike<for<'b> unsafe extern "C" fn(&'b Waker), &'static ()>,
+        drop: StableLike<unsafe extern "C" fn(&mut ManuallyDrop<Waker>), &'static ()>,
+    }
+    impl Drop for StableWakerInner {
+        fn drop(&mut self) {
+            unsafe { (self.drop.as_mut_unchecked())(self.waker.as_mut_unchecked()) }
+        }
     }
     #[crate::stabby]
-    pub struct StableWaker<'a> {
-        waker: Arc<StableWakerInner>,
-        marker: core::marker::PhantomData<&'a ()>,
-    }
-    impl StableWaker<'_> {
-        fn into_waker(waker: Arc<StableWakerInner>) -> Waker {
+    pub struct SharedStableWaker(Arc<StableWakerInner>);
+    impl SharedStableWaker {
+        fn into_raw_waker(self) -> RawWaker {
             const VTABLE: RawWakerVTable = RawWakerVTable::new(clone, wake, wake_by_ref, drop);
             unsafe fn clone(this: *const ()) -> RawWaker {
                 Arc::increment_strong_count(this);
@@ -74,40 +76,62 @@ mod stable_waker {
             }
             unsafe fn wake_by_ref(this: *const ()) {
                 let this = unsafe { &*(this as *const StableWakerInner) };
-                (this.wake_by_ref)(&this.waker)
+                (this.wake_by_ref.as_ref_unchecked())(this.waker.as_ref_unchecked())
             }
             unsafe fn drop(this: *const ()) {
                 Arc::from_raw(this as *const StableWakerInner);
             }
-            let waker = RawWaker::new(Arc::into_raw(waker) as *const _, &VTABLE);
-            unsafe { Waker::from_raw(waker) }
+            RawWaker::new(Arc::into_raw(self.0) as *const _, &VTABLE)
         }
+    }
+    #[crate::stabby]
+    pub struct StableWaker<'a> {
+        waker: StableLike<&'a Waker, &'a ()>,
+        clone: unsafe extern "C" fn(StableLike<&'a Waker, &'a ()>) -> SharedStableWaker,
+        wake_by_ref: StableLike<unsafe extern "C" fn(&Waker), &'a ()>,
+    }
+    impl<'a> StableWaker<'a> {
         pub fn with_waker<F: FnOnce(&Waker) -> U, U>(&self, f: F) -> U {
-            let waker = Self::into_waker(self.waker.clone());
+            const VTABLE: RawWakerVTable =
+                RawWakerVTable::new(clone, wake_by_ref, wake_by_ref, drop);
+            unsafe fn clone(this: *const ()) -> RawWaker {
+                let this = unsafe { &*(this as *const StableWaker) };
+                (this.clone)(this.waker).into_raw_waker()
+            }
+            unsafe fn wake_by_ref(this: *const ()) {
+                let this = unsafe { &*(this as *const StableWaker) };
+                (this.wake_by_ref.as_ref_unchecked())(this.waker.as_ref_unchecked())
+            }
+            unsafe fn drop(_: *const ()) {}
+            let waker = RawWaker::new(self as *const Self as *const _, &VTABLE);
+            let waker = unsafe { Waker::from_raw(waker) };
             f(&waker)
         }
     }
-    impl<'a> From<&'a Waker> for StableWaker<'static> {
+    impl<'a> From<&'a Waker> for StableWaker<'a> {
         fn from(value: &'a Waker) -> Self {
-            extern "C" fn drop_waker(waker: &mut ManuallyDrop<Waker>) {
-                unsafe { ManuallyDrop::drop(waker) }
+            unsafe extern "C" fn drop(waker: &mut ManuallyDrop<Waker>) {
+                ManuallyDrop::drop(waker)
             }
-            extern "C" fn wake_by_ref(waker: &Waker) {
+            unsafe extern "C" fn wake_by_ref(waker: &Waker) {
                 waker.wake_by_ref()
             }
-            let waker = unsafe {
-                StableWakerInner {
-                    waker: StableLike {
-                        value: ManuallyDrop::new(value.clone()),
-                        marker: core::marker::PhantomData,
-                    },
+            #[allow(improper_ctypes_definitions)]
+            unsafe extern "C" fn clone(
+                borrowed_waker: StableLike<&Waker, &()>,
+            ) -> SharedStableWaker {
+                let waker = (*borrowed_waker.as_ref_unchecked()).clone();
+                let waker = StableWakerInner {
+                    waker: StableLike::new(ManuallyDrop::new(waker)),
                     wake_by_ref: StableLike::new(wake_by_ref),
-                    drop: StableLike::new(drop_waker),
-                }
-            };
+                    drop: StableLike::new(drop),
+                };
+                SharedStableWaker(Arc::new(waker))
+            }
             StableWaker {
-                waker: Arc::new(waker),
-                marker: core::marker::PhantomData,
+                waker: StableLike::new(value),
+                clone,
+                wake_by_ref: StableLike::new(wake_by_ref),
             }
         }
     }
@@ -148,7 +172,7 @@ impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()
     ) -> core::task::Poll<Self::Output> {
         unsafe {
             let this = core::pin::Pin::get_unchecked_mut(self);
-            (this.vtable().head.poll)(this.ptr_mut().as_mut(), cx.waker().into())
+            (this.vtable().head.poll.as_ref_unchecked())(this.ptr_mut().as_mut(), cx.waker().into())
                 .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
         }
     }
@@ -169,8 +193,11 @@ impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()
     ) -> core::task::Poll<Self::Output> {
         unsafe {
             let this = core::pin::Pin::get_unchecked_mut(self);
-            (this.vtable().0.head.poll)(this.ptr_mut().as_mut(), cx.waker().into())
-                .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
+            (this.vtable().0.head.poll.as_ref_unchecked())(
+                this.ptr_mut().as_mut(),
+                cx.waker().into(),
+            )
+            .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
         }
     }
 }
@@ -190,8 +217,11 @@ impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()
     ) -> core::task::Poll<Self::Output> {
         unsafe {
             let this = core::pin::Pin::get_unchecked_mut(self);
-            (this.vtable().0.head.poll)(this.ptr_mut().as_mut(), cx.waker().into())
-                .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
+            (this.vtable().0.head.poll.as_ref_unchecked())(
+                this.ptr_mut().as_mut(),
+                cx.waker().into(),
+            )
+            .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
         }
     }
 }
@@ -213,8 +243,11 @@ impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()
     ) -> core::task::Poll<Self::Output> {
         unsafe {
             let this = core::pin::Pin::get_unchecked_mut(self);
-            (this.vtable().0 .0.head.poll)(this.ptr_mut().as_mut(), cx.waker().into())
-                .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
+            (this.vtable().0 .0.head.poll.as_ref_unchecked())(
+                this.ptr_mut().as_mut(),
+                cx.waker().into(),
+            )
+            .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
         }
     }
 }
@@ -236,8 +269,18 @@ impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()
     ) -> core::task::Poll<Self::Output> {
         unsafe {
             let this = core::pin::Pin::get_unchecked_mut(self);
-            (this.vtable().0 .0.head.poll)(this.ptr_mut().as_mut(), cx.waker().into())
-                .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
+            (this.vtable().0 .0.head.poll.as_ref_unchecked())(
+                this.ptr_mut().as_mut(),
+                cx.waker().into(),
+            )
+            .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
         }
     }
+}
+
+impl<Output> crate::vtable::CompoundVt for dyn core::future::Future<Output = Output>
+where
+    dyn Future<Output = Output>: crate::vtable::CompoundVt,
+{
+    type Vt<T> = <dyn Future<Output = Output> as crate::vtable::CompoundVt>::Vt<T>;
 }

@@ -187,7 +187,9 @@ where
 
 impl<'a, P: IPtrOwned, Vt: HasDropVt> Drop for Dyn<'a, P, Vt> {
     fn drop(&mut self) {
-        P::drop(&mut self.ptr, *self.vtable.drop_vt().drop)
+        P::drop(&mut self.ptr, *unsafe {
+            self.vtable.drop_vt().drop.as_ref_unchecked()
+        })
     }
 }
 
