@@ -198,25 +198,26 @@ impl FromIterator<syn::Variant> for Variants {
     }
 }
 impl Variants {
+    fn recursion<'a, U, LeafFn: FnMut(&'a Variant) -> U, JoinFn: FnMut(U, U) -> U>(
+        variants: &'a [Variant],
+        leaf: &mut LeafFn,
+        join: &mut JoinFn,
+    ) -> U {
+        if variants.len() > 1 {
+            let (left, right) = variants.split_at(variants.len() / 2);
+            let left = Self::recursion(left, leaf, join);
+            let right = Self::recursion(right, leaf, join);
+            join(left, right)
+        } else {
+            leaf(&variants[0])
+        }
+    }
     fn map<'a, U, LeafFn: FnMut(&'a Variant) -> U, JoinFn: FnMut(U, U) -> U>(
         &'a self,
-        leaf: LeafFn,
+        mut leaf: LeafFn,
         mut join: JoinFn,
     ) -> U {
-        let mut buffer = self.variants.iter().map(leaf).collect::<Vec<_>>();
-        while buffer.len() > 1 {
-            let len = buffer.len();
-            let mut iter = buffer.into_iter();
-            buffer = Vec::with_capacity(len / 2 + 1);
-            while let Some(a) = iter.next() {
-                if let Some(b) = iter.next() {
-                    buffer.push(join(a, b))
-                } else {
-                    buffer.push(a)
-                }
-            }
-        }
-        buffer.pop().unwrap()
+        Self::recursion(&self.variants, &mut leaf, &mut join)
     }
     fn map_with_finalizer<
         'a,
@@ -227,25 +228,14 @@ impl Variants {
         FinalJoinFn: FnOnce(U, U) -> V,
     >(
         &'a self,
-        leaf: LeafFn,
+        mut leaf: LeafFn,
         mut join: JoinFn,
         final_join: FinalJoinFn,
     ) -> V {
-        let mut buffer = self.variants.iter().map(leaf).collect::<Vec<_>>();
-        while buffer.len() > 2 {
-            let len = buffer.len();
-            let mut iter = buffer.into_iter();
-            buffer = Vec::with_capacity(len / 2 + 1);
-            while let Some(a) = iter.next() {
-                if let Some(b) = iter.next() {
-                    buffer.push(join(a, b))
-                } else {
-                    buffer.push(a)
-                }
-            }
-        }
-        let last = buffer.pop().unwrap();
-        final_join(buffer.pop().unwrap(), last)
+        let (left, right) = self.variants.split_at(self.variants.len() / 2);
+        let left = Self::recursion(left, &mut leaf, &mut join);
+        let right = Self::recursion(right, &mut leaf, &mut join);
+        final_join(left, right)
     }
 }
 

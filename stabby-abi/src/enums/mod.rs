@@ -37,8 +37,8 @@ pub trait IDiscriminant: IStable {
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BitDiscriminant {
-    Err = 0,
-    Ok = 1,
+    Err = 1,
+    Ok = 0,
 }
 unsafe impl IStable for BitDiscriminant {
     type Size = U1;

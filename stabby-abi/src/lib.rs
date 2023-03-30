@@ -292,5 +292,5 @@ pub mod str;
 
 pub use istable::{Array, End, IStable};
 
-pub(crate) mod istable;
+pub mod istable;
 pub type NonZeroHole = U0;

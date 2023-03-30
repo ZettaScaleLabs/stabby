@@ -488,6 +488,12 @@ mod cfgalloc {
     unsafe impl<T: IStable> IStable for alloc::sync::Weak<T> {
         same_as!(core::ptr::NonNull<T>, "alloc::sync::Weak", T);
     }
+    unsafe impl<T: IStable> IStable for alloc::rc::Rc<T> {
+        same_as!(core::ptr::NonNull<T>, "alloc::rc::Rc", T);
+    }
+    unsafe impl<T: IStable> IStable for alloc::rc::Weak<T> {
+        same_as!(core::ptr::NonNull<T>, "alloc::rc::Weak", T);
+    }
 }
 
 macro_rules! fnstable {
