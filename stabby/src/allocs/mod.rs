@@ -15,4 +15,5 @@
 pub mod borrow;
 pub mod boxed;
 pub mod string;
+pub mod sync;
 pub mod vec;

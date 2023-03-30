@@ -2,7 +2,7 @@
 This file details how stabby lays out types, allowing for alternative implementations of `#[repr(stabby)]`. Note that `stabby` deriving from this specification in any way is considered a bug, and I would be grateful that you report it if you found such a case.
 
 "Niches" refer to information about a type's representation. `#[repr(stabby)]` distinguishes two types of niches:
-- Forbidden Values (fvs) are the ordered set of values that a type isn't allowed to occupy. These values may be represented over multiple bytes. A given type may have any amount of forbidden values. The addition for fvs is the concatenation of ordered sets. A single forbidden value is an array of `(byte_offset, value)` tuples.
+- Forbidden Values (fvs) are the ordered set of values that a type isn't allowed to occupy. These values may be represented over multiple bytes. A given type may have any amount of forbidden values. The addition for fvs is the concatenation of ordered sets. A single forbidden value is an array of `(byte_offset, value)` tuples. The set of forbidden values must be ordered by ascending LSB-first order.
 - Unused Bits (unbits) is a bit-mask such that for any `value` of type `T`, `value ^ unbits` is strictly equivalent to `value` as long as it's treated as being of type `T`. The addtion for unbits is bitwise-or.
 
 Note that unbits can never overlap with a forbidden value.
@@ -26,22 +26,19 @@ Their niches are fully preserved: each field's niches are shifted by the field's
 Max types have the same layout as C-unions. Max-types never have any niches, as responsibility of their memory is entirely left to the user.
 
 ## Sum types (Rust `enum`)
+### `#[repr(u*/i*)]` enums
+Explicitly tagged unions are treated like `struct {tag: u*, union}`: the tag's potential forbidden values are not exported, nor are potential niches within the union, but the padding between tag and union
+
+### `#[repr(stabby)]` enums
 Sum types are defined as a balanced binary tree of `Result<A, B>`. This binary tree is constructed by the following algorithm:
 ```python
 buffer = [variant.ty for variant in enum.variants] # where variants are ordered by offset in source-code.
-while len(buffer) > 2:
-    new_buffer = []
-    i = 0
-    while i < len(buffer):
-        left = buffer[i]
-        i += 1
-        if i < len(buffer):
-            right = buffer[i]
-            i += 1
-            new_buffer.append([left, right])
-        else:
-            new_buffer.append(left)
-    buffer = new_buffer
+def binary_tree(buffer):
+    if len(buffer) > 2:
+        pivot = len(buffer)//2;
+        return [binary_tree(buffer[:pivot]), binary_tree(buffer[pivot:])]
+    return buffer
+buffer = binary_tree(buffer)
 # buffer is now a binary tree
 ```
 
@@ -99,10 +96,15 @@ def determinant(Ok, Err) -> (Determinant, int, int, Unbits):
 `U` is defined as the union between `Ok` shifted by `ok_shift` bytes and `Err` shifted by `err_shift` bytes, with `remaining_unbits` as its unbits, and no forbidden values.
 
 `Result<Ok, Err>`'s layout depends on determinant:
-- `BitDeterminant()`: the Result is laid out as `struct {tag: Bit, union: U}`, where `bit == 1` signifies that `U` is `Ok`.
+- `BitDeterminant()`: the Result is laid out as `struct {tag: Bit, union: U}`, where `bit == 1` signifies that `U` is `Err`.
 - `ValueIsErr(fv)`: the Result is laid out as `U`, where `all(self[offset] == value for (offset, value) in fv)` signifies that `U` is `Err`.
 - `BitIsErr((byte_offset, bit_offset))`: the Result is laid out as `U`, where `self[byte_offset] & (1<<bit_offset) != 0` signifies that `U` is `Err`.
 - `Not(Determinant)`: the Result is laid out as with `Determinant`, but the `tag.is_ok(union) == true` signifies that `U` is `Err` instead of `Ok`
 
 ## `Option<T>`
 `Option<T>` is laid out in memory as if it was `Result<T, ()>`.
+
+# Future possibilities
+At the moment, `Result<Ok, Err>` never has any forbidden values left, even if `Ok` had multiple fvs that could fit in `Err`'s unbits. This means that `Option<Option<bool>>` occupies 2 bytes, instead of 1 as it does with Rust's current layout.
+
+Since extracting only the correct FV from FVs can be complex to implement in computation contexts such as Rust's trait-solver, the choice was made not to do it. Should this become feasible, a release process will have to be designed. If you implement `#[repr(stabby)]`, please [file an issue on `stabby`'s original repository'](https://github.com/ZettaScaleLabs/stabby/issues/new) to be notified.

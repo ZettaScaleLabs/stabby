@@ -15,6 +15,7 @@
 use core::num::{NonZeroU16, NonZeroU32};
 
 use stabby::tuple::{Tuple2, Tuple3};
+use stabby_abi::{typenum2::*, Array, End, Result};
 
 #[stabby::stabby]
 pub union UTest {
@@ -60,7 +61,7 @@ pub enum MultiFieldsStabby {
     A(NonZeroU16),
     B,
     C(Tuple2<u8, u16>),
-    D(u8),
+    D(u32),
     E,
 }
 
@@ -99,16 +100,31 @@ pub struct Test {
 
 #[test]
 fn layouts() {
+    use stabby::abi::istable::IForbiddenValues;
     macro_rules! test {
         () => {};
+        ($t: ty, $unused: ty, $illegal: ty) => {
+            test!($t);
+            let _: core::mem::MaybeUninit<$unused> =
+                core::mem::MaybeUninit::<<$t as stabby::abi::IStable>::UnusedBits>::uninit();
+            let _: core::mem::MaybeUninit<$illegal> = core::mem::MaybeUninit::<
+                <<$t as stabby::abi::IStable>::ForbiddenValues as IForbiddenValues>::SelectOne,
+            >::uninit();
+        };
         ($t: ty) => {
             dbg!(core::mem::size_of::<$t>());
-            assert_eq!(core::mem::size_of::<$t>(), <$t as stabby::abi::IStable>::size(), "Size mismatch for {}", std::any::type_name::<$t>());
-            assert_eq!(core::mem::align_of::<$t>(), <$t as stabby::abi::IStable>::align(), "Align mismatch for {}", std::any::type_name::<$t>());
-        };
-        ($t: ty, $($tt: tt)*) => {
-            test!($t);
-            test!($($tt)*);
+            assert_eq!(
+                core::mem::size_of::<$t>(),
+                <$t as stabby::abi::IStable>::size(),
+                "Size mismatch for {}",
+                std::any::type_name::<$t>()
+            );
+            assert_eq!(
+                core::mem::align_of::<$t>(),
+                <$t as stabby::abi::IStable>::align(),
+                "Align mismatch for {}",
+                std::any::type_name::<$t>()
+            );
         };
     }
 
@@ -128,52 +144,55 @@ fn layouts() {
         || panic!(),
     );
 
-    test!(
-        u8,
-        u16,
-        u32,
-        u64,
-        u128,
-        usize,
-        core::num::NonZeroU8,
-        core::num::NonZeroU16,
-        core::num::NonZeroU32,
-        core::num::NonZeroU64,
-        core::num::NonZeroU128,
-        core::num::NonZeroUsize,
-        i8,
-        i16,
-        i32,
-        i64,
-        i128,
-        isize,
-        core::num::NonZeroI8,
-        core::num::NonZeroI16,
-        core::num::NonZeroI32,
-        core::num::NonZeroI64,
-        core::num::NonZeroI128,
-        core::num::NonZeroIsize,
-        &'static u8,
-        &'static mut u8,
-        stabby::slice::Slice<'static, u8>,
-        stabby::tuple::Tuple2<usize, usize>,
-        stabby::tuple::Tuple2<usize, u8>,
-        stabby::tuple::Tuple2<u8, usize>,
-        stabby::abi::Union<u8, usize>,
-        stabby::abi::Union<u8, ()>,
-        stabby::abi::Union<(), u8>,
-        UTest,
-        FieldsC,
-        FieldsStabby,
-        MultiFieldsC,
-        MultiFieldsStabby,
-        stabby::tuple::Tuple2<(), usize>,
-        stabby::tuple::Tuple2<usize, ()>,
-        NoFields,
-        WeirdStruct,
-        WeirdStructBadLayout,
-        Option<&'static u8>,
-        Option<&'static mut u8>,
-        Option<core::num::NonZeroI8>,
-    );
+    test!(bool, End, Array<U0, U2, End>);
+    test!(u8, End, End);
+    test!(u16, End, End);
+    test!(u32, End, End);
+    test!(u64, End, End);
+    test!(u128, End, End);
+    test!(usize, End, End);
+    test!(core::num::NonZeroU8, End, Array<U0, U0, End>);
+    test!(core::num::NonZeroU16, End, Array<U0, U0, Array<U1, U0, End>>);
+    test!(core::num::NonZeroU32, End, _);
+    test!(core::num::NonZeroU64, End, _);
+    test!(core::num::NonZeroU128, End, _);
+    test!(core::num::NonZeroUsize, End, _);
+    test!(i8, End, End);
+    test!(i16, End, End);
+    test!(i32, End, End);
+    test!(i64, End, End);
+    test!(i128, End, End);
+    test!(isize, End, End);
+    test!(core::num::NonZeroI8, End, _);
+    test!(core::num::NonZeroI16, End, _);
+    test!(core::num::NonZeroI32, End, _);
+    test!(core::num::NonZeroI64, End, _);
+    test!(core::num::NonZeroI128, End, _);
+    test!(core::num::NonZeroIsize, End, _);
+    test!(&'static u8, End, _);
+    test!(&'static mut u8, End, _);
+    test!(stabby::slice::Slice<'static, u8>, End, _);
+    test!(stabby::tuple::Tuple2<usize, usize>, End, End);
+    test!(stabby::tuple::Tuple2<u32, u8>, Array<U5, UxFF, Array<U6, UxFF, Array<U7, UxFF, End>>>, End);
+    test!(stabby::tuple::Tuple2<u8, u32>, Array<U1, UxFF, Array<U2, UxFF, Array<U3, UxFF, End>>>, End);
+    test!(stabby::tuple::Tuple2<u8, Tuple2<u8, u32>>, Array<U1, UxFF, Array<U2, UxFF, Array<U3, UxFF, Array<U5, UxFF, Array<U6, UxFF, Array<U7, UxFF, End>>>>>>, End);
+    test!(stabby::abi::Union<u8, usize>, End, End);
+    test!(stabby::abi::Union<u8, ()>, End, End);
+    test!(stabby::abi::Union<(), u8>, End, End);
+    test!(UTest, End, End);
+    test!(FieldsC, Array<U1, UxFF, Array<U2, UxFF, Array<U3, UxFF, End>>>, End);
+    test!(FieldsStabby, End, End);
+    test!(MultiFieldsC, Array<U1, UxFF, End>, End);
+    test!(Result<u32, ()>, Array<U0, Ub11111110, Array<U1, UxFF, Array<U2, UxFF, Array<U3, UxFF, End>>>>, End);
+    test!(Result<Tuple2<u8, u16>, Result<u32, ()>>, Array<U1, Ub11111110, End>, End);
+    test!(Result<NonZeroU16, ()>, End, End);
+    test!(MultiFieldsStabby, Array<U1, Ub11111100, _>, End);
+    test!(stabby::tuple::Tuple2<(), usize>, End, End);
+    test!(stabby::tuple::Tuple2<usize, ()>, End, End);
+    test!(NoFields);
+    test!(WeirdStruct);
+    test!(WeirdStructBadLayout);
+    test!(Option<&'static u8>, End, End);
+    test!(Option<&'static mut u8>, End, End);
+    test!(Option<core::num::NonZeroI8>, End, End);
 }

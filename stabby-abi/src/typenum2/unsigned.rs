@@ -270,7 +270,7 @@ unsafe impl<L: IStable + Copy + Default> IStable for OneMoreByte<L> {
     type Size = <L::Size as IUnsignedBase>::Increment;
     type Align = L::Align;
     type ForbiddenValues = L::ForbiddenValues;
-    type UnusedBits = Array<L::Size, UxFF, L::UnusedBits>;
+    type UnusedBits = <L::UnusedBits as IBitMask>::BitOr<Array<L::Size, UxFF, End>>;
     type HasExactlyOneNiche = L::HasExactlyOneNiche;
     primitive_report!("OneMoreByte");
 }
