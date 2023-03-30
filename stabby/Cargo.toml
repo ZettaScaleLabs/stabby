@@ -14,7 +14,7 @@
 
 [package]
 name = "stabby"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }
@@ -30,7 +30,7 @@ alloc = ["stabby-abi/alloc"]
 unsafe_wakers = ["stabby-abi/unsafe_wakers"]
 
 [dependencies]
-stabby-abi = { path = "../stabby-abi/", version = "0.1.4" }
+stabby-abi = { path = "../stabby-abi/", version = "0.1.5" }
 
 rustversion = "1.0"
 

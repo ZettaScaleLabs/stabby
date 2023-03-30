@@ -57,7 +57,7 @@ impl IDiscriminant for BitDiscriminant {
         BitDiscriminant::Err
     }
     fn is_ok(&self, _: *const u8) -> bool {
-        matches!(self, BitDiscriminant::Ok)
+        (*self as u8 & 1) == 0
     }
 }
 impl IDiscriminant for End {
