@@ -34,4 +34,4 @@ alloc = []
 unsafe_wakers = []
 
 [dependencies]
-stabby-macros = { path = "../stabby-macros/", version = "0.1.1" }
+stabby-macros = { path = "../stabby-macros/", version = "0.1.3" }
