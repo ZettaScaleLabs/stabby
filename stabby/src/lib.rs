@@ -18,7 +18,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-pub use stabby_abi::{dynptr, stabby, vtmacro as vtable};
+pub use stabby_abi::{dynptr, export, stabby, vtmacro as vtable};
 
 pub use stabby_abi as abi;
 

@@ -20,9 +20,12 @@ use core::ops::{Deref, DerefMut};
 /// An ABI stable equivalent of `&'a [T]`
 #[stabby::stabby]
 pub struct Slice<'a, T: 'a> {
-    start: &'a T,
-    len: usize,
+    pub start: core::ptr::NonNull<T>,
+    pub len: usize,
+    pub marker: core::marker::PhantomData<&'a ()>,
 }
+unsafe impl<'a, T: 'a + Sync> Send for Slice<'a, T> {}
+unsafe impl<'a, T: 'a + Sync> Sync for Slice<'a, T> {}
 impl<'a, T: 'a> Clone for Slice<'a, T> {
     fn clone(&self) -> Self {
         unsafe { core::ptr::read(self) }
@@ -33,12 +36,13 @@ impl<'a, T: 'a> Copy for Slice<'a, T> {}
 impl<'a, T: 'a> Slice<'a, T> {
     pub const fn new(value: &'a [T]) -> Self {
         Self {
-            start: unsafe { &*value.as_ptr() },
+            start: unsafe { core::ptr::NonNull::new_unchecked(value.as_ptr() as *mut T) },
             len: value.len(),
+            marker: core::marker::PhantomData,
         }
     }
     pub const fn as_slice(self) -> &'a [T] {
-        unsafe { core::slice::from_raw_parts(self.start, self.len) }
+        unsafe { core::slice::from_raw_parts(self.start.as_ptr(), self.len) }
     }
 }
 impl<'a, T> From<&'a [T]> for Slice<'a, T> {
@@ -49,21 +53,22 @@ impl<'a, T> From<&'a [T]> for Slice<'a, T> {
 impl<'a, T> From<&'a mut [T]> for Slice<'a, T> {
     fn from(value: &'a mut [T]) -> Self {
         Self {
-            start: unsafe { &mut *value.as_mut_ptr() },
+            start: unsafe { core::ptr::NonNull::new_unchecked(value.as_ptr() as *mut T) },
             len: value.len(),
+            marker: core::marker::PhantomData,
         }
     }
 }
 
 impl<'a, T> From<Slice<'a, T>> for &'a [T] {
     fn from(value: Slice<'a, T>) -> Self {
-        unsafe { core::slice::from_raw_parts(value.start, value.len) }
+        unsafe { core::slice::from_raw_parts(value.start.as_ref(), value.len) }
     }
 }
 impl<'a, T> Deref for Slice<'a, T> {
     type Target = [T];
     fn deref(&self) -> &Self::Target {
-        unsafe { core::slice::from_raw_parts(self.start, self.len) }
+        unsafe { core::slice::from_raw_parts(self.start.as_ref(), self.len) }
     }
 }
 impl<'a, T: 'a> Eq for Slice<'a, T> where for<'b> &'b [T]: Eq {}
@@ -103,18 +108,21 @@ where
 /// An ABI stable equivalent of `&'a mut T`
 #[stabby::stabby]
 pub struct SliceMut<'a, T: 'a> {
-    pub start: &'a mut T,
+    pub start: core::ptr::NonNull<T>,
     pub len: usize,
+    pub marker: core::marker::PhantomData<&'a mut ()>,
 }
+unsafe impl<'a, T: 'a + Sync> Send for SliceMut<'a, T> {}
+unsafe impl<'a, T: 'a + Sync> Sync for SliceMut<'a, T> {}
 impl<'a, T> Deref for SliceMut<'a, T> {
     type Target = [T];
     fn deref(&self) -> &Self::Target {
-        unsafe { core::slice::from_raw_parts(self.start, self.len) }
+        unsafe { core::slice::from_raw_parts(self.start.as_ref(), self.len) }
     }
 }
 impl<'a, T> DerefMut for SliceMut<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { core::slice::from_raw_parts_mut(self.start, self.len) }
+        unsafe { core::slice::from_raw_parts_mut(self.start.as_mut(), self.len) }
     }
 }
 impl<'a, T: 'a> Eq for SliceMut<'a, T> where for<'b> &'b [T]: Eq {}
@@ -153,8 +161,9 @@ where
 impl<'a, T> From<&'a mut [T]> for SliceMut<'a, T> {
     fn from(value: &'a mut [T]) -> Self {
         Self {
-            start: unsafe { &mut *value.as_mut_ptr() },
+            start: unsafe { core::ptr::NonNull::new_unchecked(value.as_mut_ptr()) },
             len: value.len(),
+            marker: core::marker::PhantomData,
         }
     }
 }
@@ -163,17 +172,18 @@ impl<'a, T> From<SliceMut<'a, T>> for Slice<'a, T> {
         Self {
             start: value.start,
             len: value.len,
+            marker: core::marker::PhantomData,
         }
     }
 }
 impl<'a, T> From<SliceMut<'a, T>> for &'a mut [T] {
-    fn from(value: SliceMut<'a, T>) -> Self {
-        unsafe { core::slice::from_raw_parts_mut(value.start, value.len) }
+    fn from(mut value: SliceMut<'a, T>) -> Self {
+        unsafe { core::slice::from_raw_parts_mut(value.start.as_mut(), value.len) }
     }
 }
 
 impl<'a, T> From<SliceMut<'a, T>> for &'a [T] {
-    fn from(value: SliceMut<'a, T>) -> Self {
-        unsafe { core::slice::from_raw_parts(value.start, value.len) }
+    fn from(mut value: SliceMut<'a, T>) -> Self {
+        unsafe { core::slice::from_raw_parts(value.start.as_mut(), value.len) }
     }
 }

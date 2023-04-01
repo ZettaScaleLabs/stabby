@@ -30,6 +30,7 @@ impl<T> BoxedSlice<T> {
         let r = SliceMut {
             start: unsafe { core::mem::transmute_copy(&self.start) },
             len: self.len,
+            marker: core::marker::PhantomData,
         };
         core::mem::forget(self);
         r

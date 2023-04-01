@@ -29,6 +29,19 @@ pub struct TypeReport {
     pub tyty: TyTy,
 }
 
+impl TypeReport {
+    pub fn is_compatible(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.module == other.module
+            && self.last_break == other.last_break
+            && self.tyty == other.tyty
+            && self
+                .fields()
+                .zip(other.fields())
+                .all(|(s, o)| s.name == o.name && s.ty.is_compatible(o.ty))
+    }
+}
+
 #[crate::stabby]
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

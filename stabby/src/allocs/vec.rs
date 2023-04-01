@@ -43,8 +43,8 @@ impl<T> From<alloc::vec::Vec<T>> for Vec<T> {
 }
 impl<T> From<Vec<T>> for alloc::vec::Vec<T> {
     fn from(value: Vec<T>) -> Self {
-        let slice = BoxedSlice::leak(value.slice);
-        unsafe { alloc::vec::Vec::from_raw_parts(slice.start, slice.len, value.capacity) }
+        let mut slice = BoxedSlice::leak(value.slice);
+        unsafe { alloc::vec::Vec::from_raw_parts(slice.start.as_mut(), slice.len, value.capacity) }
     }
 }
 

@@ -52,7 +52,7 @@ pub fn stabby(
             type HasExactlyOneNiche = #st::B0;
             const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
                 name: #st::str::Str::new(#sident),
-                module: #st::str::Str::new(core::stringify!(core::module_path!())),
+                module: #st::str::Str::new(core::module_path!()),
                 fields: unsafe{#st::StableLike::new(#report)},
                 last_break: #st::report::Version::NEVER,
                 tyty: #st::report::TyTy::Struct,
