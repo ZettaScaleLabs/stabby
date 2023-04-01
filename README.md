@@ -44,12 +44,24 @@ In order for `stabby::dynptr!(Box<dyn Traits + 'a>)` to have `Trait`'s methods, 
 `stabby::closure` exports the `CallN`, `CallMutN` and `CallOnceN` traits, where `N` (in `0..=9`) is the number of arguments, as ABI-stable equivalents of `Fn`, `FnMut` and `FnOnce` respectively.
 
 ## Functions
-For now, annotating a function with `#[stabby::stabby]` merely makes it `extern "C"` (but not `#[no_mangle]`) and checks its signature to ensure all exchanged types are marked with `stabby::abi::IStable`. You may also specify the calling convention of your choice.
+### `#[stabby::stabby]`
+Annotating a function with `#[stabby::stabby]` makes it `extern "C"` (but not `#[no_mangle]`) and checks its signature to ensure all exchanged types are marked with `stabby::abi::IStable`. You may also specify the calling convention of your choice.
 
-Future plans include:
-- `#[stabby::export]` will export a stably-mangled symbol which may be used to extract the function, but also obtain a report of its signature's layout.
-- `stabby` would include a function similar to `libloading::Library::get`, which would also check that the signature you specified for a symbol matches the one encoded by the exporter.
-- `#[stabby::import]` will act similarly to `#[link]`. Its exact behaviour is still to be defined, but the goal is to obtain the same reliability with shared-dependencies as what `stabby` will grant you with dynamically-loaded libraries.
+### `#[stabby::export]`
+Works just like `#[stabby::stabby]`, but will add `#[no_mangle]` to the annotated function, and produce two other no-mangle functions:
+- `extern "C" fn <fn_name>_stabbied(&stabby::abi::report::TypeReport) -> Option<...>`, will return `<fn_name>` as a function pointer if the type-report matches that of `<fn_name>`'s signature, ensuring that they indeed have the same signature.
+- `extern "C" fn <fn_name>_stabbied_report() -> &'static stabby::abi::report::TypeReport` will return `<fn_name>`'s type report, allowing debugging if the previous function returned `None`.
+
+### `#[stabby::export(canaries)]`
+Works on any function, including ones that would be FFI-unsafe. On top of adding `#[no_mangle]` to the original function, it will add a small set of `<fn_name>_<canary>` symbols to the produced shared libraries. These canaries include `rustc`'s version, the optimization level, and other properties that may cause the compiler to use a different ABI for `<fn_name>`.
+
+The presence of these symbols can then be checked for by the linker when loading the shared library, preventing linkage when the loader requests canaries with incompatible versions.
+
+### `#[stabby::import(name="library", ...)]` (Unimplemented)
+The design for this is still in progress, but the final intent is to emulate `#[link(name = "library")]` while ensuring the presence of the appropriate canaries, or checking the report compatibility at first call.
+
+### `stabby::Library` (Unimplemented)
+A wrapper around `libloading::Library` that also exposes safe symbol getters which will fail if the canaries are absent, or in case of a report mismatch.
 
 ## Async
 Any implementation of `core::future::Future` on a stable type will work regardless of which side of the FFI-boundary that stable type was constructed. However, futures created by async blocks and async functions aren't ABI-stable, so they must be used through trait objects.
