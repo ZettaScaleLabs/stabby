@@ -19,7 +19,7 @@ extern crate alloc;
 #[cfg(feature = "alloc")]
 mod allocs;
 
-pub use stabby_macros::{dynptr, export, stabby, vtable as vtmacro};
+pub use stabby_macros::{dynptr, export, import, stabby, vtable as vtmacro};
 
 use core::fmt::{Debug, Display};
 
@@ -280,6 +280,7 @@ impl<A, B> Clone for Union<A, B> {
     }
 }
 
+pub mod checked_import;
 pub mod enums;
 pub mod padding;
 pub mod result;

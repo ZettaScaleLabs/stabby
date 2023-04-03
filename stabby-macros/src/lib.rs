@@ -256,3 +256,8 @@ pub(crate) fn report(
 pub fn export(attrs: TokenStream, fn_spec: TokenStream) -> TokenStream {
     crate::functions::export(attrs, syn::parse(fn_spec).unwrap()).into()
 }
+
+#[proc_macro_attribute]
+pub fn import(attrs: TokenStream, fn_spec: TokenStream) -> TokenStream {
+    crate::functions::import(attrs, syn::parse(fn_spec).unwrap()).into()
+}

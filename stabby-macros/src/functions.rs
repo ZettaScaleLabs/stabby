@@ -12,6 +12,8 @@
 //   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
 //
 
+use std::str::FromStr;
+
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
@@ -147,16 +149,14 @@ pub fn stabby(attrs: Attrs, fn_spec: syn::ItemFn) -> proc_macro2::TokenStream {
 pub struct CanarySpec(u16);
 impl CanarySpec {
     pub const NONE: Self = Self(0);
-    pub const DEFAULT: Self = Self(0b11111);
-    pub const PARANOID: Self = Self(0b111111);
     pub const RUSTC: Self = Self(1);
     pub const OPT_LEVEL: Self = Self(1 << 1);
     pub const DEBUG: Self = Self(1 << 2);
     pub const NUM_JOBS: Self = Self(1 << 3);
     pub const TARGET: Self = Self(1 << 4);
     pub const HOST: Self = Self(1 << 5);
+    pub const PARANOID: Self = Self(0b111111);
     pub const ARRAY: &[(&'static str, Self)] = &[
-        ("default", Self::DEFAULT),
         ("paranoid", Self::PARANOID),
         ("none", Self::NONE),
         ("rustc", Self::RUSTC),
@@ -167,27 +167,53 @@ impl CanarySpec {
         ("host", Self::HOST),
     ];
 }
-impl syn::parse::Parse for CanarySpec {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        if input.is_empty() {
-            return Ok(Self::DEFAULT);
+impl FromStr for CanarySpec {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            return Ok(Self::PARANOID);
         }
-        input.parse::<syn::Token!(=)>()?;
-        let span = input.span();
-        let request = input.parse::<syn::Ident>()?.to_string();
-        CanarySpec::ARRAY
-            .iter()
-            .find_map(|(name, spec)| (*name == request).then_some(*spec))
-            .map_or_else(
-                || {
-                    let known = Self::ARRAY.iter().map(|s| s.0).collect::<Vec<_>>();
-                    Err(syn::Error::new(
-                        span,
-                        format!("Unknown canary `{request}, try one of {known:?}`"),
-                    ))
-                },
-                Ok,
-            )
+        let known = Self::ARRAY.iter().map(|s| s.0).collect::<Vec<_>>();
+        if s.chars()
+            .any(|c| !(c.is_alphabetic() || c == ' ' || c == ','))
+        {
+            return Err(format!("Invalid canary-spec: `{s}` must be a comma-separated list of canary identifiers ({known:?})"));
+        }
+        let mut this = Self::NONE;
+        for request in s.split(',').map(|r| r.trim()) {
+            let Some(spec) = Self::ARRAY.iter().find_map(|(name, spec)| (*name == request).then_some(*spec)) else {return Err(format!("Unknown canary `{request}` (known canaries: {known:?})"))};
+            this = this | spec;
+        }
+        Ok(this)
+    }
+}
+impl IntoIterator for CanarySpec {
+    type Item = CanarySpec;
+    type IntoIter = Canaries;
+    fn into_iter(self) -> Self::IntoIter {
+        Canaries {
+            spec: self.0,
+            shift: 0,
+        }
+    }
+}
+pub struct Canaries {
+    spec: u16,
+    shift: u16,
+}
+impl Iterator for Canaries {
+    type Item = CanarySpec;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let candidate = 1 << self.shift;
+            if candidate > self.spec {
+                return None;
+            }
+            self.shift += 1;
+            if candidate & self.spec != 0 {
+                return Some(CanarySpec(candidate));
+            }
+        }
     }
 }
 impl core::ops::BitOr for CanarySpec {
@@ -217,6 +243,7 @@ fn fix(source: &str) -> String {
 impl core::fmt::Display for CanarySpec {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let this = *self;
+        write!(f, "_canary")?;
         if this & Self::RUSTC {
             write!(
                 f,
@@ -247,6 +274,8 @@ fn export_canaried(fn_spec: syn::ItemFn) -> proc_macro2::TokenStream {
     let canaries = (0..=5)
         .map(|i| quote::format_ident!("{}{}", fn_spec.sig.ident, CanarySpec(1 << i).to_string()));
     quote! {
+        #[no_mangle]
+        #[allow(improper_ctypes_definitions)]
         #fn_spec
         #(
             #[no_mangle]
@@ -267,9 +296,9 @@ fn export_with_report(fn_spec: syn::ItemFn) -> proc_macro2::TokenStream {
     } = fn_spec.sig.clone();
     let st = crate::tl_mod();
     let stabbied = quote::format_ident!("{ident}_stabbied");
+    let report = quote::format_ident!("{stabbied}_report");
     let def = stabby(Attrs::default(), fn_spec);
     let signature = quote!(#asyncness #unsafety #abi fn(#inputs) #output);
-    let report = quote::format_ident!("{stabbied}_report");
     let stabbied = stabby(
         Attrs::default(),
         syn::parse2(quote::quote! {
@@ -308,7 +337,7 @@ impl syn::parse::Parse for ExportArgs {
             return Ok(args);
         }
         let id: syn::Ident = input.parse()?;
-        if id == "canaried" {
+        if id == "canaries" {
             args.canaried = true
         } else {
             panic!("Unsupported argument to `stabby::export. `canaried` is the only currently supported arg.")
@@ -326,5 +355,107 @@ pub fn export(
         export_canaried(fn_spec)
     } else {
         export_with_report(fn_spec)
+    }
+}
+
+struct IdentEqStr {
+    ident: syn::Ident,
+    str: syn::LitStr,
+}
+impl syn::parse::Parse for IdentEqStr {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let ident = input.parse()?;
+        let _: syn::Token!(=) = input.parse()?;
+        Ok(IdentEqStr {
+            ident,
+            str: input.parse()?,
+        })
+    }
+}
+
+struct ImportArgs {
+    canaries: Option<CanarySpec>,
+    link_args: proc_macro2::TokenStream,
+}
+impl syn::parse::Parse for ImportArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let mut args = ImportArgs {
+            canaries: None,
+            link_args: quote!(),
+        };
+        for IdentEqStr { ident, str } in
+            input.parse_terminated::<_, syn::Token!(,)>(IdentEqStr::parse)?
+        {
+            if ident == "canaries" {
+                args.canaries = Some(CanarySpec::from_str(&str.value()).unwrap())
+            } else {
+                args.link_args.extend(quote!(#ident = #str,))
+            }
+        }
+        Ok(args)
+    }
+}
+
+pub fn import(
+    macro_attrs: proc_macro::TokenStream,
+    fn_decl: syn::ItemForeignMod,
+) -> proc_macro2::TokenStream {
+    let ImportArgs {
+        canaries,
+        link_args,
+    } = syn::parse(macro_attrs).unwrap();
+    let syn::ItemForeignMod {
+        attrs, abi, items, ..
+    } = &fn_decl;
+    let mut externs = Vec::new();
+    let mut interns = Vec::new();
+    match canaries {
+        Some(canaries) => {
+            for item in items {
+                match item {
+                    syn::ForeignItem::Fn(syn::ForeignItemFn { sig: syn::Signature { ident,  .. }, ..}) => {
+                        externs.push(quote!(#item));
+                        for canary in canaries {
+                            let id = quote::format_ident!("{ident}{}", canary.to_string());
+                            externs.push(quote!(fn #id();));
+                        }
+                    },
+                    syn::ForeignItem::Static(_) => todo!("stabby doesn't support importing statics yet. Move this to a separate extern block, and use `#[link]`"),
+                    syn::ForeignItem::Type(_) => {externs.push(quote!(#item))},
+                    _ => todo!("Unsupported item in a stabby import: {}", quote!(#item)),
+                }
+            }
+        }
+        None => {
+            let st = crate::tl_mod();
+            for item in items {
+                match item {
+                    syn::ForeignItem::Fn(syn::ForeignItemFn { sig: syn::Signature { ident,  inputs, output, asyncness, unsafety, generics, .. }, vis, ..}) => {
+                        assert!(asyncness.is_none(), "the async keyword is not supported in non-canaried extern blocks");
+                        let stabbied = quote::format_ident!("{ident}_stabbied");
+                        let report = quote::format_ident!("{stabbied}_report");
+                        let signature = quote!(#unsafety #abi fn #generics(#inputs)#output);
+                        externs.push(quote!{
+                            fn #report() -> &'static #st::report::TypeReport;
+                            fn #stabbied(report: & #st::report::TypeReport) -> Option<#signature>;
+                        });
+                        interns.push(quote!{
+                            #vis static #ident: #st::checked_import::CheckedImport<#signature> = #st::checked_import::CheckedImport::new(#stabbied, #report, <#signature as #st::IStable>::REPORT);
+                        })
+                    },
+                    syn::ForeignItem::Static(_) => todo!("stabby doesn't support importing statics yet. Move this to a separate extern block, and use `#[link]`"),
+                    syn::ForeignItem::Type(_) => {externs.push(quote!(#item))},
+                    _ => todo!("Unsupported item in a stabby import: {}", quote!(#item)),
+                }
+            }
+        }
+    }
+    quote! {
+        #(#attrs)*
+        #[link(#link_args)]
+        #abi {
+            #(#externs)*
+        }
+        #(#interns)*
     }
 }
