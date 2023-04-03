@@ -57,8 +57,21 @@ Works on any function, including ones that would be FFI-unsafe. On top of adding
 
 The presence of these symbols can then be checked for by the linker when loading the shared library, preventing linkage when the loader requests canaries with incompatible versions.
 
-### `#[stabby::import(name="library", ...)]` (Unimplemented)
-The design for this is still in progress, but the final intent is to emulate `#[link(name = "library")]` while ensuring the presence of the appropriate canaries, or checking the report compatibility at first call.
+### `#[stabby::import(...)]`
+Annotating an `extern` block with this is equivalent to `#[link(...)]`, except the symbols will be lazy-initialized by using `<fn_name>_stabbied`, ensuring that the reports on the functions parameters match before letting you call it.
+
+If you want to handle potential mismatch errors without panicking, you can call `<fn_name>.as_ref()`, which will let you inspect the reports for `<fn_name>` in case of failure.
+
+### `#[stabby::import(canaries="rustc, opt_level", ...)]`
+Annotating an `extern` block with this is equivalent to `#[link(...)]`, but the canaries corresponding to your spec will be required for linkage to be possible. This mirrors `export(canaries)`, which always exports all available canaries, but you can choose which canaries you want to enable from the following set:
+- `paranoid`: enables all canaries, this is also what is selected if you use `canaries=""`.
+- `rustc`: enables the canary on `rustc` version (always up to the `commit` version).
+- `opt_level`: enables the canary on `opt_level` (necessary for `extern "rust" fn`, as optimization level may change the calling convention).
+- `target`: enables the canary on the compiler target triple which was used to build the objects.
+- `num_jobs` (paranoid): enables the canary on the number of jobs used to build the objects. This can affect optimizations, and thus might affect ABI (unproven).
+- `debug` (paranoid): enables the canary on whether the objects were built with debug symbols. The effects on ABI are unproven, but not excluded.
+- `host` (paranoid): enables the canary on the compiler host triple which was set by the compiler. The effects n ABI are unproven, but not excluded.
+- `none`: mostly here to let you fully disable canaries, at your own risks.
 
 ### `stabby::Library` (Unimplemented)
 A wrapper around `libloading::Library` that also exposes safe symbol getters which will fail if the canaries are absent, or in case of a report mismatch.
