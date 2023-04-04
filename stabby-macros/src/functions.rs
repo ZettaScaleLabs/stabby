@@ -161,9 +161,9 @@ impl CanarySpec {
         ("none", Self::NONE),
         ("rustc", Self::RUSTC),
         ("opt_level", Self::OPT_LEVEL),
-        ("debug", Self::DEBUG),
-        ("num_jobs", Self::NUM_JOBS),
         ("target", Self::TARGET),
+        ("num_jobs", Self::NUM_JOBS),
+        ("debug", Self::DEBUG),
         ("host", Self::HOST),
     ];
 }

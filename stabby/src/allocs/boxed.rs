@@ -17,9 +17,12 @@
 use crate::slice::SliceMut;
 use crate::str::StrMut;
 use crate::{self as stabby};
+use core::fmt::{Debug, Display};
+use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
 
 #[stabby::stabby]
+#[derive(Eq)]
 pub struct BoxedSlice<T> {
     start: &'static mut (),
     len: usize,
@@ -34,6 +37,21 @@ impl<T> BoxedSlice<T> {
         };
         core::mem::forget(self);
         r
+    }
+}
+impl<T: Debug> Debug for BoxedSlice<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+impl<T: PartialEq> PartialEq for BoxedSlice<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.deref() == other.deref()
+    }
+}
+impl<T: Hash> Hash for BoxedSlice<T> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.deref().hash(state);
     }
 }
 impl<T: Clone> Clone for BoxedSlice<T> {
@@ -76,7 +94,7 @@ impl<T> Drop for BoxedSlice<T> {
 }
 
 #[stabby::stabby]
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct BoxedStr {
     inner: BoxedSlice<u8>,
 }
@@ -108,5 +126,15 @@ impl From<Box<str>> for BoxedStr {
 impl From<BoxedStr> for Box<str> {
     fn from(value: BoxedStr) -> Self {
         unsafe { Box::from_raw(&mut *value.leak()) }
+    }
+}
+impl Debug for BoxedStr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Debug::fmt(self.deref(), f)
+    }
+}
+impl Display for BoxedStr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Display::fmt(self.deref(), f)
     }
 }
