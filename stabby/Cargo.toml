@@ -24,15 +24,17 @@ readme = { workspace = true }
 description = "A Stable ABI for Rust with compact sum-types."
 
 [features]
-default = ["std"]
+default = ["std", "libloading"]
 std = ["alloc"]
 alloc = ["stabby-abi/alloc"]
 unsafe_wakers = ["stabby-abi/unsafe_wakers"]
+libloading = ["dep:libloading"]
 
 [dependencies]
 stabby-abi = { path = "../stabby-abi/", version = "0.1.5" }
 
 lazy_static = "1.4.0"
+libloading = { version = "0.7", optional = true }
 rustversion = "1.0"
 
 [dev-dependencies]

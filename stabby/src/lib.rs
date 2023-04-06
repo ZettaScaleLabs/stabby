@@ -59,3 +59,11 @@ pub use crate::abi::closure;
 pub use crate::abi::{option, result, slice, str};
 
 pub use crate::abi::{AccessAs, IStable};
+
+#[cfg(feature = "libloading")]
+pub mod libloading {
+    pub struct Library {
+        #[cfg(any(unix, windows))]
+        inner: libloading::Library,
+    }
+}
