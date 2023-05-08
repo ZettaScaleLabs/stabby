@@ -73,8 +73,10 @@ Annotating an `extern` block with this is equivalent to `#[link(...)]`, but the 
 - `host` (paranoid): enables the canary on the compiler host triple which was set by the compiler. The effects n ABI are unproven, but not excluded.
 - `none`: mostly here to let you fully disable canaries, at your own risks.
 
-### `stabby::Library` (Unimplemented)
-A wrapper around `libloading::Library` that also exposes safe symbol getters which will fail if the canaries are absent, or in case of a report mismatch.
+### The `stabby::libloading::StabbyLibrary` trait
+Additional methods for `libloading::Library` that expose symbol getters which will fail if the canaries are absent, or in case of a report mismatch.
+
+These methods are still considered unsafe, but they will reduce the risks of accidentally loading ABI-incompatible code. Reports also act as a runtime type-check, reducing the risk of mistyping a symbol.
 
 ## Async
 Any implementation of `core::future::Future` on a stable type will work regardless of which side of the FFI-boundary that stable type was constructed. However, futures created by async blocks and async functions aren't ABI-stable, so they must be used through trait objects.
