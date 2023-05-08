@@ -28,7 +28,7 @@ default = ["std", "libloading"]
 std = ["alloc"]
 alloc = ["stabby-abi/alloc"]
 unsafe_wakers = ["stabby-abi/unsafe_wakers"]
-libloading = ["dep:libloading"]
+libloading = ["dep:libloading", "std"]
 
 [dependencies]
 stabby-abi = { path = "../stabby-abi/", version = "0.1.5" }
