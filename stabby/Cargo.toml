@@ -24,7 +24,7 @@ readme = { workspace = true }
 description = "A Stable ABI for Rust with compact sum-types."
 
 [features]
-default = ["std", "libloading"]
+default = ["std"]
 std = ["alloc"]
 alloc = ["stabby-abi/alloc"]
 unsafe_wakers = ["stabby-abi/unsafe_wakers"]
@@ -43,3 +43,7 @@ smol = "1.3"
 [[example]]
 name = "functions"
 crate-type = ["cdylib"]
+
+[[example]]
+name = "loader"
+required-features = ["libloading"]

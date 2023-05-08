@@ -11,6 +11,3 @@ fn main() {
         unstable_fn(&[1, 2, 3, 4]);
     }
 }
-
-#[cfg(not(feature = "libloading"))]
-fn main() {}
