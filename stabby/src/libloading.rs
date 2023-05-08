@@ -18,7 +18,7 @@ pub trait StabbyLibrary {
     /// # Safety
     /// The symbol on the other side of the FFI boundary cannot be type-checked, and may still have a different
     /// ABI than expected (although the canaries should greatly reduce that risk).
-    unsafe fn get_canaried<'a, T: crate::IStable>(
+    unsafe fn get_canaried<'a, T>(
         &'a self,
         symbol: &[u8],
     ) -> Result<libloading::Symbol<'a, T>, Box<dyn std::error::Error + Send + Sync>>;
@@ -80,7 +80,7 @@ impl StabbyLibrary for libloading::Library {
     /// # Safety
     /// The symbol on the other side of the FFI boundary cannot be type-checked, and may still have a different
     /// ABI than expected (although the canaries should greatly reduce that risk).
-    unsafe fn get_canaried<'a, T: crate::IStable>(
+    unsafe fn get_canaried<'a, T>(
         &'a self,
         symbol: &[u8],
     ) -> Result<libloading::Symbol<'a, T>, Box<dyn std::error::Error + Send + Sync>> {
@@ -92,7 +92,7 @@ impl StabbyLibrary for libloading::Library {
             canaries::CANARY_TARGET,
             canaries::CANARY_NUM_JOBS,
         ] {
-            if let Err(e) = self.get::<()>(&[symbol, suffix.as_bytes()].concat()) {
+            if let Err(e) = self.get::<extern "C" fn()>(&[symbol, suffix.as_bytes()].concat()) {
                 return Err(format!(
                     "Canary {symbol}{suffix} not found: {e}",
                     symbol = std::str::from_utf8_unchecked(symbol)
