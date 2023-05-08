@@ -14,7 +14,7 @@
 
 [package]
 name = "stabby"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }
@@ -31,10 +31,10 @@ unsafe_wakers = ["stabby-abi/unsafe_wakers"]
 libloading = ["dep:libloading", "std"]
 
 [dependencies]
-stabby-abi = { path = "../stabby-abi/", version = "0.1.5" }
+stabby-abi = { path = "../stabby-abi/", version = "0.1.6" }
 
 lazy_static = "1.4.0"
-libloading = { version = "0.7", optional = true }
+libloading = { version = "0.8", optional = true }
 rustversion = "1.0"
 
 [dev-dependencies]

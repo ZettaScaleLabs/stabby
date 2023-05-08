@@ -19,7 +19,7 @@ extern crate alloc;
 #[cfg(feature = "alloc")]
 mod allocs;
 
-pub use stabby_macros::{dynptr, export, import, stabby, vtable as vtmacro};
+pub use stabby_macros::{canary_suffixes, dynptr, export, import, stabby, vtable as vtmacro};
 
 use core::fmt::{Debug, Display};
 

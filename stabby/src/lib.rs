@@ -61,31 +61,4 @@ pub use crate::abi::{option, result, slice, str};
 pub use crate::abi::{AccessAs, IStable};
 
 #[cfg(all(feature = "libloading", any(unix, windows)))]
-pub mod libloading {
-    pub struct Library {
-        inner: libloading::Library,
-    }
-    impl From<libloading::Library> for Library {
-        fn from(value: libloading::Library) -> Self {
-            Library { inner: value }
-        }
-    }
-    impl Library {
-        const stabbied_suffix: &[u8] = b"_stabbied";
-        const report_suffix: &[u8] = b"_stabbied_report";
-        pub unsafe fn get_stabbied<'a, T: crate::IStable>(
-            &'a self,
-            symbol: &[u8],
-        ) -> Result<libloading::Symbol<'a, T>, Box<dyn std::error::Error + Send + Sync>> {
-            let stabbied = self
-                .inner
-                .get::<extern "C" fn(&crate::abi::report::TypeReport) -> Option<T>>(
-                    &[symbol, Self::stabbied_suffix].concat(),
-                )?;
-            match stabbied(T::REPORT) {
-                Some(f) => Ok(libloading::Symbol::from(f)),
-                None => 
-            }
-        }
-    }
-}
+pub mod libloading;

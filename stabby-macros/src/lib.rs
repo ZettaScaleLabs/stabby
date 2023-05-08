@@ -261,3 +261,14 @@ pub fn export(attrs: TokenStream, fn_spec: TokenStream) -> TokenStream {
 pub fn import(attrs: TokenStream, fn_spec: TokenStream) -> TokenStream {
     crate::functions::import(attrs, syn::parse(fn_spec).unwrap()).into()
 }
+
+#[proc_macro]
+pub fn canary_suffixes(_: TokenStream) -> TokenStream {
+    let mut stream = quote::quote!();
+    for (name, spec) in functions::CanarySpec::ARRAY.iter().skip(2) {
+        let id = quote::format_ident!("CANARY_{}", name.to_ascii_uppercase());
+        let suffix = spec.to_string();
+        stream.extend(quote::quote!(pub const #id: &'static str = #suffix;));
+    }
+    stream.into()
+}
