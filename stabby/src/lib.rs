@@ -18,7 +18,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-pub use stabby_abi::{dynptr, stabby, vtmacro as vtable};
+pub use stabby_abi::{dynptr, export, import, stabby, vtmacro as vtable};
 
 pub use stabby_abi as abi;
 
@@ -37,7 +37,7 @@ pub mod tuple;
 /// Futures can be ABI-stable if you wish hard enough
 #[cfg_attr(
     feature = "unsafe_wakers",
-    deprecated = "Warning! you are using the `stabby/unsafe_wakers` feature. This could cause UB if you poll a future received from another shared library! (this API isn't actually deprecated)"
+    deprecated = "Warning! you are using the `stabby/unsafe_wakers` feature. This could cause UB if you poll a future received from another shared library with mismatching ABI! (this API isn't actually deprecated)"
 )]
 pub mod future {
     pub use crate::abi::future::*;
@@ -59,3 +59,6 @@ pub use crate::abi::closure;
 pub use crate::abi::{option, result, slice, str};
 
 pub use crate::abi::{AccessAs, IStable};
+
+#[cfg(all(feature = "libloading", any(unix, windows)))]
+pub mod libloading;

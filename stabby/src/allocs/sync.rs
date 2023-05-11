@@ -18,13 +18,33 @@ use alloc::sync::{Arc, Weak};
 use stabby_abi::AccessAs;
 
 use crate::{self as stabby};
-use core::ops::Deref;
+use core::{
+    fmt::{Debug, Display},
+    hash::Hash,
+    ops::Deref,
+};
 
 #[stabby::stabby]
+#[derive(Eq)]
 pub struct ArcSlice<T> {
     start: &'static (),
     len: usize,
     marker: core::marker::PhantomData<Box<T>>,
+}
+impl<T: Debug> Debug for ArcSlice<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+impl<T: PartialEq> PartialEq for ArcSlice<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.deref() == other.deref()
+    }
+}
+impl<T: Hash> Hash for ArcSlice<T> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.deref().hash(state);
+    }
 }
 impl<T: Clone> Clone for ArcSlice<T> {
     fn clone(&self) -> Self {
@@ -38,6 +58,11 @@ impl<T> Deref for ArcSlice<T> {
     type Target = [T];
     fn deref(&self) -> &Self::Target {
         unsafe { core::slice::from_raw_parts(self.start as *const () as *const T, self.len) }
+    }
+}
+impl<T> From<Box<[T]>> for ArcSlice<T> {
+    fn from(value: Box<[T]>) -> Self {
+        Self::from(<Arc<[T]>>::from(value))
     }
 }
 impl<T> From<Arc<[T]>> for ArcSlice<T> {
@@ -121,9 +146,19 @@ impl<T> Drop for WeakSlice<T> {
 }
 
 #[stabby::stabby]
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ArcStr {
     inner: ArcSlice<u8>,
+}
+impl Debug for ArcStr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Debug::fmt(self.deref(), f)
+    }
+}
+impl Display for ArcStr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Display::fmt(self.deref(), f)
+    }
 }
 impl Deref for ArcStr {
     type Target = str;
@@ -134,6 +169,14 @@ impl Deref for ArcStr {
 impl From<Arc<str>> for ArcStr {
     fn from(value: Arc<str>) -> Self {
         let value: Arc<[u8]> = value.into();
+        Self {
+            inner: value.into(),
+        }
+    }
+}
+impl From<Box<str>> for ArcStr {
+    fn from(value: Box<str>) -> Self {
+        let value: Arc<[u8]> = value.into_boxed_bytes().into();
         Self {
             inner: value.into(),
         }

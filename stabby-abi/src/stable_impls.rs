@@ -496,22 +496,54 @@ mod cfgalloc {
     }
 }
 
+struct NameAggregator<L: IStable, R: IStable>(core::marker::PhantomData<(L, R)>);
+unsafe impl<L: IStable, R: IStable> IStable for NameAggregator<L, R> {
+    type Size = U0;
+    type Align = U1;
+    type ForbiddenValues = End;
+    type UnusedBits = End;
+    type HasExactlyOneNiche = B0;
+    const REPORT: &'static report::TypeReport = &report::TypeReport {
+        name: Str::new("signature"),
+        module: Str::new("stabby"),
+        fields: StableLike::new(Some(&report::FieldReport {
+            name: Str::new("_"),
+            ty: L::REPORT,
+            next_field: StableLike::new(Some(&report::FieldReport {
+                name: Str::new("_"),
+                ty: R::REPORT,
+                next_field: StableLike::new(None),
+            })),
+        })),
+        last_break: report::Version::NEVER,
+        tyty: report::TyTy::Struct,
+    };
+}
+macro_rules! union {
+    ($head: ident,) => {
+        $head
+    };
+    ($head: ident, $($tail: ident,)*) => {
+        NameAggregator<$head, union!($($tail,)*)>
+    };
+}
+
 macro_rules! fnstable {
     (-> $o: ident) => {
         unsafe impl<$o: IStable > IStable for extern "C" fn() -> $o {
-            same_as!(core::num::NonZeroUsize, "fn");
+            same_as!(core::num::NonZeroUsize, "extern \"C\" fn", $o);
         }
         unsafe impl<$o: IStable > IStable for unsafe extern "C" fn() -> $o {
-            same_as!(core::num::NonZeroUsize, "fn");
+            same_as!(core::num::NonZeroUsize, "unsafe extern \"C\" fn", $o);
         }
     };
     ($t: ident, $($tt: ident, )* -> $o: ident) => {
         unsafe impl< $o , $t, $($tt,)* > IStable for extern "C" fn($t, $($tt,)*) -> $o
         where $o : IStable, $t: IStable, $($tt: IStable,)* {
-            same_as!(core::num::NonZeroUsize, "fn");
+            same_as!(core::num::NonZeroUsize, "extern \"C\" fn", union!($o, $t, $($tt,)*));
         }
         unsafe impl< $o : IStable, $t: IStable, $($tt: IStable,)* > IStable for unsafe extern "C" fn($t, $($tt,)*) -> $o {
-            same_as!(core::num::NonZeroUsize, "fn");
+            same_as!(core::num::NonZeroUsize, "unsafe extern \"C\" fn", union!($o, $t, $($tt,)*));
         }
         fnstable!($($tt,)* -> $o);
     };

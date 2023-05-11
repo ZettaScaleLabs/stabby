@@ -19,7 +19,7 @@ extern crate alloc;
 #[cfg(feature = "alloc")]
 mod allocs;
 
-pub use stabby_macros::{dynptr, stabby, vtable as vtmacro};
+pub use stabby_macros::{canary_suffixes, dynptr, export, import, stabby, vtable as vtmacro};
 
 use core::fmt::{Debug, Display};
 
@@ -28,7 +28,7 @@ macro_rules! primitive_report {
     ($name: expr, $ty: ty) => {
         const REPORT: &'static $crate::report::TypeReport = &$crate::report::TypeReport {
             name: $crate::str::Str::new($name),
-            module: $crate::str::Str::new(core::stringify!(core::module_path!())),
+            module: $crate::str::Str::new(core::module_path!()),
             fields: $crate::StableLike::new(Some(&$crate::report::FieldReport {
                 name: $crate::str::Str::new("inner"),
                 ty: <$ty as $crate::IStable>::REPORT,
@@ -41,7 +41,7 @@ macro_rules! primitive_report {
     ($name: expr) => {
         const REPORT: &'static $crate::report::TypeReport = &$crate::report::TypeReport {
             name: $crate::str::Str::new($name),
-            module: $crate::str::Str::new(core::stringify!(core::module_path!())),
+            module: $crate::str::Str::new(core::module_path!()),
             fields: $crate::StableLike::new(None),
             last_break: $crate::report::Version::NEVER,
             tyty: $crate::report::TyTy::Struct,
@@ -280,6 +280,7 @@ impl<A, B> Clone for Union<A, B> {
     }
 }
 
+pub mod checked_import;
 pub mod enums;
 pub mod padding;
 pub mod result;

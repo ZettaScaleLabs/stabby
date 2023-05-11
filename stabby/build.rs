@@ -47,7 +47,7 @@ unsafe impl<Layout: IStable> IStable for CompilerVersion_{snake_version}<Layout>
 	type HasExactlyOneNiche = Layout::HasExactlyOneNiche;
 	const REPORT: &'static crate::abi::report::TypeReport = &crate::abi::report::TypeReport {{
 		name: crate::abi::str::Str::new("CompilerVersion_{snake_version}"),
-		module: crate::abi::str::Str::new(core::stringify!(core::module_path!())),
+		module: crate::abi::str::Str::new(core::module_path!()),
 		fields: crate::abi::StableLike::new(Some(&crate::abi::report::FieldReport {{
 			name: crate::abi::str::Str::new("inner"),
 			ty: <Layout as crate::abi::IStable>::REPORT,

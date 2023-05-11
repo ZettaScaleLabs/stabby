@@ -44,12 +44,39 @@ In order for `stabby::dynptr!(Box<dyn Traits + 'a>)` to have `Trait`'s methods, 
 `stabby::closure` exports the `CallN`, `CallMutN` and `CallOnceN` traits, where `N` (in `0..=9`) is the number of arguments, as ABI-stable equivalents of `Fn`, `FnMut` and `FnOnce` respectively.
 
 ## Functions
-For now, annotating a function with `#[stabby::stabby]` merely makes it `extern "C"` (but not `#[no_mangle]`) and checks its signature to ensure all exchanged types are marked with `stabby::abi::IStable`. You may also specify the calling convention of your choice.
+### `#[stabby::stabby]`
+Annotating a function with `#[stabby::stabby]` makes it `extern "C"` (but not `#[no_mangle]`) and checks its signature to ensure all exchanged types are marked with `stabby::abi::IStable`. You may also specify the calling convention of your choice.
 
-Future plans include:
-- `#[stabby::export]` will export a stably-mangled symbol which may be used to extract the function, but also obtain a report of its signature's layout.
-- `stabby` would include a function similar to `libloading::Library::get`, which would also check that the signature you specified for a symbol matches the one encoded by the exporter.
-- `#[stabby::import]` will act similarly to `#[link]`. Its exact behaviour is still to be defined, but the goal is to obtain the same reliability with shared-dependencies as what `stabby` will grant you with dynamically-loaded libraries.
+### `#[stabby::export]`
+Works just like `#[stabby::stabby]`, but will add `#[no_mangle]` to the annotated function, and produce two other no-mangle functions:
+- `extern "C" fn <fn_name>_stabbied(&stabby::abi::report::TypeReport) -> Option<...>`, will return `<fn_name>` as a function pointer if the type-report matches that of `<fn_name>`'s signature, ensuring that they indeed have the same signature.
+- `extern "C" fn <fn_name>_stabbied_report() -> &'static stabby::abi::report::TypeReport` will return `<fn_name>`'s type report, allowing debugging if the previous function returned `None`.
+
+### `#[stabby::export(canaries)]`
+Works on any function, including ones that would be FFI-unsafe. On top of adding `#[no_mangle]` to the original function, it will add a small set of `<fn_name>_<canary>` symbols to the produced shared libraries. These canaries include `rustc`'s version, the optimization level, and other properties that may cause the compiler to use a different ABI for `<fn_name>`.
+
+The presence of these symbols can then be checked for by the linker when loading the shared library, preventing linkage when the loader requests canaries with incompatible versions.
+
+### `#[stabby::import(...)]`
+Annotating an `extern` block with this is equivalent to `#[link(...)]`, except the symbols will be lazy-initialized by using `<fn_name>_stabbied`, ensuring that the reports on the functions parameters match before letting you call it.
+
+If you want to handle potential mismatch errors without panicking, you can call `<fn_name>.as_ref()`, which will let you inspect the reports for `<fn_name>` in case of failure.
+
+### `#[stabby::import(canaries="rustc, opt_level", ...)]`
+Annotating an `extern` block with this is equivalent to `#[link(...)]`, but the canaries corresponding to your spec will be required for linkage to be possible. This mirrors `export(canaries)`, which always exports all available canaries, but you can choose which canaries you want to enable from the following set:
+- `paranoid`: enables all canaries, this is also what is selected if you use `canaries=""`.
+- `rustc`: enables the canary on `rustc` version (always up to the `commit` version).
+- `opt_level`: enables the canary on `opt_level` (necessary for `extern "rust" fn`, as optimization level may change the calling convention).
+- `target`: enables the canary on the compiler target triple which was used to build the objects.
+- `num_jobs` (paranoid): enables the canary on the number of jobs used to build the objects. This can affect optimizations, and thus might affect ABI (unproven).
+- `debug` (paranoid): enables the canary on whether the objects were built with debug symbols. The effects on ABI are unproven, but not excluded.
+- `host` (paranoid): enables the canary on the compiler host triple which was set by the compiler. The effects n ABI are unproven, but not excluded.
+- `none`: mostly here to let you fully disable canaries, at your own risks.
+
+### The `stabby::libloading::StabbyLibrary` trait
+Additional methods for `libloading::Library` that expose symbol getters which will fail if the canaries are absent, or in case of a report mismatch.
+
+These methods are still considered unsafe, but they will reduce the risks of accidentally loading ABI-incompatible code. Reports also act as a runtime type-check, reducing the risk of mistyping a symbol.
 
 ## Async
 Any implementation of `core::future::Future` on a stable type will work regardless of which side of the FFI-boundary that stable type was constructed. However, futures created by async blocks and async functions aren't ABI-stable, so they must be used through trait objects.

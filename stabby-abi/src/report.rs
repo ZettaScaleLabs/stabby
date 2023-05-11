@@ -16,6 +16,20 @@ impl Version {
         dirty: false,
     };
 }
+impl core::fmt::Display for Version {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            major,
+            minor,
+            patch,
+            dirty,
+        } = self;
+        if *dirty {
+            write!(f, "*")?;
+        }
+        write!(f, "{major}.{minor}.{patch}")
+    }
+}
 
 type NextField = StableLike<Option<&'static FieldReport>, usize>;
 
@@ -27,6 +41,36 @@ pub struct TypeReport {
     pub fields: NextField,
     pub last_break: Version,
     pub tyty: TyTy,
+}
+
+impl core::fmt::Display for TypeReport {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            name,
+            module,
+            last_break,
+            tyty,
+            ..
+        } = self;
+        write!(f, "{tyty:?} {module} :: {name} (last_break{last_break}) {{")?;
+        for FieldReport { name, ty, .. } in self.fields() {
+            write!(f, "{name}: {ty}, ")?
+        }
+        write!(f, "}}")
+    }
+}
+
+impl TypeReport {
+    pub fn is_compatible(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.module == other.module
+            && self.last_break == other.last_break
+            && self.tyty == other.tyty
+            && self
+                .fields()
+                .zip(other.fields())
+                .all(|(s, o)| s.name == o.name && s.ty.is_compatible(o.ty))
+    }
 }
 
 #[crate::stabby]

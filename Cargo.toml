@@ -20,4 +20,4 @@ authors = ["Pierre Avital <pierre.avital@gmail.com>"]
 license = " EPL-2.0 OR Apache-2.0"
 categories = ["development-tools::ffi", "no-std::no-alloc"]
 repository = "https://github.com/p-avital/stabby"
-readme = "README.md"
+readme = "stabby/README.md"

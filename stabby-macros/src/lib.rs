@@ -85,7 +85,7 @@ pub fn stabby(stabby_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
             syn::Data::Union(data) => unions::stabby(attrs, vis, ident, generics, data),
         }
     } else if let Ok(fn_spec) = syn::parse(tokens.clone()) {
-        functions::stabby(stabby_attrs, fn_spec)
+        functions::stabby(syn::parse(stabby_attrs).unwrap(), fn_spec)
     } else if let Ok(trait_spec) = syn::parse(tokens.clone()) {
         traits::stabby(trait_spec)
     } else if let Ok(async_block) = syn::parse::<syn::ExprAsync>(tokens) {
@@ -250,4 +250,25 @@ pub(crate) fn report(
         };
     }
     (report, report_bounds)
+}
+
+#[proc_macro_attribute]
+pub fn export(attrs: TokenStream, fn_spec: TokenStream) -> TokenStream {
+    crate::functions::export(attrs, syn::parse(fn_spec).unwrap()).into()
+}
+
+#[proc_macro_attribute]
+pub fn import(attrs: TokenStream, fn_spec: TokenStream) -> TokenStream {
+    crate::functions::import(attrs, syn::parse(fn_spec).unwrap()).into()
+}
+
+#[proc_macro]
+pub fn canary_suffixes(_: TokenStream) -> TokenStream {
+    let mut stream = quote::quote!();
+    for (name, spec) in functions::CanarySpec::ARRAY.iter().skip(2) {
+        let id = quote::format_ident!("CANARY_{}", name.to_ascii_uppercase());
+        let suffix = spec.to_string();
+        stream.extend(quote::quote!(pub const #id: &'static str = #suffix;));
+    }
+    stream.into()
 }
