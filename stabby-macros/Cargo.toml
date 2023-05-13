@@ -9,12 +9,12 @@
 # SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
 #
 # Contributors:
-#   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
+#   Pierre Avital, <pierre.avital@me.com>
 #
 
 [package]
 name = "stabby-macros"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }

@@ -9,12 +9,12 @@
 # SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
 #
 # Contributors:
-#   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
+#   Pierre Avital, <pierre.avital@me.com>
 #
 
 [package]
 name = "stabby-abi"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }
@@ -34,4 +34,4 @@ alloc = []
 unsafe_wakers = []
 
 [dependencies]
-stabby-macros = { path = "../stabby-macros/", version = "0.1.4" }
+stabby-macros = { path = "../stabby-macros/", version = "0.1.5" }

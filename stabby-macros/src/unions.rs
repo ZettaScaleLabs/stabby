@@ -9,7 +9,7 @@
 // SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
 //
 // Contributors:
-//   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
+//   Pierre Avital, <pierre.avital@me.com>
 //
 
 use proc_macro2::TokenStream;
