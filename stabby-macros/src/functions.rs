@@ -110,7 +110,7 @@ pub fn stabby(attrs: Attrs, fn_spec: syn::ItemFn) -> proc_macro2::TokenStream {
         {
             quote!(#abi)
         }
-        _ => panic!("stabby traits must use a stable ABI"),
+        _ => panic!("stabby functions must use a stable calling convention"),
     };
     let mut stable_asserts = Vec::new();
     if let syn::ReturnType::Type(_, ty) = output {
@@ -407,18 +407,35 @@ pub fn import(
     let syn::ItemForeignMod {
         attrs, abi, items, ..
     } = &fn_decl;
+    let st = crate::tl_mod();
+    let modid = quote::format_ident!("_stabbymod_{}", rand::random::<u128>());
     let mut externs = Vec::new();
     let mut interns = Vec::new();
+    let mut intern_ids = Vec::new();
     match canaries {
         Some(canaries) => {
             for item in items {
                 match item {
-                    syn::ForeignItem::Fn(syn::ForeignItemFn { sig: syn::Signature { ident,  .. }, ..}) => {
+                    syn::ForeignItem::Fn(syn::ForeignItemFn { sig:  syn::Signature { ident,  generics, inputs, output,   .. }, vis, ..}) => {
                         externs.push(quote!(#item));
+                        let mut canary_ids = Vec::new();
                         for canary in canaries {
                             let id = quote::format_ident!("{ident}{}", canary.to_string());
-                            externs.push(quote!(fn #id();));
+                            externs.push(quote!(pub(crate) fn #id();));
+                            canary_ids.push(id);
                         }
+                        let canaries_fn = quote::format_ident!("{ident}_canaries_fn");
+                        let canaried = quote::format_ident!("{ident}_canaried");
+                        let sig = quote!(unsafe #abi fn #generics(#inputs)#output);
+                        interns.push(quote!{
+                            extern "C" fn #canaries_fn() {
+                                unsafe{#(#canary_ids();)*}
+                            }
+
+                            #[allow(non_upper_case_globals)]
+                            pub static #canaried: #st::checked_import::CanariedImport<#sig> = #st::checked_import::CanariedImport::new(#ident as #sig, #canaries_fn as extern "C" fn());
+                        });
+                        intern_ids.push(quote!(#vis use #modid::#canaried as #ident;))
                     },
                     syn::ForeignItem::Static(_) => todo!("stabby doesn't support importing statics yet. Move this to a separate extern block, and use `#[link]`"),
                     syn::ForeignItem::Type(_) => {externs.push(quote!(#item))},
@@ -427,7 +444,6 @@ pub fn import(
             }
         }
         None => {
-            let st = crate::tl_mod();
             for item in items {
                 match item {
                     syn::ForeignItem::Fn(syn::ForeignItemFn { sig: syn::Signature { ident,  inputs, output, asyncness, unsafety, generics, .. }, vis, ..}) => {
@@ -440,8 +456,10 @@ pub fn import(
                             fn #stabbied(report: & #st::report::TypeReport) -> Option<#signature>;
                         });
                         interns.push(quote!{
-                            #vis static #ident: #st::checked_import::CheckedImport<#signature> = #st::checked_import::CheckedImport::new(#stabbied, #report, <#signature as #st::IStable>::REPORT);
-                        })
+                            #[allow(non_upper_case_globals)]
+                            pub static #ident: #st::checked_import::CheckedImport<#signature> = #st::checked_import::CheckedImport::new(#stabbied, #report, <#signature as #st::IStable>::REPORT);
+                        });
+                        intern_ids.push(quote!(#vis use #modid::#ident;));
                     },
                     syn::ForeignItem::Static(_) => todo!("stabby doesn't support importing statics yet. Move this to a separate extern block, and use `#[link]`"),
                     syn::ForeignItem::Type(_) => {externs.push(quote!(#item))},
@@ -451,11 +469,14 @@ pub fn import(
         }
     }
     quote! {
-        #(#attrs)*
-        #[link(#link_args)]
-        #abi {
-            #(#externs)*
+        mod #modid {
+            #(#attrs)*
+            #[link(#link_args)]
+            #abi {
+                #(#externs)*
+            }
+            #(#interns)*
         }
-        #(#interns)*
+        #(#intern_ids)*
     }
 }

@@ -1,0 +1,8 @@
+[package]
+name = "dynlinkage"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+stabby = { path = "../../stabby/" }
+library = { path = "../library/" }  # This ensures proper compilation order

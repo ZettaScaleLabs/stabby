@@ -28,6 +28,7 @@ proc-macro2 = "1.0"
 proc-macro-crate = "1.3"
 quote = "1.0"
 syn = { version = "1.0", features = ["full"] }
+rand = "0.8.5"
 
 [lib]
 proc-macro = true

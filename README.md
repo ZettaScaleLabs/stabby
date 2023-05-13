@@ -1,7 +1,20 @@
 # A Stable ABI for Rust with compact sum-types
 `stabby` is your one-stop-shop to create stable binary interfaces for your shared libraries easily, without having your sum-types (enums) explode in size.
 
-Your main vector of interraction with `stabby` will be the `#[stabby::stabby]` proc-macro, with which you can annotate a lot of things:
+Your main vector of interraction with `stabby` will be the `#[stabby::stabby]` proc-macro, with which you can annotate a lot of things.
+
+## Why would I _want_ a stable ABI? And what even _is_ and ABI?
+ABI stands for _Application Binary Interface_, and is like API's more detail focused sibbling. While an API defines what type of data a function expects, and what properties these types should have; ABI defines _how_ this data should be laid out in memory, and how a function call even works.
+
+How data is laid out in memory is often called "representation": field ordering, how variants of enums are distinguished, padding, size... In order to communicate using certain types, two software units _must_ agree on what these types look like in memory.
+
+Function calls are also highly complex under the hood (although it's rare for developers to need to think about them): is the callee or caller responsible for protecting the caller's register from callee's operations? In which registers / order on the stack should arguments be passed? What CPU instruction is used to actually trigger the call? A set of replies to these questions (and a few more) is called "calling convention".
+
+In Rust, unless you explicitly select a known representation for your types through `#[repr(_)]`, or an explicit calling convention for your functions with `extern "_"`, the compiler is free to do whatever it pleases with these aspects of your software: the process by which it does that is explicitly unstable, and depends on your compiler version, the optimization level you selected, some llama's mood in a whool farm near Berkshire... who knows?
+
+The problem with that comes when dynamic linkage is involved: since the ABI for most things in Rust is unstable, software units (such as a dynamic library and the executable that requires it) that have been built through different compiler calls may disagree on these decisions about ABI. Concretely, this could mean that your executable thinks the leftmost 8 bytes of `Vec<Potato>` is the pointer to the heap allocation, while the library believes them to be its length. This could also mean the library thinks it's free to clobber registers when its functions are called, while the executable relied on it to save them and restore them before returning.
+
+`stabby` seeks to help you solve these issues by helping you pin the ABI for a subset of your program, while helping you retain some of the layout optimizations `rustc` provides when using its unstable ABI. On top of this, stabby allows you to annotate function exports and imports in a way that also serves as a check of your dependency versionning for types that are `stabby::abi::IStable`.
 
 ## Structures
 When you annotate structs with `#[stabby::stabby]`, two things happen:
@@ -24,18 +37,16 @@ Due to limitations of the trait solver, `#[repr(stabby)]` enums have a few paper
 - Should no niche be found, the smallest of the two types is shifted right by its alignment, and the process is attempted again. This shifting process stops if the union would become bigger, or at the 8th time it has been attempted. If the process stops before a niche is found, a single bit will be used as the determinant (shifting the union right by its own alignment, with `1` representing `Ok`).
 
 ## Unions
-If you want to make your own internally tagged unions, you can tag them with `#[stabby::stabby]` to let `stabby` check that you only used stable variants, and let it know the size and alignment of your unions. Note that `stabby` will consider that unions have no niches.
+If you want to make your own internally tagged unions, you can tag them with `#[stabby::stabby]` to let `stabby` check that you only used stable variants, and let it know the size and alignment of your unions. Note that `stabby` will always consider that unions have no niches.
 
 ## Traits
 When you annotate a trait with `#[stabby::stabby]`, an ABI-stable vtable is generated for it. You can then use any of the following type equivalence:
-- `&'a dyn Traits` → `DynRef<'a, vtable!(Traits)>`
-- `&'a mut dyn Traits` → `Dyn<&'a mut (), vtable!(Traits)>`
-- `Box<dyn Traits + 'a>` → `Dyn<'a, Box<()>, vtable!(Traits)>`
-- `Arc<dyn Traits + 'a>` → `Dyn<'a, Arc<()>, vtable!(Traits)>`
+- `&'a dyn Traits` → `DynRef<'a, vtable!(Traits)>` __or__ `dynptr!(&'a dyn Trait)`
+- `&'a mut dyn Traits` → `Dyn<&'a mut (), vtable!(Traits)>` __or__ `dynptr!(&'a mut dyn Traits)`
+- `Box<dyn Traits + 'a>` → `Dyn<'a, Box<()>, vtable!(Traits)>` __or__ `dynptr!(Box<dyn Traits + 'a>)`
+- `Arc<dyn Traits + 'a>` → `Dyn<'a, Arc<()>, vtable!(Traits)>` __or__ `dynptr!(Arc<dyn Traits + 'a>)`
 
-Note that `vtable!(Traits)` supports any number of traits: `vtable!(TraitA + TraitB<Output = u8>)` is perfectly valid, but ordering must remain consistent.
-
-Alternatively, you can use `stabby::dynptr!(Box<dyn Traits + 'a>)`.
+Note that `vtable!(Traits)` and `dynptr!(..dyn Traits..)` support any number of traits: `vtable!(TraitA + TraitB<Output = u8>)` or `dynptr!(Box<dyn TraitA + TraitB<Output = u8>>)` are perfectly valid, but ordering must remain consistent.
 
 However, the vtables generated by stabby will not take supertraits into account.
 
@@ -70,7 +81,7 @@ Annotating an `extern` block with this is equivalent to `#[link(...)]`, but the 
 - `target`: enables the canary on the compiler target triple which was used to build the objects.
 - `num_jobs` (paranoid): enables the canary on the number of jobs used to build the objects. This can affect optimizations, and thus might affect ABI (unproven).
 - `debug` (paranoid): enables the canary on whether the objects were built with debug symbols. The effects on ABI are unproven, but not excluded.
-- `host` (paranoid): enables the canary on the compiler host triple which was set by the compiler. The effects n ABI are unproven, but not excluded.
+- `host` (paranoid): enables the canary on the compiler host triple which was set by the compiler. The effects on ABI are unproven, but not excluded.
 - `none`: mostly here to let you fully disable canaries, at your own risks.
 
 ### The `stabby::libloading::StabbyLibrary` trait
@@ -81,14 +92,14 @@ These methods are still considered unsafe, but they will reduce the risks of acc
 ## Async
 Any implementation of `core::future::Future` on a stable type will work regardless of which side of the FFI-boundary that stable type was constructed. However, futures created by async blocks and async functions aren't ABI-stable, so they must be used through trait objects.
 
-`stabby` supports futures through the `stabby::future::Future` trait. Async functions are turned by #[stabby::stabby] into functions that return a `Dyn<Box<()>, vtable!(stabby::future::Future + Send + Sync)>` (the `Send` and `Sync` bounds may be removed by using `#[stabby::stabby(unsync, unsend)]`), which itself implements `core::future::Future`.
+`stabby` supports futures through the `stabby::future::Future` trait. Async functions are turned by `#[stabby::stabby]` into functions that return a `Dyn<Box<()>, vtable!(stabby::future::Future + Send + Sync)>` (the `Send` and `Sync` bounds may be removed by using `#[stabby::stabby(unsync, unsend)]`), which itself implements `core::future::Future`.
 
 `stabby` doesn't support async traits yet, but you can use the following pattern to implement them:
 ```rust
 use stabby::{slice::SliceMut, future::DynFuture};
 #[stabby::stabby]
 pub trait AsyncRead {
-	extern "C" fn read<'a>(&'a mut self, buffer: SliceMut<'a, [u8]>) -> DynFuture<'a, usize>;
+	fn read<'a>(&'a mut self, buffer: SliceMut<'a, [u8]>) -> DynFuture<'a, usize>;
 }
 impl MyAsyncTrait for SocketReader {
 	extern "C" fn read<'a>(&'a mut self, mut buffer: SliceMut<'a, [u8]>) -> DynFuture<'a, usize> {

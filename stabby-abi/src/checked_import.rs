@@ -1,8 +1,38 @@
-use core::sync::atomic::{AtomicU8, Ordering};
+use core::{
+    ops::Deref,
+    sync::atomic::{AtomicU8, Ordering},
+};
+#[crate::stabby]
+pub struct CanariedImport<F> {
+    result: F,
+    checked: AtomicU8,
+    canary: extern "C" fn(),
+}
+unsafe impl<F> Send for CanariedImport<F> {}
+unsafe impl<F> Sync for CanariedImport<F> {}
+impl<F> CanariedImport<F> {
+    pub const fn new(source: F, canary_caller: extern "C" fn()) -> Self {
+        Self {
+            result: source,
+            checked: AtomicU8::new(0),
+            canary: canary_caller,
+        }
+    }
+}
+impl<F> Deref for CanariedImport<F> {
+    type Target = F;
+    fn deref(&self) -> &Self::Target {
+        if self.checked.swap(1, Ordering::Relaxed) == 0 {
+            (self.canary)()
+        }
+        &self.result
+    }
+}
+
 #[crate::stabby]
 pub struct CheckedImport<F> {
-    checked: AtomicU8,
     result: core::cell::UnsafeCell<core::mem::MaybeUninit<F>>,
+    checked: AtomicU8,
     checker: unsafe extern "C" fn(&crate::report::TypeReport) -> Option<F>,
     get_report: unsafe extern "C" fn() -> &'static crate::report::TypeReport,
     local_report: &'static crate::report::TypeReport,

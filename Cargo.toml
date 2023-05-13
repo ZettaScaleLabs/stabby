@@ -13,7 +13,14 @@
 #
 
 [workspace]
-members = ["stabby-macros", "stabby", "stabby-abi"]
+members = [
+	"stabby-macros",
+	"stabby",
+	"stabby-abi",
+	"examples/library",
+	"examples/libloading",
+	"examples/dynlinkage",
+]
 
 [workspace.package]
 authors = ["Pierre Avital <pierre.avital@gmail.com>"]

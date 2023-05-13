@@ -1,4 +1,3 @@
-#[cfg(feature = "libloading")]
 fn main() {
     use stabby::libloading::StabbyLibrary;
     unsafe {
