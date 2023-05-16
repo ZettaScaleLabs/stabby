@@ -13,8 +13,8 @@
 //
 
 fn main() {
-    let dir = std::env::var("PROFILE").unwrap();
-    panic!(
+    let Ok(dir) = std::env::var("PROFILE") else { return };
+    println!(
         "cargo:rustc-link-search=native={}",
         [".", "target", &dir]
             .into_iter()
