@@ -13,5 +13,13 @@
 //
 
 fn main() {
-    println!("cargo:rustc-link-search=native=./target/debug");
+    let dir = std::env::var("PROFILE").unwrap();
+    panic!(
+        "cargo:rustc-link-search=native={}",
+        [".", "target", &dir]
+            .into_iter()
+            .collect::<std::path::PathBuf>()
+            .to_str()
+            .unwrap()
+    );
 }
