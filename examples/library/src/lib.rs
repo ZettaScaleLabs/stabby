@@ -12,5 +12,12 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-#![allow(clippy::too_many_arguments)]
-stabby_macros::gen_closures_impl!();
+#[stabby::export]
+pub extern "C" fn stable_fn(v: u8) {
+    println!("{v}")
+}
+
+#[stabby::export(canaries)]
+pub extern "C" fn unstable_fn(v: &[u8]) {
+    println!("{v:?}")
+}

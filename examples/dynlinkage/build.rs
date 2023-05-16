@@ -12,5 +12,14 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-#![allow(clippy::too_many_arguments)]
-stabby_macros::gen_closures_impl!();
+fn main() {
+    let Ok(dir) = std::env::var("PROFILE") else { return };
+    println!(
+        "cargo:rustc-link-search=native={}",
+        [".", "target", &dir]
+            .into_iter()
+            .collect::<std::path::PathBuf>()
+            .to_str()
+            .unwrap()
+    );
+}

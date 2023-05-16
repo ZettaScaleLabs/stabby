@@ -9,7 +9,7 @@
 // SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
 //
 // Contributors:
-//   ZettaScale Zenoh Team, <zenoh@zettascale.tech>
+//   Pierre Avital, <pierre.avital@me.com>
 //
 
 use std::ops::Deref;
@@ -240,7 +240,7 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
                         panic!("generic methods are not trait object safe")
                     }
                     let abi = match abi {
-                        Some(syn::Abi { name: None, .. }) => {
+                        Some(syn::Abi { name: None, .. }) | None => {
                             quote!(extern "C")
                         }
                         Some(syn::Abi {
@@ -253,7 +253,7 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
                         {
                             quote!(#abi)
                         }
-                        _ => panic!("stabby traits must use a stable ABI"),
+                        _ => panic!("stabby trait functions must use a stable calling convention, `{ident}` doesn't"),
                     };
                     let mut inputs = inputs.iter();
                     let receiver = match inputs.next() {

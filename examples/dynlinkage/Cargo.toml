@@ -13,22 +13,10 @@
 #
 
 [package]
-name = "stabby-macros"
-version = "0.1.5"
+name = "dynlinkage"
+version = "0.1.0"
 edition = "2021"
-authors = { workspace = true }
-license = { workspace = true }
-categories = { workspace = true }
-repository = { workspace = true }
-readme = { workspace = true }
-description = "the macros that make working with stabby possible, you shouldn't add this crate to your dependencies, only `stabby`."
 
 [dependencies]
-proc-macro2 = "1.0"
-proc-macro-crate = "1.3"
-quote = "1.0"
-syn = { version = "1.0", features = ["full"] }
-rand = "0.8.5"
-
-[lib]
-proc-macro = true
+stabby = { path = "../../stabby/" }
+library = { path = "../library/" }  # This ensures proper compilation order
