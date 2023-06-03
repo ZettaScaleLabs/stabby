@@ -14,7 +14,7 @@
 
 [package]
 name = "stabby-abi"
-version = "0.1.7"
+version = "1.0.0"
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }
@@ -34,4 +34,4 @@ alloc = []
 unsafe_wakers = []
 
 [dependencies]
-stabby-macros = { path = "../stabby-macros/", version = "0.1.5" }
+stabby-macros = { path = "../stabby-macros/", version = "1.0.0" }

@@ -15,7 +15,7 @@
 use crate::{str::Str, StableLike};
 
 #[crate::stabby]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Version {
     pub major: u16,
     pub minor: u16,
@@ -73,6 +73,17 @@ impl core::fmt::Display for TypeReport {
         write!(f, "}}")
     }
 }
+impl core::hash::Hash for TypeReport {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.module.hash(state);
+        for field in self.fields() {
+            field.hash(state);
+        }
+        self.last_break.hash(state);
+        self.tyty.hash(state);
+    }
+}
 
 impl TypeReport {
     pub fn is_compatible(&self, other: &Self) -> bool {
@@ -89,7 +100,7 @@ impl TypeReport {
 
 #[crate::stabby]
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum TyTy {
     Struct,
     Enum(Str<'static>),
@@ -102,6 +113,12 @@ pub struct FieldReport {
     pub name: Str<'static>,
     pub ty: &'static TypeReport,
     pub next_field: NextField,
+}
+impl core::hash::Hash for FieldReport {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.ty.hash(state);
+    }
 }
 
 impl TypeReport {

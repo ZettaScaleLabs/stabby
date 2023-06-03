@@ -12,7 +12,9 @@ Function calls are also highly complex under the hood (although it's rare for de
 
 In Rust, unless you explicitly select a known representation for your types through `#[repr(_)]`, or an explicit calling convention for your functions with `extern "_"`, the compiler is free to do whatever it pleases with these aspects of your software: the process by which it does that is explicitly unstable, and depends on your compiler version, the optimization level you selected, some llama's mood in a whool farm near Berkshire... who knows?
 
-The problem with that comes when dynamic linkage is involved: since the ABI for most things in Rust is unstable, software units (such as a dynamic library and the executable that requires it) that have been built through different compiler calls may disagree on these decisions about ABI. Concretely, this could mean that your executable thinks the leftmost 8 bytes of `Vec<Potato>` is the pointer to the heap allocation, while the library believes them to be its length. This could also mean the library thinks it's free to clobber registers when its functions are called, while the executable relied on it to save them and restore them before returning.
+The problem with that comes when dynamic linkage is involved: since the ABI for most things in Rust is unstable, software units (such as a dynamic library and the executable that requires it) that have been built through different compiler calls may disagree on these decisions about ABI, even though there's no way for the linker to know that they did.
+
+Concretely, this could mean that your executable thinks the leftmost 8 bytes of `Vec<Potato>` is the pointer to the heap allocation, while the library believes them to be its length. This could also mean the library thinks it's free to clobber registers when its functions are called, while the executable relied on it to save them and restore them before returning.
 
 `stabby` seeks to help you solve these issues by helping you pin the ABI for a subset of your program, while helping you retain some of the layout optimizations `rustc` provides when using its unstable ABI. On top of this, stabby allows you to annotate function exports and imports in a way that also serves as a check of your dependency versionning for types that are `stabby::abi::IStable`.
 
@@ -27,8 +29,8 @@ When you annotate an enum with `#[stabby::stabby]`, you may select an existing s
 Note that `#[repr(stabby)]` does lose you the ability to pattern-match.
 
 Due to limitations of the trait solver, `#[repr(stabby)]` enums have a few papercuts:
-- Compilation times suffer from `#[repr(stabby)]` enums: on my machine, adding one typically adds about one second to compilation time.
-- Additional trait bounds are required when writing `impl`-blocks generic enums. They will always be of the form of one or multiple `A: stabby::abi::IDiscriminantProvider<B>` bounds (although `rustc`'s error may suggest more complex tuples, the 2 element tuple will always be the one you should use).
+- Compilation times suffer from `#[repr(stabby)]` enums.
+- Additional trait bounds are required when writing `impl`-blocks for generic enums. They will always be of the form of one or multiple `A: stabby::abi::IDiscriminantProvider<B>` bounds (although `rustc`'s error may suggest more complex bounds, the bounds should always be of this `IDiscriminantProvider` shape).
 
 `#[repr(stabby)]` enums are implemented as a balanced binary tree of `stabby::result::Result<Ok, Err>`, so discriminants are always computed between two types through the following process:
 - If some of `Err`'s forbidden values (think `0` for non-zero types) fit inside the bits that `Ok` doesn't care for, that value is used to signify that we are in the `Ok` variant.

@@ -126,13 +126,20 @@ fn dyn_traits() {
     let mut dyned = <stabby::dynptr!(
         Box<dyn Send + MyTrait2 + MyTrait3<Box<()>, A = u8, B = u8> + Sync + MyTrait<Output = u8>>
     )>::from(boxed);
-    assert_eq!(dyned.downcast_ref::<u8>(), Some(&6));
+    assert_eq!(unsafe { dyned.downcast_ref::<u8>() }, Some(&6));
     assert_eq!(dyned.do_stuff(&0), &6);
     assert_eq!(dyned.gen_stuff(), 6);
     assert_eq!(dyned.gen_stuff3(Box::new(())), 6);
-    assert!(dyned.downcast_ref::<u16>().is_none());
+    assert!(unsafe { dyned.downcast_ref::<u16>() }.is_none());
     fn trait_assertions<T: Send + Sync + stabby::abi::IStable>(_t: T) {}
     trait_assertions(dyned);
+    let boxed = Box::new(6u8);
+    let dyned = <stabby::dynptr!(
+        Box<dyn MyTrait2 + stabby::Any + MyTrait3<Box<()>, A = u8, B = u8> + Send>
+    )>::from(boxed);
+    let dyned: stabby::dynptr!(Box<dyn MyTrait2 + stabby::Any + Send>) = dyned.into_super();
+    assert_eq!(dyned.stable_downcast_ref::<u8, _>(), Some(&6));
+    assert!(dyned.stable_downcast_ref::<u16, _>().is_none());
 }
 
 #[test]

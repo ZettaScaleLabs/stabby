@@ -148,6 +148,7 @@ pub trait IUnsignedBase {
 pub struct Lesser;
 pub struct Equal;
 pub struct Greater;
+
 pub trait IUnsigned: IUnsignedBase {
     const U128: u128;
     const USIZE: usize;
@@ -174,6 +175,7 @@ pub trait IUnsigned: IUnsignedBase {
     type NextMultipleOf<T: IPowerOf2>: IUnsigned;
     type Cmp<T: IUnsigned>;
 }
+
 pub trait IPowerOf2: IUnsigned {
     type Log2: IUnsigned;
     type Min<T: IPowerOf2>: IPowerOf2;
