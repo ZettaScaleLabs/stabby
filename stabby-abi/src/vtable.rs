@@ -34,8 +34,8 @@ pub struct T<T>(T);
 #[stabby::stabby]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct VTable<Head, Tail = VtDrop> {
-    pub head: Head,
     pub tail: Tail,
+    pub head: Head,
 }
 
 pub trait CompoundVt {
@@ -179,5 +179,15 @@ impl<Head, Tail> From<crate::vtable::VtSync<VtSend<VTable<Head, Tail>>>>
 impl<Head, Tail> From<crate::vtable::VtSync<VTable<Head, Tail>>> for VTable<Head, Tail> {
     fn from(value: VtSync<VTable<Head, Tail>>) -> Self {
         value.0
+    }
+}
+
+#[stabby::stabby]
+pub trait Any {
+    extern "C" fn report(&self) -> &'static crate::report::TypeReport;
+}
+impl<T: crate::IStable> Any for T {
+    extern "C" fn report(&self) -> &'static crate::report::TypeReport {
+        Self::REPORT
     }
 }

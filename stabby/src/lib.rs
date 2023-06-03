@@ -58,7 +58,7 @@ pub mod future {
 pub use crate::abi::closure;
 pub use crate::abi::{option, result, slice, str};
 
-pub use crate::abi::{AccessAs, IStable};
+pub use crate::abi::{vtable::Any, AccessAs, IStable, IntoSuperTrait};
 
 #[cfg(all(feature = "libloading", any(unix, windows)))]
 pub mod libloading;

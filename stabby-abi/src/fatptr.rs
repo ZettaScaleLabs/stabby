@@ -94,13 +94,43 @@ impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
     pub fn vtable(&self) -> &Vt {
         self.vtable
     }
+
+    /// Allows casting a `dyn A + B` into `dyn A`.
+    ///
+    /// Note that you can only remove the outermost (rightmost in dyn syntax) trait at a time,
+    /// except `Send` and `Sync` that may both be kept, or both be removed.
+    pub fn into_super<Super>(self) -> Super
+    where
+        Self: IntoSuperTrait<Super>,
+    {
+        IntoSuperTrait::into_super(self)
+    }
     /// Downcasts the reference based on vtable equality.
-    /// This implies that this downcast will always yield `None` when attempting to downcast values constructed accross an FFI.
-    pub fn downcast<T>(&self) -> Option<&T>
+    ///
+    /// This implies that this downcast will always yield `None` when attempting to downcast
+    /// values constructed accross an FFI.
+    ///
+    /// # Safety
+    /// This may have false positives if all of the following applies:
+    /// - `self` was built from `&U`, within the same FFI-boundary,
+    /// - `T` and `U` have identical implementations for all methods of the vtable,
+    /// - the compiler chose to merge these implementations, making `T` and `U` share
+    ///   their function pointers.
+    ///
+    /// While all of these factors aligning is unlikely, you should be aware of this if you
+    /// plan on using methods of `T` that wouldn't be valid for `U`.
+    pub unsafe fn downcast<T>(&self) -> Option<&T>
     where
         Vt: PartialEq + IConstConstructor<'a, T>,
     {
         (self.vtable == Vt::VTABLE).then(|| unsafe { self.ptr.as_ref() })
+    }
+    /// Downcasts the reference based on its reflection report.
+    pub fn stable_downcast<T: crate::IStable, Path>(&self) -> Option<&T>
+    where
+        Vt: TransitiveDeref<crate::vtable::StabbyVtableAny, Path>,
+    {
+        (self.report() == T::REPORT).then(|| unsafe { self.ptr.as_ref() })
     }
 }
 #[stabby::stabby]
@@ -110,6 +140,45 @@ pub struct Dyn<'a, P: IPtrOwned + 'a, Vt: HasDropVt + 'static> {
     vtable: &'static Vt,
     unsend: core::marker::PhantomData<&'a P>,
 }
+
+/// Allows casting a `dyn A + B` into `dyn A`.
+pub trait IntoSuperTrait<Super> {
+    fn into_super(this: Self) -> Super;
+}
+macro_rules! impl_super {
+    ($from: ty, $to: ty, $($generics: tt)*) => {
+        impl<'a, P: IPtrOwned + 'a + Sized, $($generics)*> IntoSuperTrait<Dyn<'a, P, $to>> for Dyn<'a, P, $from>
+        {
+            fn into_super(this: Self) -> Dyn<'a, P, $to> {
+                let ptr = &this as *const _;
+                core::mem::forget(this);
+                unsafe { core::ptr::read(ptr as *const _) }
+            }
+        }
+        impl<'a,  $($generics)*> IntoSuperTrait<DynRef<'a, $to>> for DynRef<'a, $from>
+        {
+            fn into_super(this: Self) -> DynRef<'a, $to> {
+                let ptr = &this as *const _;
+                unsafe { core::ptr::read(ptr as *const _) }
+            }
+        }
+    };
+}
+impl_super!(VTable<Head, Tail>, Tail, Head, Tail: HasDropVt + 'static);
+impl_super!(VtSend<Vt>, Vt, Vt: HasDropVt + 'static);
+impl_super!(VtSync<Vt>, Vt, Vt: HasDropVt + 'static);
+impl_super!(VtSync<VtSend<Vt>>, Vt, Vt: HasDropVt + 'static);
+impl_super!(VtSend<VtSync<Vt>>, Vt, Vt: HasDropVt + 'static);
+impl_super!(VtSync<VtSend<Vt>>, VtSync<Vt>, Vt: HasDropVt + 'static);
+impl_super!(VtSend<VtSync<Vt>>, VtSend<Vt>, Vt: HasDropVt + 'static);
+impl_super!(VtSend<VTable<Head, Tail>>, Tail, Head, Tail: HasDropVt + 'static);
+impl_super!(VtSync<VTable<Head, Tail>>, Tail, Head, Tail: HasDropVt + 'static);
+impl_super!(VtSync<VtSend<VTable<Head, Tail>>>, Tail, Head, Tail: HasDropVt + 'static);
+impl_super!(VtSend<VtSync<VTable<Head, Tail>>>, Tail, Head, Tail: HasDropVt + 'static);
+impl_super!(VtSend<VTable<Head, Tail>>, VtSend<Tail>, Head, Tail: HasDropVt + 'static);
+impl_super!(VtSync<VTable<Head, Tail>>, VtSync<Tail>, Head, Tail: HasDropVt + 'static);
+impl_super!(VtSync<VtSend<VTable<Head, Tail>>>, VtSync<VtSend<Tail>>, Head, Tail: HasDropVt + 'static);
+impl_super!(VtSend<VtSync<VTable<Head, Tail>>>, VtSend<VtSync<Tail>>, Head, Tail: HasDropVt + 'static);
 
 impl<'a, P: IPtrOwned, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
     pub fn ptr(&self) -> &P {
@@ -149,22 +218,72 @@ impl<'a, P: IPtrOwned, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
         })
     }
 
+    /// Allows casting a `dyn A + B` into `dyn A`.
+    ///
+    /// Note that you can only remove the outermost (rightmost in dyn syntax) trait at a time,
+    /// except `Send` and `Sync` that may both be kept, or both be removed.
+    pub fn into_super<Super>(self) -> Super
+    where
+        Self: IntoSuperTrait<Super>,
+    {
+        IntoSuperTrait::into_super(self)
+    }
+
     /// Downcasts the reference based on vtable equality.
-    /// This implies that this downcast will always yield `None` when attempting to downcast values constructed accross an FFI.
-    pub fn downcast_ref<T>(&self) -> Option<&T>
+    ///
+    /// This implies that this downcast will always yield `None` when attempting to downcast
+    /// values constructed accross an FFI.
+    ///
+    /// # Safety
+    /// This may have false positives if all of the following applies:
+    /// - `self` was built from `&U`, within the same FFI-boundary,
+    /// - `T` and `U` have identical implementations for all methods of the vtable,
+    /// - the compiler chose to merge these implementations, making `T` and `U` share
+    ///   their function pointers.
+    ///
+    /// While all of these factors aligning is unlikely, you should be aware of this if you
+    /// plan on using methods of `T` that wouldn't be valid for `U`.
+    pub unsafe fn downcast_ref<T>(&self) -> Option<&T>
     where
         Vt: PartialEq + Copy + IConstConstructor<'a, T>,
     {
         (self.vtable == Vt::VTABLE).then(|| unsafe { self.ptr.as_ref() })
     }
+    /// Downcasts the reference based on its reflection report.
+    pub fn stable_downcast_ref<T: crate::IStable, Path>(&self) -> Option<&T>
+    where
+        Vt: TransitiveDeref<crate::vtable::StabbyVtableAny, Path> + IConstConstructor<'a, T>,
+    {
+        (self.report() == T::REPORT).then(|| unsafe { self.ptr.as_ref() })
+    }
     /// Downcasts the mutable reference based on vtable equality.
-    /// This implies that this downcast will always yield `None` when attempting to downcast values constructed accross an FFI.
-    pub fn downcast_mut<T>(&mut self) -> Option<&mut T>
+    ///
+    /// This implies that this downcast will always yield `None` when attempting to downcast
+    /// values constructed accross an FFI.
+    ///
+    /// # Safety
+    /// This may have false positives if all of the following applies:
+    /// - `self` was built from `&U`, within the same FFI-boundary,
+    /// - `T` and `U` have identical implementations for all methods of the vtable,
+    /// - the compiler chose to merge these implementations, making `T` and `U` share
+    ///   their function pointers.
+    ///
+    /// While all of these factors aligning is unlikely, you should be aware of this if you
+    /// plan on using methods of `T` that wouldn't be valid for `U`.
+    pub unsafe fn downcast_mut<T>(&mut self) -> Option<&mut T>
     where
         Vt: PartialEq + Copy + IConstConstructor<'a, T>,
         P: IPtrMut,
     {
         (self.vtable == Vt::VTABLE).then(|| unsafe { self.ptr.as_mut() })
+    }
+    /// Downcasts the reference based on its reflection report.
+    pub fn stable_downcast_mut<T: crate::IStable, Path>(&mut self) -> Option<&mut T>
+    where
+        Vt: TransitiveDeref<crate::vtable::StabbyVtableAny, Path> + IConstConstructor<'a, T>,
+        P: IPtrMut,
+    {
+        (self.report() == T::REPORT).then(|| unsafe { self.ptr.as_mut() })
     }
 }
 

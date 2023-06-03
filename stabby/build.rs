@@ -23,7 +23,9 @@ fn main() {
         PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("compiler_versions.rs");
     let mut compiler_versions = BufWriter::new(File::create(compiler_versions).unwrap());
     writeln!(compiler_versions, r"use crate::abi::IStable;").unwrap();
-    for version in ["1.65.0", "1.66.0", "1.66.1", "1.67.0", "1.67.1", "1.68.0"] {
+    for version in [
+        "1.65.0", "1.66.0", "1.66.1", "1.67.0", "1.67.1", "1.68.0", "1.69.0", "1.70.0", "1.71.0",
+    ] {
         let snake_version = version.replace('.', "_");
         writeln!(
             compiler_versions,
