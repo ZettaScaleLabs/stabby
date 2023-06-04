@@ -3,7 +3,7 @@
 
 Your main vector of interraction with `stabby` will be the `#[stabby::stabby]` proc-macro, with which you can annotate a lot of things.
 
-## Why would I _want_ a stable ABI? And what even _is_ and ABI?
+## Why would I _want_ a stable ABI? And what even _is_ an ABI?
 ABI stands for _Application Binary Interface_, and is like API's more detail focused sibbling. While an API defines what type of data a function expects, and what properties these types should have; ABI defines _how_ this data should be laid out in memory, and how a function call even works.
 
 How data is laid out in memory is often called "representation": field ordering, how variants of enums are distinguished, padding, size... In order to communicate using certain types, two software units _must_ agree on what these types look like in memory.
