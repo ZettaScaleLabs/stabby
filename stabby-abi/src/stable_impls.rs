@@ -31,6 +31,75 @@ macro_rules! same_as {
         type HasExactlyOneNiche = <$t as IStable>::HasExactlyOneNiche;
     };
 }
+
+#[allow(dead_code)]
+const ARCH: &[u8] = _ARCH;
+#[cfg(target_arch = "x86")]
+const _ARCH: &[u8] = b"x86";
+#[cfg(target_arch = "x86_64")]
+const _ARCH: &[u8] = b"x86_64";
+#[cfg(target_arch = "arm")]
+const _ARCH: &[u8] = b"arm";
+#[cfg(target_arch = "aarch64")]
+const _ARCH: &[u8] = b"aarch64";
+#[cfg(target_arch = "loongarch64")]
+const _ARCH: &[u8] = b"loongarch64";
+#[cfg(target_arch = "m68k")]
+const _ARCH: &[u8] = b"m68k";
+#[cfg(target_arch = "mips")]
+const _ARCH: &[u8] = b"mips";
+#[cfg(target_arch = "mips64")]
+const _ARCH: &[u8] = b"mips64";
+#[cfg(target_arch = "powerpc")]
+const _ARCH: &[u8] = b"powerpc";
+#[cfg(target_arch = "powerpc64")]
+const _ARCH: &[u8] = b"powerpc64";
+#[cfg(target_arch = "riscv64")]
+const _ARCH: &[u8] = b"riscv64";
+#[cfg(target_arch = "s390x")]
+const _ARCH: &[u8] = b"s390x";
+#[cfg(target_arch = "sparc64")]
+const _ARCH: &[u8] = b"sparc64";
+
+macro_rules! check {
+    ($t: ty) => {
+        const _: () = {
+            let stabby = <<$t as IStable>::Align as Unsigned>::USIZE as u8;
+            let rust = core::mem::align_of::<$t>() as u8;
+            if stabby != rust {
+                let mut buffer = [0; 512];
+                let mut len = 0;
+                macro_rules! write {
+                    ($e: expr) => {{
+                        let mut i = 0;
+                        let e = $e;
+                        while i < e.len() {
+                            buffer[len + i] = e[i];
+                            i += 1;
+                        }
+                        len += e.len();
+                    }};
+                }
+                write!(stringify!($t).as_bytes());
+                write!(b"'s alignment was mis-evaluated by stabby, this is definitely a bug and may cause UB. Please create an issue using this link: https://github.com/ZettaScaleLabs/stabby/issues/new?title=");
+                write!(stringify!($t).as_bytes());
+                write!(b"%20misaligned%20on%20");
+                write!(ARCH);
+                write!(b"&body=Stabby%20says%20");
+                const fn fmt2digit(n: u8) -> [u8; 2] {
+                    [b'0' + (n / 10), b'0' + (n % 10)]
+                }
+                write!(fmt2digit(stabby));
+                write!(b"%2C%20Rust%20says%20");
+                write!(fmt2digit(rust));
+                panic!("{}", unsafe {
+                    core::str::from_utf8_unchecked(core::slice::from_raw_parts(buffer.as_ptr(), len))
+                })
+            }
+        };
+    };
+}
+
 macro_rules! nz_holes {
     ($t: ty) => {
         Array<$t, NonZeroHole, End>
@@ -184,6 +253,7 @@ unsafe impl IStable for u8 {
     type HasExactlyOneNiche = B0;
     primitive_report!("u8");
 }
+check!(u8);
 unsafe impl IStable for core::num::NonZeroU8 {
     type Align = U1;
     type Size = U1;
@@ -200,6 +270,7 @@ unsafe impl IStable for u16 {
     type HasExactlyOneNiche = B0;
     primitive_report!("u16");
 }
+check!(u16);
 unsafe impl IStable for core::num::NonZeroU16 {
     type ForbiddenValues = nz_holes!(U0, U1);
     type UnusedBits = End;
@@ -216,6 +287,7 @@ unsafe impl IStable for u32 {
     type HasExactlyOneNiche = B0;
     primitive_report!("u32");
 }
+check!(u32);
 unsafe impl IStable for core::num::NonZeroU32 {
     type ForbiddenValues = nz_holes!(U0, U1, U2, U3);
     type UnusedBits = End;
@@ -232,6 +304,7 @@ unsafe impl IStable for u64 {
     type HasExactlyOneNiche = B0;
     primitive_report!("u64");
 }
+check!(u64);
 unsafe impl IStable for core::num::NonZeroU64 {
     type UnusedBits = End;
     type ForbiddenValues = nz_holes!(U0, U1, U2, U3, U4, U5, U6, U7);
@@ -246,12 +319,15 @@ unsafe impl IStable for u128 {
     type ForbiddenValues = End;
     type Size = U16;
     type HasExactlyOneNiche = B0;
-    #[cfg(not(any(target_arch = "aarch64")))]
+    #[cfg(not(target_arch = "aarch64"))]
     type Align = U8;
-    #[cfg(any(target_arch = "aarch64"))]
+    #[cfg(target_arch = "aarch64")]
     type Align = U16;
     primitive_report!("u128");
 }
+
+check!(u128);
+
 unsafe impl IStable for core::num::NonZeroU128 {
     type UnusedBits = End;
     type ForbiddenValues =
@@ -272,6 +348,7 @@ unsafe impl IStable for usize {
     #[cfg(target_pointer_width = "8")]
     same_as!(u8, "usize");
 }
+check!(usize);
 unsafe impl IStable for core::num::NonZeroUsize {
     #[cfg(target_pointer_width = "64")]
     same_as!(core::num::NonZeroU64, "core::num::NonZeroUsize");
