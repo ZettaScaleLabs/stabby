@@ -613,6 +613,12 @@ macro_rules! fnstable {
         unsafe impl<$o: IStable > IStable for unsafe extern "C" fn() -> $o {
             same_as!(core::num::NonZeroUsize, "unsafe extern \"C\" fn", $o);
         }
+        unsafe impl<$o: IStable > IStable for extern "C-unwind" fn() -> $o {
+            same_as!(core::num::NonZeroUsize, "extern \"C-unwind\" fn", $o);
+        }
+        unsafe impl<$o: IStable > IStable for unsafe extern "C-unwind" fn() -> $o {
+            same_as!(core::num::NonZeroUsize, "unsafe extern \"C-unwind\" fn", $o);
+        }
     };
     ($t: ident, $($tt: ident, )* -> $o: ident) => {
         unsafe impl< $o , $t, $($tt,)* > IStable for extern "C" fn($t, $($tt,)*) -> $o
@@ -621,6 +627,13 @@ macro_rules! fnstable {
         }
         unsafe impl< $o : IStable, $t: IStable, $($tt: IStable,)* > IStable for unsafe extern "C" fn($t, $($tt,)*) -> $o {
             same_as!(core::num::NonZeroUsize, "unsafe extern \"C\" fn", union!($o, $t, $($tt,)*));
+        }
+        unsafe impl< $o , $t, $($tt,)* > IStable for extern "C-unwind" fn($t, $($tt,)*) -> $o
+        where $o : IStable, $t: IStable, $($tt: IStable,)* {
+            same_as!(core::num::NonZeroUsize, "extern \"C-unwind\" fn", union!($o, $t, $($tt,)*));
+        }
+        unsafe impl< $o : IStable, $t: IStable, $($tt: IStable,)* > IStable for unsafe extern "C-unwind" fn($t, $($tt,)*) -> $o {
+            same_as!(core::num::NonZeroUsize, "unsafe extern \"C-unwind\" fn", union!($o, $t, $($tt,)*));
         }
         fnstable!($($tt,)* -> $o);
     };

@@ -247,7 +247,7 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
                             name: Some(name), ..
                         }) if [
                             "C", "system", "stdcall", "aapcs", "cdecl", "fastcall", "win64",
-                            "sysv64",
+                            "sysv64", "C-unwind", "system-unwind"
                         ]
                         .contains(&name.value().as_str()) =>
                         {
