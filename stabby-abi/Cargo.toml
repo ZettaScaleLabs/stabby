@@ -14,7 +14,7 @@
 
 [package]
 name = "stabby-abi"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }

@@ -23,6 +23,8 @@ pub use stabby_macros::{canary_suffixes, dynptr, export, import, stabby, vtable 
 
 use core::fmt::{Debug, Display};
 
+pub const fn assert_stable<T: IStable>() {}
+
 #[macro_export]
 macro_rules! primitive_report {
     ($name: expr, $ty: ty) => {

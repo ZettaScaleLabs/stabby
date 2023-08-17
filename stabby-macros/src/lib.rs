@@ -32,15 +32,18 @@ pub(crate) fn logfile(logfile: std::path::PathBuf) -> impl std::io::Write {
 
 #[allow(unused_macros)]
 macro_rules! log {
-    ($path: literal, $e: expr) => {{
+    ($path: literal, $pat: literal, $e: expr) => {{
         let logfile = std::path::PathBuf::from($path);
         use std::io::Write;
         let e = $e;
-        writeln!(crate::logfile(logfile), "{e}");
+        writeln!(crate::logfile(logfile), $pat, e);
         e
     }};
+    ($pat: literal, $e: expr) => {
+        log!("logfile.txt", $pat, $e)
+    };
     ($e: expr) => {
-        log!("logfile.txt", $e)
+        log!("{}", $e)
     };
 }
 
@@ -87,7 +90,7 @@ pub fn stabby(stabby_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     } else if let Ok(fn_spec) = syn::parse(tokens.clone()) {
         functions::stabby(syn::parse(stabby_attrs).unwrap(), fn_spec)
     } else if let Ok(trait_spec) = syn::parse(tokens.clone()) {
-        traits::stabby(trait_spec)
+        traits::stabby(trait_spec, &stabby_attrs)
     } else if let Ok(async_block) = syn::parse::<syn::ExprAsync>(tokens) {
         quote!(Box::new(#async_block).into())
     } else {
