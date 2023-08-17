@@ -20,7 +20,7 @@ use std::time::Duration;
 
 use stabby::future::DynFuture;
 
-#[stabby::stabby]
+#[stabby::stabby(checked)]
 pub trait MyTrait {
     type Output;
     extern "C" fn do_stuff<'a>(&'a self, with: &'a Self::Output) -> &'a u8;
@@ -49,7 +49,7 @@ impl MyTrait for u16 {
 }
 
 // MYTRAIT2
-#[stabby::stabby]
+#[stabby::stabby(checked)]
 pub trait MyTrait2 {
     extern "C" fn do_stuff2(&self) -> u8;
 }
@@ -67,7 +67,7 @@ impl MyTrait2 for u16 {
     }
 }
 
-#[stabby::stabby]
+#[stabby::stabby(checked)]
 pub trait MyTrait3<Hi: core::ops::Deref> {
     type A;
     type B;
@@ -96,7 +96,7 @@ impl MyTrait3<Box<()>> for u16 {
     }
 }
 
-#[stabby::stabby]
+#[stabby::stabby(checked)]
 pub trait AsyncRead {
     extern "C" fn read<'a>(
         &'a mut self,

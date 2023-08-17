@@ -154,6 +154,7 @@ struct DynTraitDescription<'a> {
     mut_functions: Vec<DynTraitFn<'a>>,
     self_dependent_types: SelfDependentTypes,
     bounds: Vec<DynTraitBound>,
+    check_bounds: bool,
 }
 struct DynTraitBound {
     target: Ty,
@@ -188,16 +189,19 @@ impl quote::ToTokens for DynTraitFn<'_> {
         tokens.extend(quote!(#unsafety #abi fn #ident #generics (#receiver, #(#inputs)*) #output))
     }
 }
-impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
+impl<'a> From<(&'a syn::ItemTrait, bool)> for DynTraitDescription<'a> {
     fn from(
-        syn::ItemTrait {
-            vis,
-            ident,
-            generics,
-            brace_token: _,
-            items,
-            ..
-        }: &'a syn::ItemTrait,
+        (
+            syn::ItemTrait {
+                vis,
+                ident,
+                generics,
+                brace_token: _,
+                items,
+                ..
+            },
+            checked,
+        ): (&'a syn::ItemTrait, bool),
     ) -> Self {
         let mut this = DynTraitDescription {
             ident,
@@ -207,6 +211,7 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
             mut_functions: Vec::new(),
             bounds: Default::default(),
             self_dependent_types: Default::default(),
+            check_bounds: checked,
         };
         for item in items {
             match item {
@@ -240,7 +245,7 @@ impl<'a> From<&'a syn::ItemTrait> for DynTraitDescription<'a> {
                         panic!("generic methods are not trait object safe")
                     }
                     let abi = match abi {
-                        Some(syn::Abi { name: None, .. }) | None => {
+                        Some(syn::Abi { name: None, .. }) => {
                             quote!(extern "C")
                         }
                         Some(syn::Abi {
@@ -548,12 +553,21 @@ impl<'a> DynTraitDescription<'a> {
             .functions
             .iter()
             .chain(&self.mut_functions)
-            .map(|f| f.field_signature(&self.self_dependent_types));
+            .map(|f| f.field_signature(&self.self_dependent_types))
+            .collect::<Vec<_>>();
         let all_fn_conds = self
             .functions
             .iter()
             .chain(&self.mut_functions)
             .map(|f| f.stability_cond(&self.self_dependent_types));
+        let all_stabled_fns = all_fn_conds.zip(all_fn_fts).map(|(cond, fn_ft)| {
+            let ret = quote!(#st::StableLike<#fn_ft, &'static ()>);
+            if self.check_bounds {
+                quote!(#st::StableIf<#ret, #cond>)
+            } else {
+                ret
+            }
+        });
         let trait_id = self.ident;
         let trait_generics = &self.generics.params;
         let trait_lts = trait_generics.lifetimes().collect::<Vec<_>>();
@@ -623,11 +637,10 @@ impl<'a> DynTraitDescription<'a> {
 
         let mut vtable_decl = quote! {
             #vis struct #vtid < #vt_generics > where #(#vt_bounds)* {
-                #(pub #all_fn_ids: #st::StableIf<#st::StableLike<#all_fn_fts, core::num::NonZeroUsize>, #all_fn_conds>,)*
+                #(pub #all_fn_ids: #all_stabled_fns, )*
             }
         };
         vtable_decl = crate::stabby(proc_macro::TokenStream::new(), vtable_decl.into()).into();
-
         quote! {
             #vtable_decl
 
@@ -1287,10 +1300,16 @@ impl Ty {
         }
     }
 }
-pub fn stabby(item_trait: syn::ItemTrait) -> TokenStream {
-    let description: DynTraitDescription = (&item_trait).into();
+pub fn stabby(item_trait: syn::ItemTrait, stabby_attrs: &proc_macro::TokenStream) -> TokenStream {
+    let checked = match stabby_attrs.to_string().as_str() {
+        "checked" => true,
+        "" => false,
+        _ => panic!("Unkown stabby attributes {stabby_attrs}"),
+    };
+    let description: DynTraitDescription = (&item_trait, checked).into();
     let vtable = description.vtable();
     quote! {
+        #[deny(improper_ctypes_definitions)]
         #item_trait
         #vtable
     }
