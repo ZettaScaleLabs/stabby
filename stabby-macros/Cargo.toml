@@ -32,3 +32,6 @@ rand = "0.8.5"
 
 [lib]
 proc-macro = true
+
+[profile.dev]
+opt-level = 3

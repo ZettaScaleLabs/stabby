@@ -64,27 +64,28 @@ const _ARCH: &[u8] = b"sparc64";
 macro_rules! check {
     ($t: ty) => {
         const _: () = {
-            let stabby = <<$t as IStable>::Align as Unsigned>::USIZE as u8;
+            let mut buffer = [0; 1024];
+            let mut len = 0;
+            macro_rules! write {
+                ($e: expr) => {{
+                    let mut i = 0;
+                    let e = $e;
+                    while i < e.len() {
+                        buffer[len + i] = e[i];
+                        i += 1;
+                    }
+                    len += e.len();
+                }};
+            }
+
+            let stabby = <<$t as IStable>::Align as crate::typenum2::Unsigned>::USIZE as u8;
             let rust = core::mem::align_of::<$t>() as u8;
             if stabby != rust {
-                let mut buffer = [0; 512];
-                let mut len = 0;
-                macro_rules! write {
-                    ($e: expr) => {{
-                        let mut i = 0;
-                        let e = $e;
-                        while i < e.len() {
-                            buffer[len + i] = e[i];
-                            i += 1;
-                        }
-                        len += e.len();
-                    }};
-                }
                 write!(stringify!($t).as_bytes());
                 write!(b"'s alignment was mis-evaluated by stabby, this is definitely a bug and may cause UB. Please create an issue using this link: https://github.com/ZettaScaleLabs/stabby/issues/new?title=");
                 write!(stringify!($t).as_bytes());
                 write!(b"%20misaligned%20on%20");
-                write!(ARCH);
+                write!(crate::stable_impls::ARCH);
                 write!(b"&body=Stabby%20says%20");
                 const fn fmt2digit(n: u8) -> [u8; 2] {
                     [b'0' + (n / 10), b'0' + (n % 10)]
@@ -92,6 +93,61 @@ macro_rules! check {
                 write!(fmt2digit(stabby));
                 write!(b"%2C%20Rust%20says%20");
                 write!(fmt2digit(rust));
+                write!(b"\r\n");
+            }
+            let stabby = <<$t as IStable>::Size as crate::typenum2::Unsigned>::USIZE ;
+            let rust = core::mem::size_of::<$t>() ;
+            if stabby != rust {
+                write!(stringify!($t).as_bytes());
+                write!(b"'s size was mis-evaluated by stabby, this is definitely a bug and may cause UB. Please create an issue using this link: https://github.com/ZettaScaleLabs/stabby/issues/new?title=");
+                write!(stringify!($t).as_bytes());
+                write!(b"%20missized%20on%20");
+                write!(crate::stable_impls::ARCH);
+                write!(b"&body=Stabby%20says%20");
+                const fn fmt6digit(n: usize) -> [u8; 6] {
+                    [
+                        b'0' + ((n / 100000) % 10) as u8,
+                        b'0' + ((n / 10000) % 10) as u8,
+                        b'0' + ((n / 1000) % 10) as u8,
+                        b'0' + ((n / 100) % 10) as u8,
+                        b'0' + ((n / 10) % 10) as u8,
+                        b'0' + (n % 10) as u8
+                    ]
+                }
+                write!(fmt6digit(stabby));
+                write!(b"%2C%20Rust%20says%20");
+                write!(fmt6digit(rust));
+                write!(b"\r\n");
+            }
+            match <<$t as IStable>::HasExactlyOneNiche as crate::istable::ISaturatingAdd>::VALUE {
+                crate::istable::SaturatingAddValue::B0 => {
+                    if rust == core::mem::size_of::<Option<$t>>() {
+                        write!(stringify!($t).as_bytes());
+                        write!(b"'s niches were mis-evaluated by stabby, this is definitely a bug and may cause UB. Please create an issue using this link: https://github.com/ZettaScaleLabs/stabby/issues/new?title=");
+                        write!(stringify!($t).as_bytes());
+                        write!(b"%20has%20niches%20but%20stabby%20does%20not%20find%20any");
+                        write!(b"\r\n");
+                    }
+                }
+                crate::istable::SaturatingAddValue::B1 => {
+                    if rust != core::mem::size_of::<Option<$t>>() {
+                        write!(stringify!($t).as_bytes());
+                        write!(b"'s niches were mis-evaluated by stabby, this is definitely a bug and may cause UB. Please create an issue using this link: https://github.com/ZettaScaleLabs/stabby/issues/new?title=");
+                        write!(stringify!($t).as_bytes());
+                        write!(b"%20has%20no%20niches%20but%20stabby%20claims%20one%20found%20exactly");
+                        write!(b"\r\n");
+                    }
+                    if rust == core::mem::size_of::<Option<Option<$t>>>() {
+                        write!(stringify!($t).as_bytes());
+                        write!(b"'s niches were mis-evaluated by stabby, this is definitely a bug and may cause UB. Please create an issue using this link: https://github.com/ZettaScaleLabs/stabby/issues/new?title=");
+                        write!(stringify!($t).as_bytes());
+                        write!(b"%20has%20multiple%20niches%20but%20stabby%20claims%20one%20found%20exactly");
+                        write!(b"\r\n");
+                    }
+                }
+                _ => {}
+            }
+            if len != 0 {
                 panic!("{}", unsafe {
                     core::str::from_utf8_unchecked(core::slice::from_raw_parts(buffer.as_ptr(), len))
                 })
@@ -639,3 +695,6 @@ macro_rules! fnstable {
     };
 }
 fnstable!(I15, I14, I13, I12, I11, I10, I9, I8, I7, I6, I5, I4, I3, I2, I1, -> Output);
+
+#[cfg(feature = "abi_stable")]
+mod abi_stable;

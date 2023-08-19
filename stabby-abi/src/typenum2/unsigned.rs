@@ -144,6 +144,7 @@ pub trait IUnsignedBase {
     type _SatDecrement: IUnsigned;
     type _TruncateAtRightmostOne: NonZero;
     type _NonZero: NonZero;
+    type _Mul<T: IUnsigned>: IUnsigned;
 }
 pub struct Lesser;
 pub struct Equal;
@@ -174,6 +175,7 @@ pub trait IUnsigned: IUnsignedBase {
     type NonZero: NonZero;
     type NextMultipleOf<T: IPowerOf2>: IUnsigned;
     type Cmp<T: IUnsigned>;
+    type Mul<T: IUnsigned>: IUnsigned;
 }
 
 pub trait IPowerOf2: IUnsigned {
@@ -213,6 +215,7 @@ impl<U: IUnsignedBase> IUnsigned for U {
         Equal,
         <Self::Greater<T> as IBit>::Ternary<Greater, Lesser>,
     >;
+    type Mul<T: IUnsigned> = Self::_Mul<T>;
 }
 impl IUnsignedBase for UTerm {
     const _U128: u128 = 0;
@@ -233,6 +236,7 @@ impl IUnsignedBase for UTerm {
     type NextPow2 = U0;
     type _TruncateAtRightmostOne = Saturator;
     type _NonZero = Saturator;
+    type _Mul<T: IUnsigned> = UTerm;
 }
 impl IUnsignedBase for Saturator {
     const _U128: u128 = { panic!("Attempted to convert Saturator into u128") };
@@ -253,6 +257,7 @@ impl IUnsignedBase for Saturator {
     type NextPow2 = Saturator;
     type _TruncateAtRightmostOne = Saturator;
     type _NonZero = Saturator;
+    type _Mul<T: IUnsigned> = Saturator;
 }
 pub trait NonZero: IUnsigned {
     type Decrement: IUnsigned;
@@ -306,6 +311,9 @@ impl<Msb: IUnsigned, Bit: IBit> IUnsignedBase for UInt<Msb, Bit> {
     type NextPow2 = <Msb::NextPow2 as IUnsigned>::Add<<Self::_IsUTerm as IBit>::UTernary<U0, U1>>;
     type _TruncateAtRightmostOne = Bit::NzTernary<U1, UInt<Msb::_TruncateAtRightmostOne, B0>>;
     type _NonZero = Self;
+    type _Mul<T: IUnsigned> = <Bit::UTernary<T, UTerm> as IUnsigned>::Add<
+        <UInt<Msb::Mul<T>, B0> as IUnsignedBase>::_Simplified,
+    >;
 }
 impl<Msb: IUnsigned<_IsUTerm = B1>> IPowerOf2 for UInt<Msb, B1> {
     type Log2 = U0;

@@ -254,19 +254,28 @@ where
     >;
     primitive_report!("FP");
 }
+pub enum SaturatingAddValue {
+    B0,
+    B1,
+    Saturator,
+}
 pub trait ISaturatingAdd {
+    const VALUE: SaturatingAddValue;
     type SaturatingAddB1: ISaturatingAdd;
     type SaturatingAdd<B: ISaturatingAdd>: ISaturatingAdd;
 }
 impl ISaturatingAdd for B0 {
+    const VALUE: SaturatingAddValue = SaturatingAddValue::B0;
     type SaturatingAdd<B: ISaturatingAdd> = B;
     type SaturatingAddB1 = B1;
 }
 impl ISaturatingAdd for B1 {
+    const VALUE: SaturatingAddValue = SaturatingAddValue::B1;
     type SaturatingAddB1 = Saturator;
     type SaturatingAdd<B: ISaturatingAdd> = B::SaturatingAddB1;
 }
 impl ISaturatingAdd for Saturator {
+    const VALUE: SaturatingAddValue = SaturatingAddValue::Saturator;
     type SaturatingAddB1 = Saturator;
     type SaturatingAdd<B: ISaturatingAdd> = Saturator;
 }
