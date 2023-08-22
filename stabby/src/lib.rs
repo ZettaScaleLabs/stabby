@@ -61,5 +61,5 @@ pub use crate::abi::{option, result, slice, str};
 
 pub use crate::abi::{vtable::Any, AccessAs, IStable, IntoSuperTrait};
 
-#[cfg(any(all(feature = "libloading", any(unix, windows)), doc))]
+#[cfg(all(feature = "libloading", any(unix, windows)))]
 pub mod libloading;
