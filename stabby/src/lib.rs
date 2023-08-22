@@ -14,6 +14,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
@@ -22,9 +23,9 @@ pub use stabby_abi::{dynptr, export, import, stabby, vtmacro as vtable};
 
 pub use stabby_abi as abi;
 
-#[cfg(feature = "alloc")]
+#[cfg(any(feature = "alloc", doc))]
 mod allocs;
-#[cfg(feature = "alloc")]
+#[cfg(any(feature = "alloc", doc))]
 pub use allocs::*;
 
 pub use stabby_abi::{Dyn, DynRef};
@@ -41,15 +42,15 @@ pub mod tuple;
 )]
 pub mod future {
     pub use crate::abi::future::*;
-    #[cfg(feature = "alloc")]
+    #[cfg(any(feature = "alloc", doc))]
     /// A type alias for `dynptr!(Box<dyn Future<Output = Output> + Send + Sync + 'a>)`
     pub type DynFuture<'a, Output> =
         crate::dynptr!(Box<dyn Future<Output = Output> + Send + Sync + 'a>);
-    #[cfg(feature = "alloc")]
+    #[cfg(any(feature = "alloc", doc))]
     /// A type alias for `dynptr!(Box<dyn Future<Output = Output> + Send + 'a>)`
     pub type DynFutureUnsync<'a, Output> =
         crate::dynptr!(Box<dyn Future<Output = Output> + Send + 'a>);
-    #[cfg(feature = "alloc")]
+    #[cfg(any(feature = "alloc", doc))]
     /// A type alias for `dynptr!(Box<dyn Future<Output = Output> + 'a>)`
     pub type DynFutureUnsend<'a, Output> = crate::dynptr!(Box<dyn Future<Output = Output> + 'a>);
 }
@@ -60,5 +61,5 @@ pub use crate::abi::{option, result, slice, str};
 
 pub use crate::abi::{vtable::Any, AccessAs, IStable, IntoSuperTrait};
 
-#[cfg(all(feature = "libloading", any(unix, windows)))]
+#[cfg(any(all(feature = "libloading", any(unix, windows)), doc))]
 pub mod libloading;
