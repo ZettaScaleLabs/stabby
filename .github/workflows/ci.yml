@@ -24,7 +24,7 @@ on:
 jobs:
   check:
     name: Run checks on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    runs-on: [self-hosted, ${{ matrix.os }}]
     strategy:
       fail-fast: false
       matrix:
@@ -52,7 +52,7 @@ jobs:
 
   test:
     name: Run tests on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    runs-on: [self-hosted, ${{ matrix.os }}]
     strategy:
       fail-fast: false
       matrix:
