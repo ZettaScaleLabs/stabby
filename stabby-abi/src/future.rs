@@ -56,6 +56,8 @@ mod stable_waker {
         wake_by_ref: StableLike<for<'b> unsafe extern "C" fn(&'b Waker), &'static ()>,
         drop: StableLike<unsafe extern "C" fn(&mut ManuallyDrop<Waker>), &'static ()>,
     }
+    unsafe impl Send for StableWakerInner {}
+    unsafe impl Sync for StableWakerInner {}
     impl Drop for StableWakerInner {
         fn drop(&mut self) {
             unsafe { (self.drop.as_mut_unchecked())(self.waker.as_mut_unchecked()) }
