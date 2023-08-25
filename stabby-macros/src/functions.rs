@@ -190,7 +190,14 @@ impl FromStr for CanarySpec {
         }
         let mut this = Self::NONE;
         for request in s.split(',').map(|r| r.trim()) {
-            let Some(spec) = Self::ARRAY.iter().find_map(|(name, spec)| (*name == request).then_some(*spec)) else {return Err(format!("Unknown canary `{request}` (known canaries: {known:?})"))};
+            let Some(spec) = Self::ARRAY
+                .iter()
+                .find_map(|(name, spec)| (*name == request).then_some(*spec))
+            else {
+                return Err(format!(
+                    "Unknown canary `{request}` (known canaries: {known:?})"
+                ));
+            };
             this = this | spec;
         }
         Ok(this)

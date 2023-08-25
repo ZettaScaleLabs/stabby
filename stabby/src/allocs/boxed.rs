@@ -89,7 +89,7 @@ impl<T> From<BoxedSlice<T>> for Box<[T]> {
 }
 impl<T> Drop for BoxedSlice<T> {
     fn drop(&mut self) {
-        unsafe { Box::from_raw(self.deref_mut()) };
+        unsafe { _ = Box::from_raw(self.deref_mut()) };
     }
 }
 

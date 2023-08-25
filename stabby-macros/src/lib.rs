@@ -141,12 +141,25 @@ impl syn::parse::Parse for DynPtr {
                     },
                 ..
             }) => {
-                let syn::PathSegment { ident, arguments: syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments { colon2_token: None, mut args, ..}) } = segments.pop().unwrap().into_value() else {panic!()};
+                let syn::PathSegment {
+                    ident,
+                    arguments:
+                        syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+                            colon2_token: None,
+                            mut args,
+                            ..
+                        }),
+                } = segments.pop().unwrap().into_value()
+                else {
+                    panic!()
+                };
                 if args.len() != 1 {
                     panic!("Pointer-type must have exactly one generic argument containing `dyn Bounds`")
                 }
                 let arg = args.pop().unwrap().into_value();
-                let syn::GenericArgument::Type(ty) = arg else {panic!()};
+                let syn::GenericArgument::Type(ty) = arg else {
+                    panic!()
+                };
                 (
                     DynPtr {
                         ptr: PtrType::Path(quote!(#leading_colon #segments #ident)),
@@ -175,7 +188,9 @@ impl syn::parse::Parse for DynPtr {
             ),
             _ => panic!("Only references and paths are supported by this macro"),
         };
-        let syn::Type::TraitObject(syn::TypeTraitObject {  bounds, .. }) = elem else {panic!("expected `dyn` not found")};
+        let syn::Type::TraitObject(syn::TypeTraitObject { bounds, .. }) = elem else {
+            panic!("expected `dyn` not found")
+        };
         for bound in bounds {
             match bound {
                 TypeParamBound::Trait(t) => this.bounds.push(t),

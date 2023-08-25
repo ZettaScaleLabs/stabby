@@ -32,9 +32,9 @@ fn main() {
         io::{BufWriter, Write},
         path::PathBuf,
     };
+    const SEQ_MAX: u128 = 1000;
     let padding_rs = PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("unsigned.rs");
     let mut padding_file = BufWriter::new(File::create(padding_rs).unwrap());
-    const SEQ_MAX: u128 = 1000;
     for i in 0..=SEQ_MAX {
         let u = u(i);
         writeln!(padding_file, "pub type U{i} = {u};").unwrap();

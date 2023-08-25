@@ -24,11 +24,11 @@ on:
 jobs:
   check:
     name: Run checks on ${{ matrix.os }}
-    runs-on: [self-hosted, ${{ matrix.os }}]
+    runs-on: [self-hosted, "${{ matrix.os }}"]
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macOS-latest, windows-latest]
+        os: [ubuntu-22.04, windows-11, macOS]
 
     steps:
       - uses: actions/checkout@v2
@@ -52,11 +52,11 @@ jobs:
 
   test:
     name: Run tests on ${{ matrix.os }}
-    runs-on: [self-hosted, ${{ matrix.os }}]
+    runs-on: [self-hosted, "${{ matrix.os }}"]
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macOS-latest, windows-latest]
+        os: [ubuntu-22.04, macOS]
 
     steps:
       - uses: actions/checkout@v2

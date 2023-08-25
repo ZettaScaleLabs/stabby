@@ -21,6 +21,7 @@ members = [
 	"examples/libloading",
 	"examples/dynlinkage",
 ]
+resolver = "2"
 
 [workspace.package]
 authors = ["Pierre Avital <pierre.avital@gmail.com>"]

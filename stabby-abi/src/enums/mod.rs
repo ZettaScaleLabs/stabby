@@ -104,12 +104,12 @@ where
         ValueIsErr(PhantomData, Tail::ok(union))
     }
     unsafe fn err(union: *mut u8) -> Self {
-        let ptr = union as *mut _ as *mut u8;
+        let ptr = union;
         *ptr.add(Offset::USIZE) = Value::U8;
         ValueIsErr(PhantomData, Tail::err(union))
     }
     fn is_ok(&self, union: *const u8) -> bool {
-        let ptr = union as *const _ as *const u8;
+        let ptr = union;
         unsafe { dbg!(*ptr.add(Offset::USIZE)) != Value::U8 || self.1.is_ok(union) }
     }
 }
@@ -134,17 +134,17 @@ impl<Offset: Unsigned, Mask: Unsigned> core::fmt::Debug for BitIsErr<Offset, Mas
 }
 impl<Offset: Unsigned, Mask: Unsigned> IDiscriminant for BitIsErr<Offset, Mask> {
     unsafe fn ok(union: *mut u8) -> Self {
-        let ptr = union as *mut _ as *mut u8;
+        let ptr = union;
         *ptr.add(Offset::USIZE) &= u8::MAX ^ Mask::U8;
         BitIsErr(PhantomData)
     }
     unsafe fn err(union: *mut u8) -> Self {
-        let ptr = union as *mut _ as *mut u8;
+        let ptr = union;
         *ptr.add(Offset::USIZE) |= Mask::U8;
         BitIsErr(PhantomData)
     }
     fn is_ok(&self, union: *const u8) -> bool {
-        let ptr = union as *const _ as *const u8;
+        let ptr = union;
         unsafe { *ptr.add(Offset::USIZE) & Mask::U8 == 0 }
     }
 }
