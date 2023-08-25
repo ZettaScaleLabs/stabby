@@ -50,9 +50,7 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 				impl<O #(, #argtys)* > Copy for #covt<O #(, #argtys)* > {}
 				impl<O #(, #argtys)* > Clone for #covt<O #(, #argtys)* > {
 					fn clone(&self) -> Self {
-						Self {
-							call_once: unsafe { core::ptr::read(&self.call_once) },
-						}
+						*self
 					}
 				}
 				pub trait #cod<O #(, #argtys)* , N> {

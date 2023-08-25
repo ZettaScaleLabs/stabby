@@ -47,6 +47,7 @@ impl<F> Deref for CanariedImport<F> {
 pub struct CheckedImport<F> {
     result: core::cell::UnsafeCell<core::mem::MaybeUninit<F>>,
     checked: AtomicU8,
+    #[allow(improper_ctypes_definitions)]
     checker: unsafe extern "C" fn(&crate::report::TypeReport) -> Option<F>,
     get_report: unsafe extern "C" fn() -> &'static crate::report::TypeReport,
     local_report: &'static crate::report::TypeReport,
@@ -73,6 +74,7 @@ const VALIDATED: u8 = 1;
 const INVALIDATED: u8 = 2;
 const LOCKED: u8 = 3;
 impl<F> CheckedImport<F> {
+    #[allow(improper_ctypes_definitions)]
     pub const fn new(
         checker: unsafe extern "C" fn(&crate::report::TypeReport) -> Option<F>,
         get_report: unsafe extern "C" fn() -> &'static crate::report::TypeReport,

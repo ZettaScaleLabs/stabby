@@ -51,7 +51,9 @@ impl SelfDependentTypes {
             Ty::Never => Ty::Never,
             Ty::Unit => Ty::Unit,
             Ty::SelfReferencial(ty) => {
-                let Some(n) = self.find(ty) else {panic!("Couldn't find type {ty}")};
+                let Some(n) = self.find(ty) else {
+                    panic!("Couldn't find type {ty}")
+                };
                 Ty::Path {
                     segment: Self::unselfed_n(n),
                     arguments: Arguments::None,
@@ -403,7 +405,10 @@ impl DynTraitFn<'_> {
                 },
             inputs,
             output,
-        } = self else {unreachable!()};
+        } = self
+        else {
+            unreachable!()
+        };
         let forgen = (!generics.params.is_empty()).then(|| quote!(for));
         let receiver = quote!(& #lt #mutability StabbyArbitraryType);
         let output = output.as_ref().map(|ty| {
@@ -451,7 +456,10 @@ impl DynTraitFn<'_> {
                 },
             inputs,
             output,
-        } = self else {unreachable!()};
+        } = self
+        else {
+            unreachable!()
+        };
         let receiver = quote!(& #lt #mutability ());
         let inputs = inputs.iter().map(|ty| sdts.unselfed(ty));
         let output = output.as_ref().map(|ty| {
@@ -592,7 +600,9 @@ impl<'a> DynTraitDescription<'a> {
                          lifetimes,
                          bound,
                      }| {
-                        let Ty::SelfReferencial(target) = target else {return acc};
+                        let Ty::SelfReferencial(target) = target else {
+                            return acc;
+                        };
                         if &**target == ty {
                             let bound = match bound {
                                 Ok(bound) => quote!(#lifetimes #bound),
@@ -646,9 +656,7 @@ impl<'a> DynTraitDescription<'a> {
 
             impl< #vt_generics > Clone for #vtid < #nbvt_generics > where #(#vt_bounds)* {
                 fn clone(&self) -> Self {
-                    Self {
-                        #(#all_fn_ids: unsafe {core::ptr::read(&self.#all_fn_ids)},)*
-                    }
+                    *self
                 }
             }
             impl< #vt_generics > Copy for #vtid < #nbvt_generics > where #(#vt_bounds)* {}

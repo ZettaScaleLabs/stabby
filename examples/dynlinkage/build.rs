@@ -13,7 +13,9 @@
 //
 
 fn main() {
-    let Ok(dir) = std::env::var("PROFILE") else { return };
+    let Ok(dir) = std::env::var("PROFILE") else {
+        return;
+    };
     println!(
         "cargo:rustc-link-search=native={}",
         [".", "target", &dir]
