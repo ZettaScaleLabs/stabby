@@ -656,9 +656,7 @@ impl<'a> DynTraitDescription<'a> {
 
             impl< #vt_generics > Clone for #vtid < #nbvt_generics > where #(#vt_bounds)* {
                 fn clone(&self) -> Self {
-                    Self {
-                        #(#all_fn_ids: unsafe {core::ptr::read(&self.#all_fn_ids)},)*
-                    }
+                    *self
                 }
             }
             impl< #vt_generics > Copy for #vtid < #nbvt_generics > where #(#vt_bounds)* {}

@@ -87,6 +87,7 @@ mod stable_waker {
     #[crate::stabby]
     pub struct StableWaker<'a> {
         waker: StableLike<&'a Waker, &'a ()>,
+        #[allow(improper_ctypes_definitions)]
         clone: unsafe extern "C" fn(StableLike<&'a Waker, &'a ()>) -> SharedStableWaker,
         wake_by_ref: StableLike<unsafe extern "C" fn(&Waker), &'a ()>,
     }

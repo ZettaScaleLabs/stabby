@@ -28,7 +28,7 @@ unsafe impl<'a, T: 'a + Sync> Send for Slice<'a, T> {}
 unsafe impl<'a, T: 'a + Sync> Sync for Slice<'a, T> {}
 impl<'a, T: 'a> Clone for Slice<'a, T> {
     fn clone(&self) -> Self {
-        unsafe { core::ptr::read(self) }
+        *self
     }
 }
 impl<'a, T: 'a> Copy for Slice<'a, T> {}

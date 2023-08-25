@@ -81,7 +81,7 @@ impl<
     > Clone for NicheExporter<ForbiddenValues, UnusedBits, HasExactlyOneNiche>
 {
     fn clone(&self) -> Self {
-        Self::default()
+        *self
     }
 }
 impl<
