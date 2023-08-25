@@ -23,6 +23,10 @@ members = [
 ]
 resolver = "2"
 
+[profile.dev]
+opt-level = 3
+
+
 [workspace.package]
 authors = ["Pierre Avital <pierre.avital@gmail.com>"]
 license = " EPL-2.0 OR Apache-2.0"

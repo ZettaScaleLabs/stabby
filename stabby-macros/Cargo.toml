@@ -14,7 +14,7 @@
 
 [package]
 name = "stabby-macros"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }
@@ -32,6 +32,3 @@ rand = "0.8.5"
 
 [lib]
 proc-macro = true
-
-[profile.dev]
-opt-level = 3
