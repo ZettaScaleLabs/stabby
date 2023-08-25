@@ -168,7 +168,10 @@ impl From<syn::Variant> for Variant {
             fields,
             discriminant: None,
             ..
-        } = value else {panic!("#[repr(stabby)] enums do not support explicit discriminants")};
+        } = value
+        else {
+            panic!("#[repr(stabby)] enums do not support explicit discriminants")
+        };
         let field = match fields {
             syn::Fields::Unit => None,
             syn::Fields::Unnamed(mut f) => {
