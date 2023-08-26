@@ -699,12 +699,12 @@ fnstable!(I15, I14, I13, I12, I11, I10, I9, I8, I7, I6, I5, I4, I3, I2, I1, -> O
 #[cfg(feature = "abi_stable")]
 mod abi_stable;
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", target_family = "unix"))]
 unsafe impl IStable for std::os::fd::OwnedFd {
     same_as!(core::ffi::c_int);
     primitive_report!("std::os::fd::OwnedFd");
 }
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", target_family = "unix"))]
 unsafe impl<'a> IStable for std::os::fd::BorrowedFd<'a> {
     same_as!(core::ffi::c_int);
     primitive_report!("std::os::fd::BorrowedFd");
