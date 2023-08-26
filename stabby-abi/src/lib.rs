@@ -25,6 +25,10 @@ use core::fmt::{Debug, Display};
 
 pub const fn assert_stable<T: IStable>() {}
 
+#[crate::stabby]
+#[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct Tuple<A, B>(pub A, pub B);
+
 #[macro_export]
 macro_rules! primitive_report {
     ($name: expr, $ty: ty) => {
@@ -67,6 +71,7 @@ macro_rules! assert_optimal_layout {
 pub use crate::enums::IDiscriminantProvider;
 // pub use crate::Result;
 pub mod as_mut;
+pub mod stabilized_traits;
 
 /// Provides access to a value _as if_ it were of another type.
 ///
