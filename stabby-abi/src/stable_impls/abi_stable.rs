@@ -1,10 +1,6 @@
 use core::ptr::NonNull;
 
-use crate::{typenum2::*, End, IStable};
-
-#[crate::stabby]
-#[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct Tuple2<A, B>(pub A, pub B);
+use crate::{typenum2::*, End, IStable, Tuple};
 
 unsafe impl<'a, T: IStable> IStable for abi_stable::RRef<'a, T> {
     same_as!(core::ptr::NonNull<T>);
@@ -62,19 +58,19 @@ check!(abi_stable::std_types::RSliceMut<u8>);
 
 unsafe impl<K, V> IStable for abi_stable::std_types::RHashMap<K, V>
 where
-    Tuple2<K, V>: IStable,
+    Tuple<K, V>: IStable,
 {
     type Size = <<core::ptr::NonNull<()> as IStable>::Size as Unsigned>::Mul<U3>;
     type Align = <core::ptr::NonNull<()> as IStable>::Align;
     type ForbiddenValues = <core::ptr::NonNull<()> as IStable>::ForbiddenValues;
     type UnusedBits = End;
     type HasExactlyOneNiche = B1;
-    primitive_report!("abi_stable::std_types::RHashMap", Tuple2<K, V>);
+    primitive_report!("abi_stable::std_types::RHashMap", Tuple<K, V>);
 }
 check!(abi_stable::std_types::RHashMap<u8, u64>);
 
 unsafe impl IStable for abi_stable::std_types::RDuration {
-    same_as!(Tuple2<u64, u32>);
+    same_as!(Tuple<u64, u32>);
     primitive_report!("abi_stable::std_types::RDuration");
 }
 check!(abi_stable::std_types::RDuration);
@@ -119,15 +115,15 @@ check!(abi_stable::std_types::Tuple1<u8>);
 
 unsafe impl<T, U> IStable for abi_stable::std_types::Tuple2<T, U>
 where
-    Tuple2<T, U>: IStable,
+    Tuple<T, U>: IStable,
 {
-    same_as!(Tuple2<T, U>);
-    primitive_report!("abi_stable::std_types::Tuple2", Tuple2<T, U>);
+    same_as!(Tuple<T, U>);
+    primitive_report!("abi_stable::std_types::Tuple2", Tuple<T, U>);
 }
 check!(abi_stable::std_types::Tuple2<u8, u64>);
 
 unsafe impl<T: IStable> IStable for abi_stable::std_types::RArc<T> {
-    same_as!(Tuple2<*const (), NonNull<()>>);
+    same_as!(Tuple<*const (), NonNull<()>>);
     primitive_report!("abi_stable::std_types::RArc", T);
 }
 check!(abi_stable::std_types::RArc<u8>);
@@ -162,7 +158,7 @@ where
 check!(abi_stable::external_types::RRwLock<u8>);
 
 unsafe impl IStable for abi_stable::external_types::ROnce {
-    same_as!(Tuple2<*const (), NonNull<()>>);
+    same_as!(Tuple<*const (), NonNull<()>>);
     primitive_report!("abi_stable::external_types::ROnce");
 }
 check!(abi_stable::external_types::ROnce);
@@ -172,7 +168,7 @@ mod channels {
     use super::*;
 
     unsafe impl<T: IStable> IStable for abi_stable::external_types::crossbeam_channel::RReceiver<T> {
-        same_as!(Tuple2<abi_stable::std_types::RBox<T>, NonNull<()>>);
+        same_as!(Tuple<abi_stable::std_types::RBox<T>, NonNull<()>>);
         primitive_report!(
             "abi_stable::external_types::crossbeam_channel::RReceiver",
             T
@@ -181,7 +177,7 @@ mod channels {
     check!(abi_stable::external_types::crossbeam_channel::RReceiver<u8>);
 
     unsafe impl<T: IStable> IStable for abi_stable::external_types::crossbeam_channel::RSender<T> {
-        same_as!(Tuple2<abi_stable::std_types::RBox<T>, NonNull<()>>);
+        same_as!(Tuple<abi_stable::std_types::RBox<T>, NonNull<()>>);
         primitive_report!("abi_stable::external_types::crossbeam_channel::RSender", T);
     }
     check!(abi_stable::external_types::crossbeam_channel::RSender<u8>);
