@@ -62,3 +62,62 @@ pub use crate::abi::{vtable::Any, AccessAs, IStable, IntoSuperTrait};
 
 #[cfg(all(feature = "libloading", any(unix, windows)))]
 pub mod libloading;
+
+pub mod time {
+    #[crate::stabby]
+    pub struct Duration {
+        pub secs: u64,
+        pub nanos: u32,
+    }
+    impl From<core::time::Duration> for Duration {
+        fn from(value: core::time::Duration) -> Self {
+            Self {
+                secs: value.as_secs(),
+                nanos: value.subsec_nanos(),
+            }
+        }
+    }
+    impl From<Duration> for core::time::Duration {
+        fn from(value: Duration) -> Self {
+            Self::new(value.secs, value.nanos)
+        }
+    }
+    #[crate::stabby]
+    pub struct TimeSpec(pub Duration);
+    #[crate::stabby]
+    pub struct Instant(pub TimeSpec);
+    #[crate::stabby]
+    pub struct SystemTime(pub TimeSpec);
+    #[cfg(feature = "std")]
+    mod impls {
+        use core::time::Duration;
+        use std::time::UNIX_EPOCH;
+
+        use super::TimeSpec;
+        impl From<std::time::SystemTime> for TimeSpec {
+            fn from(value: std::time::SystemTime) -> Self {
+                Self(
+                    value
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or(Duration::new(0, 0))
+                        .into(),
+                )
+            }
+        }
+        impl From<TimeSpec> for std::time::SystemTime {
+            fn from(value: TimeSpec) -> Self {
+                UNIX_EPOCH + value.0.into()
+            }
+        }
+        impl From<std::time::Instant> for TimeSpec {
+            fn from(value: std::time::Instant) -> Self {
+                unsafe { core::mem::transmute::<_, std::time::SystemTime>(value).into() }
+            }
+        }
+        impl From<TimeSpec> for std::time::Instant {
+            fn from(value: TimeSpec) -> Self {
+                unsafe { core::mem::transmute::<std::time::SystemTime, _>(value.into()) }
+            }
+        }
+    }
+}
