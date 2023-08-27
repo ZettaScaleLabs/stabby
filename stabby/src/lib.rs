@@ -62,3 +62,5 @@ pub use crate::abi::{vtable::Any, AccessAs, IStable, IntoSuperTrait};
 
 #[cfg(all(feature = "libloading", any(unix, windows)))]
 pub mod libloading;
+
+pub mod time;
