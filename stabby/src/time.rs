@@ -1,5 +1,6 @@
 /// A stable equivalent to [`core::time::Duration`]
 #[crate::stabby]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Duration {
     pub secs: u64,
     pub nanos: u32,
@@ -40,6 +41,7 @@ mod impls {
     /// # Stability
     /// It is always represented as a duration since [`std::time::UNIX_EPOCH`].
     #[crate::stabby]
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct SystemTime(pub(crate) Duration);
     impl SystemTime {
         pub const UNIX_EPOCH: Self = SystemTime(Duration { secs: 0, nanos: 0 });
@@ -104,6 +106,7 @@ mod impls {
     /// if you have proof either way for your system of choice, and it will be added
     /// to this documentation.
     #[crate::stabby]
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct Instant(pub(crate) Duration);
     impl Instant {
         pub fn zero() -> Self {
