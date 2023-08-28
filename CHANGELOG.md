@@ -1,3 +1,7 @@
+
+# 1.0.7
+- Actually expose `stabby::time::{Instant, SystemTime}`
+
 # 1.0.6
 - Add trait implementations to `stabby::time::{Duration, Instant, SystemTime}`.
 - Improve release process (releases are now based on changelogs, which should become more accurate)

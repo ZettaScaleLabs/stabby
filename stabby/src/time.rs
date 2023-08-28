@@ -34,6 +34,9 @@ impl From<Duration> for core::time::Duration {
 }
 
 #[cfg(feature = "std")]
+pub use impls::{Instant, SystemTime};
+
+#[cfg(feature = "std")]
 mod impls {
     use super::Duration;
     use std::time::UNIX_EPOCH;
