@@ -12,6 +12,8 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+use std::collections::HashSet;
+
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::quote;
@@ -257,8 +259,11 @@ pub(crate) fn report(
     let st = crate::tl_mod();
     let mut report_bounds = quote!();
     let mut report = quote!(None);
+    let mut bounded_types = HashSet::new();
     for (name, ty) in fields.iter().rev() {
-        report_bounds = quote!(#ty: #st::IStable, #report_bounds);
+        if bounded_types.insert(*ty) {
+            report_bounds = quote!(#ty: #st::IStable, #report_bounds);
+        }
         report = quote! {
             Some(& #st::report::FieldReport {
                 name: #st::str::Str::new(#name),

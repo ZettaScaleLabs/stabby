@@ -149,6 +149,11 @@ impl<T, As: IStable> StableLike<T, As> {
                 "Attempted to construct `StableLike<T, As>` despite As::Size not matching T's size"
             )
         }
+        if core::mem::align_of::<T>() != <As::Align as Unsigned>::USIZE {
+            panic!(
+                "Attempted to construct `StableLike<T, As>` despite As::Size not matching T's size"
+            )
+        }
         Self {
             value,
             marker: core::marker::PhantomData,
@@ -302,3 +307,16 @@ pub use istable::{Array, End, IStable};
 
 pub mod istable;
 pub type NonZeroHole = U0;
+
+mod boundtests {
+    #[crate::stabby]
+    pub trait Test {
+        extern "C" fn test(&self);
+        extern "C" fn test2(&self);
+    }
+    #[crate::stabby]
+    pub struct Test2 {
+        a: usize,
+        b: usize,
+    }
+}

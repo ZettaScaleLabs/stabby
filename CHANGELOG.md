@@ -1,3 +1,5 @@
+# 1.0.8
+- Fix duplicated bounds on structures that would cause compile errors when a structure had several fields of the same type
 
 # 1.0.7
 - Actually expose `stabby::time::{Instant, SystemTime}`
