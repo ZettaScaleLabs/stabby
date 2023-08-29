@@ -261,8 +261,14 @@ pub fn repr_stabby(
         .iter()
         .map(|v| v.field.as_ref().map(|f| &f.ty))
         .collect::<Vec<_>>();
-    let vtyref = vty.iter().map(|v| v.map(|ty| quote!(&'st_lt #ty)));
-    let vtymut = vty.iter().map(|v| v.map(|ty| quote!(&'st_lt mut #ty)));
+    let vtyref = vty
+        .iter()
+        .map(|v| v.map(|ty| quote!(&'st_lt #ty)))
+        .collect::<Vec<_>>();
+    let vtymut = vty
+        .iter()
+        .map(|v| v.map(|ty| quote!(&'st_lt mut #ty)))
+        .collect::<Vec<_>>();
     let vid = variants.iter().map(|v| &v.ident).collect::<Vec<_>>();
     let fnvid = vid
         .iter()
@@ -316,9 +322,22 @@ pub fn repr_stabby(
             |a, b| quote!(self.0.#matcher(#a, #b)),
         )
     };
+    let matcher_ctx = |matcher| {
+        variants.map_with_finalizer(
+            |Variant { ident, field }| match field {
+                Some(_) => quote!(#ident),
+                None => quote!(|stabby_ctx, _| #ident(stabby_ctx)),
+            },
+            |a, b| quote!(move |stabby_ctx, this| this.#matcher(stabby_ctx, #a, #b)),
+            |a, b| quote!(self.0.#matcher(stabby_ctx, #a, #b)),
+        )
+    };
     let owned_matcher = matcher(quote!(match_owned));
     let ref_matcher = matcher(quote!(match_ref));
     let mut_matcher = matcher(quote!(match_mut));
+    let owned_matcher_ctx = matcher_ctx(quote!(match_owned_ctx));
+    let ref_matcher_ctx = matcher_ctx(quote!(match_ref_ctx));
+    let mut_matcher_ctx = matcher_ctx(quote!(match_mut_ctx));
     let layout = &result;
 
     let bounds2 = generics.where_clause.as_ref().map(|c| &c.predicates);
@@ -356,16 +375,28 @@ pub fn repr_stabby(
                 }
             )*
             #[allow(non_snake_case)]
-            pub fn match_owned<U, #(#fnvid: FnOnce(#vty) -> U,)*>(self, #(#vid: #fnvid,)*) -> U {
+            pub fn match_owned<StabbyOut, #(#fnvid: FnOnce(#vty) -> StabbyOut,)*>(self, #(#vid: #fnvid,)*) -> StabbyOut {
                 #owned_matcher
             }
             #[allow(non_snake_case)]
-            pub fn match_ref<'st_lt, U, #(#fnvid: FnOnce(#vtyref) -> U,)*>(&'st_lt self, #(#vid: #fnvid,)*) -> U {
+            pub fn match_ref<'st_lt, StabbyOut, #(#fnvid: FnOnce(#vtyref) -> StabbyOut,)*>(&'st_lt self, #(#vid: #fnvid,)*) -> StabbyOut {
                 #ref_matcher
             }
             #[allow(non_snake_case)]
-            pub fn match_mut<'st_lt, U, #(#fnvid: FnOnce(#vtymut) -> U,)*>(&'st_lt mut self, #(#vid: #fnvid,)*) -> U {
+            pub fn match_mut<'st_lt, StabbyOut, #(#fnvid: FnOnce(#vtymut) -> StabbyOut,)*>(&'st_lt mut self, #(#vid: #fnvid,)*) -> StabbyOut {
                 #mut_matcher
+            }
+            #[allow(non_snake_case)]
+            pub fn match_owned_ctx<StabbyOut, StabbyCtx, #(#fnvid: FnOnce(StabbyCtx, #vty) -> StabbyOut,)*>(self, stabby_ctx: StabbyCtx, #(#vid: #fnvid,)*) -> StabbyOut {
+                #owned_matcher_ctx
+            }
+            #[allow(non_snake_case)]
+            pub fn match_ref_ctx<'st_lt, StabbyCtx, StabbyOut, #(#fnvid: FnOnce(StabbyCtx, #vtyref) -> StabbyOut,)*>(&'st_lt self, stabby_ctx: StabbyCtx, #(#vid: #fnvid,)*) -> StabbyOut {
+                #ref_matcher_ctx
+            }
+            #[allow(non_snake_case)]
+            pub fn match_mut_ctx<'st_lt, StabbyCtx, StabbyOut, #(#fnvid: FnOnce(StabbyCtx, #vtymut) -> StabbyOut,)*>(&'st_lt mut self, stabby_ctx: StabbyCtx, #(#vid: #fnvid,)*) -> StabbyOut {
+                #mut_matcher_ctx
             }
         }
     }

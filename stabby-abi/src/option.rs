@@ -86,24 +86,49 @@ where
     }
     pub fn match_ref<'a, U, FnSome: FnOnce(&'a T) -> U, FnNone: FnOnce() -> U>(
         &'a self,
-        ok: FnSome,
-        err: FnNone,
+        some: FnSome,
+        none: FnNone,
     ) -> U {
-        self.inner.match_ref(ok, |_| err())
+        self.inner.match_ref(some, |_| none())
+    }
+    pub fn match_ref_ctx<'a, I, U, FnSome: FnOnce(I, &'a T) -> U, FnNone: FnOnce(I) -> U>(
+        &'a self,
+        ctx: I,
+        some: FnSome,
+        none: FnNone,
+    ) -> U {
+        self.inner.match_ref_ctx(ctx, some, move |ctx, _| none(ctx))
     }
     pub fn match_mut<'a, U, FnSome: FnOnce(&'a mut T) -> U, FnNone: FnOnce() -> U>(
         &'a mut self,
-        ok: FnSome,
-        err: FnNone,
+        some: FnSome,
+        none: FnNone,
     ) -> U {
-        self.inner.match_mut(ok, |_| err())
+        self.inner.match_mut(some, |_| none())
+    }
+    pub fn match_mut_ctx<'a, I, U, FnSome: FnOnce(I, &'a mut T) -> U, FnNone: FnOnce(I) -> U>(
+        &'a mut self,
+        ctx: I,
+        some: FnSome,
+        none: FnNone,
+    ) -> U {
+        self.inner.match_mut_ctx(ctx, some, move |ctx, _| none(ctx))
     }
     pub fn match_owned<U, FnSome: FnOnce(T) -> U, FnNone: FnOnce() -> U>(
         self,
-        ok: FnSome,
-        err: FnNone,
+        some: FnSome,
+        none: FnNone,
     ) -> U {
-        self.inner.match_owned(ok, |_| err())
+        self.inner.match_owned(some, |_| none())
+    }
+    pub fn match_owned_ctx<I, U, FnSome: FnOnce(I, T) -> U, FnNone: FnOnce(I) -> U>(
+        self,
+        ctx: I,
+        some: FnSome,
+        none: FnNone,
+    ) -> U {
+        self.inner
+            .match_owned_ctx(ctx, some, move |ctx, _| none(ctx))
     }
     pub fn is_some(&self) -> bool {
         self.inner.is_ok()
