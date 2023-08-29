@@ -1,3 +1,6 @@
+[![Crates.io (latest)](https://img.shields.io/crates/v/stabby)](https://lib.rs/crates/stabby)
+[![docs.rs](https://img.shields.io/docsrs/stabby)](https://docs.rs/stabby/latest/stabby/)
+
 # A Stable ABI for Rust with compact sum-types
 `stabby` is your one-stop-shop to create stable binary interfaces for your shared libraries easily, without having your sum-types (enums) explode in size.
 
@@ -133,4 +136,10 @@ However, our experience in software engineering has shown that type-size matters
 
 My hope with `stabby` comes in two flavors:
 - Adoption in the Rust ecosystem: this is my least favorite option, but this would at least let people have a better time with Rust in situations where they need dynamic linkage.
-- Triggering a discussion about providing not a stable, but versioned ABI for Rust: `stabby` essentially provides a versioned ABI already through the selected version of the `stabby-abi` crate. However, having a library implement type-layout, which is normally the compiler's job, forces abi-stability to be per-type explicit, instead of applicable to a whole compilation unit. In my opinion, a `abi = "1.xx"` (where `xx` would be a subset of `rustc`'s version that the compiler team is willing to support for a given amount of time) key in the cargo manifest would be a much better way to do this.
+- Triggering a discussion about providing not a stable, but versioned ABI for Rust: `stabby` essentially provides a versioned ABI already through the selected version of the `stabby-abi` crate. However, having a library implement type-layout, which is normally the compiler's job, forces abi-stability to be per-type explicit, instead of applicable to a whole compilation unit. In my opinion, a `abi = "<stabby/crabi/c>"` key in the cargo manifest would be a much better way to do this. Better yet, merging that idea with [RFC 3435](https://github.com/rust-lang/rfcs/pull/3435) to allow selecting an ABI on a per-function basis, and letting the compiler contaminate the types at the annotated functions' interfaces with the selected stable ABI, would be much more granular, but would still allow end users to become ABI-stable by commiting to a single version of their dependencies. 
+
+# `stabby`'s semver policy
+Stabby's semver policy is built as such:
+- patch: `stabby` will never break your builds _or_ your ABI, whatever sections of it you are using, through a patch update. New APIs may be added, and implementations may be refined, provided those refinements don't break ABI, including implicit invariants.
+- minor: `stabby` reserves the right to break API _and_ ABI for a small set of types on minor releases. These breaks shall be clearly highlighted in the CHANGELOG, and will be avoided unless they provide major benefits (extreme performance increase, important new feature, or vulnerability fix).
+- major: these releases indicate that `stabby`'s ABI has changed in a global way: binaries that use different major releases of `stabby` are unlikely to be able to interact correctly. For examples, if `#[repr(stabby)]` for enums was to change, this would be a major release. Note that if `stabby` is unable to detect such a change at runtime through its reflection system, this shall be explicitly stated in the changelog.

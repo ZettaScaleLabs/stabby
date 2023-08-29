@@ -1,3 +1,7 @@
+# 1.0.9
+- Introduce better matchers for pattern-matching emulations when at the borrrow checker would forbid the previously available ones:
+ `match_ref_ctx`, `match_mut_ctx` and `match_owned_ctx` all take a context, and one closure per variant; and only call the closure corresponding to the current variant, passing the context as first argument.
+
 # 1.0.8
 - Fix duplicated bounds on structures that would cause compile errors when a structure had several fields of the same type
 

@@ -186,6 +186,18 @@ where
             unsafe { err(&self.union.err.value) }
         }
     }
+    pub fn match_ref_ctx<'a, T, U, FnOk: FnOnce(T, &'a Ok) -> U, FnErr: FnOnce(T, &'a Err) -> U>(
+        &'a self,
+        ctx: T,
+        ok: FnOk,
+        err: FnErr,
+    ) -> U {
+        if self.is_ok() {
+            unsafe { ok(ctx, &self.union.ok.value) }
+        } else {
+            unsafe { err(ctx, &self.union.err.value) }
+        }
+    }
     pub fn match_mut<'a, U, FnOk: FnOnce(&'a mut Ok) -> U, FnErr: FnOnce(&'a mut Err) -> U>(
         &'a mut self,
         ok: FnOk,
@@ -206,6 +218,33 @@ where
         }
         r
     }
+    pub fn match_mut_ctx<
+        'a,
+        T,
+        U,
+        FnOk: FnOnce(T, &'a mut Ok) -> U,
+        FnErr: FnOnce(T, &'a mut Err) -> U,
+    >(
+        &'a mut self,
+        ctx: T,
+        ok: FnOk,
+        err: FnErr,
+    ) -> U {
+        let r;
+        let union = &mut self.union as *mut _ as *mut u8;
+        if self.is_ok() {
+            unsafe {
+                r = ok(ctx, &mut self.union.ok.deref_mut().value);
+                self.discriminant = <Ok as IDiscriminantProvider<Err>>::Discriminant::ok(union);
+            }
+        } else {
+            unsafe {
+                r = err(ctx, &mut self.union.err.deref_mut().value);
+                self.discriminant = <Ok as IDiscriminantProvider<Err>>::Discriminant::err(union);
+            }
+        }
+        r
+    }
     pub fn match_owned<U, FnOk: FnOnce(Ok) -> U, FnErr: FnOnce(Err) -> U>(
         self,
         ok: FnOk,
@@ -218,6 +257,27 @@ where
             ok(core::mem::ManuallyDrop::into_inner(unsafe { union.ok }).value)
         } else {
             err(core::mem::ManuallyDrop::into_inner(unsafe { union.err }).value)
+        }
+    }
+    pub fn match_owned_ctx<U, T, FnOk: FnOnce(T, Ok) -> U, FnErr: FnOnce(T, Err) -> U>(
+        self,
+        ctx: T,
+        ok: FnOk,
+        err: FnErr,
+    ) -> U {
+        let is_ok = self.is_ok();
+        let union = self.union.clone();
+        core::mem::forget(self);
+        if is_ok {
+            ok(
+                ctx,
+                core::mem::ManuallyDrop::into_inner(unsafe { union.ok }).value,
+            )
+        } else {
+            err(
+                ctx,
+                core::mem::ManuallyDrop::into_inner(unsafe { union.err }).value,
+            )
         }
     }
     pub fn is_ok(&self) -> bool {
