@@ -74,6 +74,7 @@ impl IDiscriminant for End {
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct ValueIsErr<Offset, Value, Tail: IStable>(PhantomData<(Offset, Value)>, Tail);
+impl<Offset, Value, Tail: IStable> Unpin for ValueIsErr<Offset, Value, Tail> {}
 unsafe impl<Offset, Value, Tail: IStable> IStable for ValueIsErr<Offset, Value, Tail> {
     type Size = Tail::Size;
     type Align = Tail::Align;
@@ -114,7 +115,7 @@ where
     }
 }
 pub trait IntoValueIsErr {
-    type ValueIsErr: IDiscriminant + IStable;
+    type ValueIsErr: IDiscriminant + IStable + Unpin;
 }
 impl IntoValueIsErr for End {
     type ValueIsErr = End;
@@ -132,6 +133,7 @@ impl<Offset: Unsigned, Mask: Unsigned> core::fmt::Debug for BitIsErr<Offset, Mas
         write!(f, "BitIsErr(ptr[{}] & {})", Offset::USIZE, Mask::U8)
     }
 }
+impl<Offset, Mask> Unpin for BitIsErr<Offset, Mask> {}
 impl<Offset: Unsigned, Mask: Unsigned> IDiscriminant for BitIsErr<Offset, Mask> {
     unsafe fn ok(union: *mut u8) -> Self {
         let ptr = union;
@@ -150,6 +152,7 @@ impl<Offset: Unsigned, Mask: Unsigned> IDiscriminant for BitIsErr<Offset, Mask> 
 }
 #[derive(Debug, Clone, Copy)]
 pub struct Not<Discriminant>(Discriminant);
+impl<Discriminant> Unpin for Not<Discriminant> {}
 unsafe impl<Discriminant: IStable> IStable for Not<Discriminant> {
     type Size = Discriminant::Size;
     type Align = Discriminant::Align;
@@ -177,21 +180,21 @@ where
 pub trait IDiscriminantProvider<Other>: IStable {
     type OkShift: Unsigned;
     type ErrShift: Unsigned;
-    type Discriminant: IDiscriminant;
-    type NicheExporter: IStable + Default + Copy;
+    type Discriminant: IDiscriminant + Unpin;
+    type NicheExporter: IStable + Default + Copy + Unpin;
     type Debug;
 }
 pub trait IDiscriminantProviderInnerRev {
     type OkShift: Unsigned;
     type ErrShift: Unsigned;
-    type Discriminant: IDiscriminant;
-    type NicheExporter: IStable + Default + Copy;
+    type Discriminant: IDiscriminant + Unpin;
+    type NicheExporter: IStable + Default + Copy + Unpin;
     type Debug;
 }
 pub trait IDiscriminantProviderInner {
     type ErrShift: Unsigned;
-    type Discriminant: IDiscriminant;
-    type NicheExporter: IStable + Default + Copy;
+    type Discriminant: IDiscriminant + Unpin;
+    type NicheExporter: IStable + Default + Copy + Unpin;
     type Debug;
 }
 

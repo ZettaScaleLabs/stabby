@@ -205,7 +205,7 @@ where
     ) -> U {
         let r;
         let union = &mut self.union as *mut _ as *mut u8;
-        if self.is_ok() {
+        if Self::is_ok(self) {
             unsafe {
                 r = ok(&mut self.union.ok.deref_mut().value);
                 self.discriminant = <Ok as IDiscriminantProvider<Err>>::Discriminant::ok(union);
@@ -232,7 +232,7 @@ where
     ) -> U {
         let r;
         let union = &mut self.union as *mut _ as *mut u8;
-        if self.is_ok() {
+        if Self::is_ok(self) {
             unsafe {
                 r = ok(ctx, &mut self.union.ok.deref_mut().value);
                 self.discriminant = <Ok as IDiscriminantProvider<Err>>::Discriminant::ok(union);
