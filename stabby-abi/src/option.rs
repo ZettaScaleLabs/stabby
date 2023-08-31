@@ -18,7 +18,7 @@ use crate::enums::IDiscriminantProvider;
 use crate::IStable;
 
 #[crate::stabby]
-// #[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Option<T: IStable + IDiscriminantProvider<()>> {
     inner: crate::result::Result<T, ()>,
 }
