@@ -223,6 +223,16 @@ impl<T, Alloc: IAlloc> Drop for Vec<T, Alloc> {
         }
     }
 }
+impl<T, Alloc: IAlloc> core::iter::Extend<T> for Vec<T, Alloc> {
+    fn extend<Iter: IntoIterator<Item = T>>(&mut self, iter: Iter) {
+        let iter = iter.into_iter();
+        let min = iter.size_hint().0;
+        self.reserve(min);
+        for item in iter {
+            self.push(item);
+        }
+    }
+}
 
 impl_index!(usize);
 impl_index!(core::ops::Range<usize>);
@@ -231,3 +241,5 @@ impl_index!(core::ops::RangeTo<usize>);
 impl_index!(core::ops::RangeToInclusive<usize>);
 impl_index!(core::ops::RangeFrom<usize>);
 impl_index!(core::ops::RangeFull);
+
+pub struct String<Alloc: IAlloc>(Vec<u8, Alloc>);

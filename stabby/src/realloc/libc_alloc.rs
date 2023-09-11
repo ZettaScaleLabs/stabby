@@ -30,11 +30,12 @@ impl super::IAlloc for LibcAlloc {
         if layout.size == 0 {
             return core::ptr::null_mut();
         }
-        let mut ptr = unsafe { libc::memalign(layout.align, layout.size).cast::<()>() };
-        if (!ptr.is_null()) && (ptr as usize % layout.align != 0) {
+        let mut ptr = core::ptr::null_mut();
+        let err = unsafe { libc::posix_memalign(&mut ptr, layout.align, layout.size) };
+        if err != 0 && (ptr as usize % layout.align != 0) {
             ptr = core::ptr::null_mut();
         }
-        ptr
+        ptr.cast()
     }
     unsafe fn free(&mut self, ptr: *mut ()) {
         unsafe { libc::free(ptr.cast()) }
@@ -43,19 +44,22 @@ impl super::IAlloc for LibcAlloc {
         if new_layout.size == 0 {
             return core::ptr::null_mut();
         }
-        let mut new_ptr = unsafe { libc::realloc(ptr.cast(), new_layout.size).cast::<()>() };
+        let mut new_ptr = unsafe { libc::realloc(ptr.cast(), new_layout.size) };
         if new_ptr as usize % new_layout.align != 0 {
-            let ptr = unsafe { libc::memalign(new_layout.align, new_layout.size).cast::<()>() };
-            unsafe {
-                core::ptr::copy_nonoverlapping(
-                    new_ptr.cast::<u8>(),
-                    ptr.cast::<u8>(),
-                    new_layout.size,
-                )
+            let mut ptr = core::ptr::null_mut();
+            let err = unsafe { libc::posix_memalign(&mut ptr, new_layout.align, new_layout.size) };
+            if err == 0 {
+                unsafe {
+                    core::ptr::copy_nonoverlapping(
+                        new_ptr.cast::<u8>(),
+                        ptr.cast::<u8>(),
+                        new_layout.size,
+                    )
+                }
+                self.free(new_ptr.cast());
+                new_ptr = ptr;
             }
-            self.free(new_ptr);
-            new_ptr = ptr;
         }
-        new_ptr
+        new_ptr.cast()
     }
 }
