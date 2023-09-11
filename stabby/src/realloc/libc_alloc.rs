@@ -20,11 +20,6 @@ use super::Layout;
 #[crate::stabby]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LibcAlloc;
-impl LibcAlloc {
-    pub fn errno(&self) -> i32 {
-        unsafe { *libc::__errno_location() }
-    }
-}
 impl super::IAlloc for LibcAlloc {
     fn alloc(&mut self, layout: Layout) -> *mut () {
         if layout.size == 0 {
