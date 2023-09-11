@@ -14,6 +14,22 @@
 
 use super::Layout;
 
+#[cfg(not(windows))]
+use libc::posix_memalign;
+#[cfg(windows)]
+unsafe fn posix_memalign(this: &mut *mut core::ffi::c_void, size: usize, align: usize) -> i32 {
+    let ptr = unsafe { libc::aligned_malloc(size, align) };
+    if ptr.is_null() {
+        return libc::ENOMEM;
+    }
+    *this = ptr;
+    0
+}
+#[cfg(windows)]
+use libc::aligned_free;
+#[cfg(not(windows))]
+use libc::free as aligned_free;
+
 /// An allocator based on `libc::malloc`.
 ///
 /// It has all of `malloc`'s usual properties.
@@ -26,14 +42,14 @@ impl super::IAlloc for LibcAlloc {
             return core::ptr::null_mut();
         }
         let mut ptr = core::ptr::null_mut();
-        let err = unsafe { libc::posix_memalign(&mut ptr, layout.align, layout.size) };
+        let err = unsafe { posix_memalign(&mut ptr, layout.align, layout.size) };
         if err != 0 && (ptr as usize % layout.align != 0) {
             ptr = core::ptr::null_mut();
         }
         ptr.cast()
     }
     unsafe fn free(&mut self, ptr: *mut ()) {
-        unsafe { libc::free(ptr.cast()) }
+        unsafe { aligned_free(ptr.cast()) }
     }
     unsafe fn realloc(&mut self, ptr: *mut (), new_layout: Layout) -> *mut () {
         if new_layout.size == 0 {
@@ -42,7 +58,7 @@ impl super::IAlloc for LibcAlloc {
         let mut new_ptr = unsafe { libc::realloc(ptr.cast(), new_layout.size) };
         if new_ptr as usize % new_layout.align != 0 {
             let mut ptr = core::ptr::null_mut();
-            let err = unsafe { libc::posix_memalign(&mut ptr, new_layout.align, new_layout.size) };
+            let err = unsafe { posix_memalign(&mut ptr, new_layout.align, new_layout.size) };
             if err == 0 {
                 unsafe {
                     core::ptr::copy_nonoverlapping(
