@@ -187,6 +187,19 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         core::mem::forget(self);
         (AllocSlice { start, end }, capacity, alloc)
     }
+    pub fn copy_extend(&mut self, slice: &[T])
+    where
+        T: Copy,
+    {
+        if self.is_empty() {
+            return;
+        }
+        self.reserve(slice.len());
+        unsafe {
+            core::ptr::copy_nonoverlapping(slice.as_ptr(), self.0.end.as_ptr(), slice.len());
+            self.set_len(self.len() + slice.len())
+        }
+    }
 }
 macro_rules! impl_index {
     ($index: ty) => {
@@ -210,9 +223,24 @@ impl<T, Alloc: IAlloc> core::ops::Deref for Vec<T, Alloc> {
         self.as_slice()
     }
 }
+impl<T, Alloc: IAlloc> core::convert::AsRef<[T]> for Vec<T, Alloc> {
+    fn as_ref(&self) -> &[T] {
+        self.as_slice()
+    }
+}
 impl<T, Alloc: IAlloc> core::ops::DerefMut for Vec<T, Alloc> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_slice_mut()
+    }
+}
+impl<T, Alloc: IAlloc> core::convert::AsMut<[T]> for Vec<T, Alloc> {
+    fn as_mut(&mut self) -> &mut [T] {
+        self.as_slice_mut()
+    }
+}
+impl<T, Alloc: IAlloc + Default> Default for Vec<T, Alloc> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 impl<T, Alloc: IAlloc> Drop for Vec<T, Alloc> {
@@ -242,4 +270,76 @@ impl_index!(core::ops::RangeToInclusive<usize>);
 impl_index!(core::ops::RangeFrom<usize>);
 impl_index!(core::ops::RangeFull);
 
-pub struct String<Alloc: IAlloc>(Vec<u8, Alloc>);
+#[cfg(feature = "libc")]
+#[crate::stabby]
+pub struct String<Alloc: IAlloc = super::libc_alloc::LibcAlloc>(pub(crate) Vec<u8, Alloc>);
+#[cfg(not(feature = "libc"))]
+#[crate::stabby]
+pub struct String<Alloc: IAlloc>(pub(crate) Vec<u8, Alloc>);
+
+impl<Alloc: IAlloc> String<Alloc> {
+    pub fn new_in(alloc: Alloc) -> Self {
+        Self(Vec::new_in(alloc))
+    }
+    pub fn new() -> Self
+    where
+        Alloc: Default,
+    {
+        Self(Vec::new())
+    }
+    pub fn as_str(&self) -> &str {
+        unsafe { core::str::from_utf8_unchecked(self.0.as_slice()) }
+    }
+    pub fn as_str_mut(&mut self) -> &mut str {
+        unsafe { core::str::from_utf8_unchecked_mut(self.0.as_slice_mut()) }
+    }
+}
+impl<Alloc: IAlloc + Default> Default for String<Alloc> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl<S: AsRef<str>, Alloc: IAlloc> core::ops::Add<S> for String<Alloc> {
+    type Output = Self;
+    fn add(mut self, rhs: S) -> Self::Output {
+        self += rhs.as_ref();
+        self
+    }
+}
+impl<S: AsRef<str>, Alloc: IAlloc> core::ops::AddAssign<S> for String<Alloc> {
+    fn add_assign(&mut self, rhs: S) {
+        self.0.copy_extend(rhs.as_ref().as_bytes())
+    }
+}
+
+impl<Alloc: IAlloc> From<String<Alloc>> for Vec<u8, Alloc> {
+    fn from(value: String<Alloc>) -> Self {
+        value.0
+    }
+}
+
+impl<Alloc: IAlloc> TryFrom<Vec<u8, Alloc>> for String<Alloc> {
+    type Error = core::str::Utf8Error;
+    fn try_from(value: Vec<u8, Alloc>) -> Result<Self, Self::Error> {
+        core::str::from_utf8(value.as_slice())?;
+        Ok(Self(value))
+    }
+}
+
+impl<Alloc: IAlloc> core::ops::Deref for String<Alloc> {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+
+impl<Alloc: IAlloc> core::convert::AsRef<str> for String<Alloc> {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+impl<Alloc: IAlloc> core::ops::DerefMut for String<Alloc> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.as_str_mut()
+    }
+}

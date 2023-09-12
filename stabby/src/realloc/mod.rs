@@ -55,10 +55,22 @@ impl Layout {
         self.size += other.size;
         self
     }
+    #[inline]
+    pub fn next_matching<T>(self, ptr: *mut T) -> *mut T {
+        fn next_matching(align: usize, ptr: *mut u8) -> *mut u8 {
+            unsafe { ptr.add(ptr.align_offset(align)) }
+        }
+        next_matching(self.align, ptr.cast()).cast()
+    }
 }
 
 /// An interface to an allocator.
-pub trait IAlloc {
+///
+/// Note that `stabby` often stores allocators inside allocations they made, so allocators that cannot allocate
+/// more than their size on stack will systematically fail to construct common stabby types.
+///
+/// Since the allocator may be moved, it must also be safe to do so, including after it has performed allocations.
+pub trait IAlloc: Unpin {
     /// Allocates at least as much memory as requested by layout, ensuring the requested alignment is respected.
     ///
     /// If the requested size is 0, or allocation failed, then a null pointer is returned.
@@ -86,9 +98,9 @@ pub trait IAlloc {
     }
 }
 
-/// An ABI stable interface to an allocator.
+/// An ABI stable equivalent to [`IAlloc`].
 #[crate::stabby]
-pub trait IStableAlloc {
+pub trait IStableAlloc: Unpin {
     /// Allocates at least as much memory as requested by layout, ensuring the requested alignment is respected.
     ///
     /// If the requested size is 0, or allocation failed, then a null pointer is returned.
@@ -128,7 +140,7 @@ impl<T: IAlloc> IStableAlloc for T {
     }
 }
 
-impl<T: IStableAllocDynMut<stabby_abi::vtable::H>> IAlloc for T {
+impl<T: IStableAllocDynMut<stabby_abi::vtable::H> + Unpin> IAlloc for T {
     fn alloc(&mut self, layout: Layout) -> *mut () {
         IStableAllocDynMut::alloc(self, layout)
     }

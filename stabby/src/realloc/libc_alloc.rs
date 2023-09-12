@@ -30,7 +30,7 @@ use libc::aligned_free;
 #[cfg(not(windows))]
 use libc::free as aligned_free;
 
-/// An allocator based on `libc::malloc`.
+/// An allocator based on `libc::posix_memalign` or `libc::aligned_malloc` depending on the platform.
 ///
 /// It has all of `malloc`'s usual properties.
 #[crate::stabby]

@@ -12,11 +12,14 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use core::sync::atomic::{AtomicUsize, Ordering};
+use core::{
+    hash::Hash,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 use super::{
     boxed::Box,
-    vec::{ptr_add, ptr_diff, Vec, VecInner},
+    vec::{ptr_add, ptr_diff, String, Vec, VecInner},
     AllocPtr, AllocSlice, IAlloc, Layout,
 };
 
@@ -338,17 +341,12 @@ impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
     pub fn strong_count(this: &Self) -> usize {
         unsafe { this.0.start.prefix().strong.load(Ordering::Relaxed) }
     }
-    pub fn as_slice_mut(&mut self) -> Option<&mut [T]> {
-        match ArcSlice::strong_count(self) {
-            1 => Some(unsafe { self.as_slice_mut_unchecked() }),
-            _ => None,
-        }
+    pub fn weak_count(this: &Self) -> usize {
+        unsafe { this.0.start.prefix().weak.load(Ordering::Relaxed) }
     }
-}
-impl<T, Alloc: IAlloc> core::ops::Deref for ArcSlice<T, Alloc> {
-    type Target = [T];
-    fn deref(&self) -> &Self::Target {
-        self.as_slice()
+    pub fn as_slice_mut(&mut self) -> Option<&mut [T]> {
+        (ArcSlice::strong_count(self) == 1 && ArcSlice::weak_count(self) == 1)
+            .then(|| unsafe { self.as_slice_mut_unchecked() })
     }
 }
 impl<T, Alloc: IAlloc> Clone for ArcSlice<T, Alloc> {
@@ -426,6 +424,27 @@ impl<T, Alloc: IAlloc> TryFrom<ArcSlice<T, Alloc>> for Vec<T, Alloc> {
         }
     }
 }
+impl<T: Eq, Alloc: IAlloc> Eq for ArcSlice<T, Alloc> {}
+impl<T: PartialEq, Alloc: IAlloc> PartialEq for ArcSlice<T, Alloc> {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+impl<T: Ord, Alloc: IAlloc> Ord for ArcSlice<T, Alloc> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.as_slice().cmp(other.as_slice())
+    }
+}
+impl<T: PartialOrd, Alloc: IAlloc> PartialOrd for ArcSlice<T, Alloc> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.as_slice().partial_cmp(other.as_slice())
+    }
+}
+impl<T: Hash, Alloc: IAlloc> Hash for ArcSlice<T, Alloc> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.as_slice().hash(state)
+    }
+}
 impl<T, Alloc: IAlloc> Drop for ArcSlice<T, Alloc> {
     fn drop(&mut self) {
         if unsafe { self.0.start.prefix() }
@@ -450,6 +469,31 @@ pub struct WeakSlice<T, Alloc: IAlloc = super::libc_alloc::LibcAlloc>(
 #[crate::stabby]
 pub struct WeakSlice<T, Alloc: IAlloc>(pub(crate) AllocSlice<T, Alloc>);
 
+impl<T, Alloc: IAlloc> WeakSlice<T, Alloc> {
+    pub fn upgrade(&self) -> Option<ArcSlice<T, Alloc>> {
+        let strong = &unsafe { self.0.start.prefix() }.strong;
+        let count = strong.fetch_or(USIZE_TOP_BIT, Ordering::Acquire);
+        match count {
+            0 | USIZE_TOP_BIT => {
+                strong.store(0, Ordering::Release);
+                None
+            }
+            _ => {
+                strong.fetch_add(1, Ordering::Release);
+                strong.fetch_and(!USIZE_TOP_BIT, Ordering::Release);
+                Some(ArcSlice(self.0))
+            }
+        }
+    }
+}
+impl<T, Alloc: IAlloc> Clone for WeakSlice<T, Alloc> {
+    fn clone(&self) -> Self {
+        unsafe { self.0.start.prefix() }
+            .weak
+            .fetch_add(1, Ordering::Relaxed);
+        Self(self.0)
+    }
+}
 impl<T, Alloc: IAlloc> From<&ArcSlice<T, Alloc>> for WeakSlice<T, Alloc> {
     fn from(value: &ArcSlice<T, Alloc>) -> Self {
         unsafe { value.0.start.prefix() }
@@ -469,5 +513,88 @@ impl<T, Alloc: IAlloc> Drop for WeakSlice<T, Alloc> {
         }
         let mut alloc = unsafe { core::ptr::read(&self.0.start.prefix().alloc) };
         unsafe { self.0.start.free(&mut alloc) }
+    }
+}
+
+#[crate::stabby]
+#[cfg(feature = "libc")]
+pub struct ArcStr<Alloc: IAlloc = super::libc_alloc::LibcAlloc>(ArcSlice<u8, Alloc>);
+#[cfg(not(feature = "libc"))]
+pub struct ArcStr<Alloc: IAlloc>(ArcSlice<u8, Alloc>);
+impl<Alloc: IAlloc> ArcStr<Alloc> {
+    pub fn as_str(&self) -> &str {
+        unsafe { core::str::from_utf8_unchecked(self.0.as_slice()) }
+    }
+}
+impl<Alloc: IAlloc> AsRef<str> for ArcStr<Alloc> {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+impl<Alloc: IAlloc> core::ops::Deref for ArcStr<Alloc> {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+impl<Alloc: IAlloc> From<String<Alloc>> for ArcStr<Alloc> {
+    fn from(value: String<Alloc>) -> Self {
+        Self(value.0.into())
+    }
+}
+impl<Alloc: IAlloc> TryFrom<ArcStr<Alloc>> for String<Alloc> {
+    type Error = ArcStr<Alloc>;
+    fn try_from(value: ArcStr<Alloc>) -> Result<Self, ArcStr<Alloc>> {
+        match value.0.try_into() {
+            Ok(vec) => Ok(String(vec)),
+            Err(slice) => Err(ArcStr(slice)),
+        }
+    }
+}
+impl<Alloc: IAlloc> Clone for ArcStr<Alloc> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+impl<Alloc: IAlloc> Eq for ArcStr<Alloc> {}
+impl<Alloc: IAlloc> PartialEq for ArcStr<Alloc> {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+impl<Alloc: IAlloc> Ord for ArcStr<Alloc> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.as_str().cmp(other.as_str())
+    }
+}
+impl<Alloc: IAlloc> PartialOrd for ArcStr<Alloc> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.as_str().partial_cmp(other.as_str())
+    }
+}
+impl<Alloc: IAlloc> Hash for ArcStr<Alloc> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.as_str().hash(state)
+    }
+}
+
+#[crate::stabby]
+#[cfg(feature = "libc")]
+pub struct WeakStr<Alloc: IAlloc = super::libc_alloc::LibcAlloc>(WeakSlice<u8, Alloc>);
+#[cfg(not(feature = "libc"))]
+pub struct WeakStr<Alloc: IAlloc>(WeakSlice<u8, Alloc>);
+impl<Alloc: IAlloc> WeakStr<Alloc> {
+    pub fn upgrade(&self) -> Option<ArcStr<Alloc>> {
+        self.0.upgrade().map(ArcStr)
+    }
+}
+impl<Alloc: IAlloc> From<&ArcStr<Alloc>> for WeakStr<Alloc> {
+    fn from(value: &ArcStr<Alloc>) -> Self {
+        Self((&value.0).into())
+    }
+}
+impl<Alloc: IAlloc> Clone for WeakStr<Alloc> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }

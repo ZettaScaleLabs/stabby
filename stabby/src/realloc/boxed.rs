@@ -253,6 +253,27 @@ impl<T, Alloc: IAlloc> BoxedSlice<T, Alloc> {
         (slice, capacity, alloc)
     }
 }
+impl<T: Eq, Alloc: IAlloc> Eq for BoxedSlice<T, Alloc> {}
+impl<T: PartialEq, Alloc: IAlloc> PartialEq for BoxedSlice<T, Alloc> {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+impl<T: Ord, Alloc: IAlloc> Ord for BoxedSlice<T, Alloc> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.as_slice().cmp(other.as_slice())
+    }
+}
+impl<T: PartialOrd, Alloc: IAlloc> PartialOrd for BoxedSlice<T, Alloc> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.as_slice().partial_cmp(other.as_slice())
+    }
+}
+impl<T: core::hash::Hash, Alloc: IAlloc> core::hash::Hash for BoxedSlice<T, Alloc> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.as_slice().hash(state)
+    }
+}
 impl<T, Alloc: IAlloc> From<Vec<T, Alloc>> for BoxedSlice<T, Alloc> {
     fn from(value: Vec<T, Alloc>) -> Self {
         let (mut slice, capacity, alloc) = value.into_raw_components();
@@ -303,5 +324,58 @@ impl<T, Alloc: IAlloc> Drop for BoxedSlice<T, Alloc> {
         if core::mem::size_of::<T>() != 0 && !self.is_empty() {
             unsafe { self.slice.start.free(&mut self.alloc) }
         }
+    }
+}
+
+#[crate::stabby]
+#[cfg(feature = "libc")]
+pub struct BoxedStr<Alloc: IAlloc = super::libc_alloc::LibcAlloc>(BoxedSlice<u8, Alloc>);
+#[cfg(not(feature = "libc"))]
+pub struct BoxedStr<Alloc: IAlloc>(BoxedSlice<u8, Alloc>);
+impl<Alloc: IAlloc> BoxedStr<Alloc> {
+    pub fn as_str(&self) -> &str {
+        unsafe { core::str::from_utf8_unchecked(self.0.as_slice()) }
+    }
+}
+impl<Alloc: IAlloc> AsRef<str> for BoxedStr<Alloc> {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+impl<Alloc: IAlloc> core::ops::Deref for BoxedStr<Alloc> {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+impl<Alloc: IAlloc> From<String<Alloc>> for BoxedStr<Alloc> {
+    fn from(value: String<Alloc>) -> Self {
+        Self(value.0.into())
+    }
+}
+impl<Alloc: IAlloc> From<BoxedStr<Alloc>> for String<Alloc> {
+    fn from(value: BoxedStr<Alloc>) -> Self {
+        String(value.0.into())
+    }
+}
+impl<Alloc: IAlloc> Eq for BoxedStr<Alloc> {}
+impl<Alloc: IAlloc> PartialEq for BoxedStr<Alloc> {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+impl<Alloc: IAlloc> Ord for BoxedStr<Alloc> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.as_str().cmp(other.as_str())
+    }
+}
+impl<Alloc: IAlloc> PartialOrd for BoxedStr<Alloc> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.as_str().partial_cmp(other.as_str())
+    }
+}
+impl<Alloc: IAlloc> core::hash::Hash for BoxedStr<Alloc> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.as_str().hash(state)
     }
 }
