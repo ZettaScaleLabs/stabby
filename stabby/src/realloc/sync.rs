@@ -160,7 +160,7 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
 
     /// Provides a mutable reference to the internals if the strong and weak counts are both 1.
     pub fn get_mut(this: &mut Self) -> Option<&mut T> {
-        if Self::weak_count(this) == 1 && Self::strong_count(this) == 1 {
+        if Self::is_unique(this) {
             Some(unsafe { Self::get_mut_unchecked(this) })
         } else {
             None
@@ -190,14 +190,19 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
         T: Clone,
         Alloc: Clone,
     {
-        if Self::strong_count(self) > 1 || Self::weak_count(self) > 1 {
+        if !Self::is_unique(self) {
             *self = Self::new_in(T::clone(self), unsafe { self.ptr.prefix() }.alloc.clone());
         }
         unsafe { Self::get_mut_unchecked(self) }
     }
+
+    /// Whether or not `this` is the sole owner of its data, including weak owners.
+    pub fn is_unique(this: &Self) -> bool {
+        Self::strong_count(this) == 1 && Self::weak_count(this) == 1
+    }
     /// Attempts the value from the allocation, freeing said allocation, if the strong and weah counts are indeed 1.
     pub fn try_into_inner(this: Self) -> Result<T, Self> {
-        if Self::strong_count(&this) > 1 || Self::weak_count(&this) > 1 {
+        if !Self::is_unique(&this) {
             Err(this)
         } else {
             let ret = unsafe { core::ptr::read(&*this) };
@@ -344,6 +349,9 @@ impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
     pub fn weak_count(this: &Self) -> usize {
         unsafe { this.0.start.prefix().weak.load(Ordering::Relaxed) }
     }
+    pub fn is_unique(this: &Self) -> bool {
+        Self::strong_count(this) == 1 && Self::weak_count(this) == 1
+    }
     pub fn as_slice_mut(&mut self) -> Option<&mut [T]> {
         (ArcSlice::strong_count(self) == 1 && ArcSlice::weak_count(self) == 1)
             .then(|| unsafe { self.as_slice_mut_unchecked() })
@@ -405,7 +413,7 @@ impl<T, Alloc: IAlloc> From<Vec<T, Alloc>> for ArcSlice<T, Alloc> {
 impl<T, Alloc: IAlloc> TryFrom<ArcSlice<T, Alloc>> for Vec<T, Alloc> {
     type Error = ArcSlice<T, Alloc>;
     fn try_from(value: ArcSlice<T, Alloc>) -> Result<Self, Self::Error> {
-        if core::mem::size_of::<T>() == 0 || ArcSlice::strong_count(&value) != 1 {
+        if core::mem::size_of::<T>() == 0 || !ArcSlice::is_unique(&value) {
             Err(value)
         } else {
             unsafe {
