@@ -349,6 +349,7 @@ impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
     pub fn weak_count(this: &Self) -> usize {
         unsafe { this.0.start.prefix().weak.load(Ordering::Relaxed) }
     }
+    /// Whether or not `this` is the sole owner of its data, including weak owners.
     pub fn is_unique(this: &Self) -> bool {
         Self::strong_count(this) == 1 && Self::weak_count(this) == 1
     }
@@ -532,6 +533,10 @@ pub struct ArcStr<Alloc: IAlloc>(ArcSlice<u8, Alloc>);
 impl<Alloc: IAlloc> ArcStr<Alloc> {
     pub fn as_str(&self) -> &str {
         unsafe { core::str::from_utf8_unchecked(self.0.as_slice()) }
+    }
+    /// Whether or not `this` is the sole owner of its data, including weak owners.
+    pub fn is_unique(this: &Self) -> bool {
+        ArcSlice::is_unique(&this.0)
     }
 }
 impl<Alloc: IAlloc> AsRef<str> for ArcStr<Alloc> {
