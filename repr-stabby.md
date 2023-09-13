@@ -12,7 +12,7 @@ Note that unbits can never overlap with a forbidden value.
 Unit types have size 0, alignment 1, and no niches.
 
 ### Boolean
-`bool` is a single byte type, where all values that aren't `0` represents `false`, `1` represents `true`, and all other values are forbidden.
+`bool` is a single byte type, `0` represents `false`, `1` represents `true`, and all other values are forbidden.
 
 ### Pointers and references
 Pointers are considered nullables, whereas references are non-null types (`[0; size_of_ptr]` is their only forbidden value)
