@@ -129,7 +129,7 @@ pub fn stabby(
         Repr::Isize => "isize",
     };
     let reprid = quote::format_ident!("{}", repr);
-    layout = quote!(#st::FieldPair<#reprid, #layout>);
+    layout = quote!(#st::Tuple<#reprid, #layout>);
     let sident = format!("{ident}");
     let (report, report_bounds) = report;
     quote! {
@@ -282,7 +282,7 @@ pub fn repr_stabby(
         |(aty, abound), (bty, bbound)| {
             (
                 quote!(#st::Result<#aty, #bty>),
-                quote!(#aty: #st::IDiscriminantProvider<#bty>, #abound #bbound),
+                quote!(#aty: #st::IDiscriminantProvider<#bty>, #bty: #st::IStable, #abound #bbound),
             )
         },
     );
@@ -343,12 +343,12 @@ pub fn repr_stabby(
     let bounds2 = generics.where_clause.as_ref().map(|c| &c.predicates);
     let bounds = quote!(#bounds #bounds2);
 
-    let enum_as_struct = quote! {
-        #(#attrs)*
-        #vis struct #ident #generics (#result) where #bounds;
-    };
     let sident = format!("{ident}");
     let (report, report_bounds) = report;
+    let enum_as_struct = quote! {
+        #(#attrs)*
+        #vis struct #ident #generics (#result) where #report_bounds #bounds;
+    };
     quote! {
         #enum_as_struct
         #[automatically_derived]
@@ -367,7 +367,7 @@ pub fn repr_stabby(
             };
         }
         #[automatically_derived]
-        impl #generics #ident < #unbound_generics > where #bounds {
+        impl #generics #ident < #unbound_generics > where #report_bounds #bounds {
             #(
                 #[allow(non_snake_case)]
                 pub fn #vid(#cparams) -> Self {

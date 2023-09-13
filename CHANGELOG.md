@@ -1,3 +1,13 @@
+# 1.0.10
+- Make bound deduction better for enums.
+- Introduce `MaybeResolved`: a future that may already be resolved to handle "maybe async" functions.
+- `stabby` now has support for custom allocators, and uses that to define truly ABI stable allocated types in the `realloc` module.
+	- While Rust's standard `Box` and `Arc` have stable layout, the default global allocator may change without `stabby` noticing,
+	they are therefore not truly ABI stable.
+	- `stabby::realloc`'s `Box`, `Arc` and `Vec` all support custom allocators, and prefix all allocations with the same layout,
+	this allows conversions between those types to never require a reallocation unless the target requires an allocation that the source
+	type didn't, like converting a `Vec` to an `Arc`.
+
 # 1.0.9
 - Introduce better matchers for pattern-matching emulations when at the borrrow checker would forbid the previously available ones:
  `match_ref_ctx`, `match_mut_ctx` and `match_owned_ctx` all take a context, and one closure per variant; and only call the closure corresponding to the current variant, passing the context as first argument.

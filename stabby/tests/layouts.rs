@@ -64,6 +64,13 @@ pub enum MultiFieldsStabby {
     D(u32),
     E,
 }
+#[stabby::stabby]
+pub enum SameFieldsFourTimes<T> {
+    A(T),
+    B(T),
+    C(T),
+    D(T),
+}
 
 #[stabby::stabby(no_opt)]
 pub struct WeirdStructBadLayout {
@@ -179,6 +186,7 @@ fn layouts() {
     test!(stabby::abi::Union<u8, usize>, End, End);
     test!(stabby::abi::Union<u8, ()>, End, End);
     test!(stabby::abi::Union<(), u8>, End, End);
+    test!(stabby::result::Result<(), ()>, Array<U0, Ub11111110, End>, End);
     test!(UTest, End, End);
     test!(FieldsC, Array<U1, UxFF, Array<U2, UxFF, Array<U3, UxFF, End>>>, End);
     test!(FieldsStabby, End, End);

@@ -17,7 +17,7 @@ use core::task::Context;
 use crate::enums::IDiscriminantProvider;
 use crate::option::Option;
 use crate::vtable::HasDropVt;
-use crate::{IPtrMut, IPtrOwned};
+use crate::{IPtrMut, IPtrOwned, IStable};
 
 pub use stable_waker::StableWaker;
 #[cfg(feature = "unsafe_wakers")]
@@ -286,4 +286,51 @@ where
     dyn Future<Output = Output>: crate::vtable::CompoundVt,
 {
     type Vt<T> = <dyn Future<Output = Output> as crate::vtable::CompoundVt>::Vt<T>;
+}
+
+#[crate::stabby]
+pub enum MaybeResolved<T, F>
+where
+    F: core::future::Future<Output = T>,
+{
+    Resolved(T),
+    Empty,
+    Pending(F),
+}
+impl<T: IStable + Unpin, F: IStable + core::future::Future<Output = T> + Unpin> core::future::Future
+    for MaybeResolved<T, F>
+where
+    F: crate::IStable,
+    crate::Result<(), F>: crate::IStable,
+    T: crate::IDiscriminantProvider<crate::Result<(), F>>,
+    (): crate::IDiscriminantProvider<F>,
+{
+    type Output = T;
+    fn poll(
+        self: core::pin::Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> core::task::Poll<Self::Output> {
+        let this = self.get_mut();
+        let inner = this as *mut _;
+        this.match_mut(
+            |value| {
+                let value = unsafe {
+                    let value = core::ptr::read(value);
+                    core::ptr::write(inner, MaybeResolved::Empty());
+                    value
+                };
+                core::task::Poll::Ready(value)
+            },
+            || core::task::Poll::Pending,
+            |future| match core::future::Future::poll(core::pin::Pin::new(future), cx) {
+                core::task::Poll::Ready(value) => {
+                    unsafe {
+                        core::ptr::replace(inner, MaybeResolved::Empty());
+                    }
+                    core::task::Poll::Ready(value)
+                }
+                core::task::Poll::Pending => core::task::Poll::Pending,
+            },
+        )
+    }
 }

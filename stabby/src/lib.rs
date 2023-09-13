@@ -64,3 +64,5 @@ pub use crate::abi::{vtable::Any, AccessAs, IStable, IntoSuperTrait};
 pub mod libloading;
 
 pub mod time;
+
+pub mod realloc;

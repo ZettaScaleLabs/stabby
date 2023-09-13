@@ -78,6 +78,14 @@ impl<
         ForbiddenValues: IForbiddenValues,
         UnusedBits: IBitMask,
         HasExactlyOneNiche: ISaturatingAdd,
+    > Unpin for NicheExporter<ForbiddenValues, UnusedBits, HasExactlyOneNiche>
+{
+}
+
+impl<
+        ForbiddenValues: IForbiddenValues,
+        UnusedBits: IBitMask,
+        HasExactlyOneNiche: ISaturatingAdd,
     > Clone for NicheExporter<ForbiddenValues, UnusedBits, HasExactlyOneNiche>
 {
     fn clone(&self) -> Self {

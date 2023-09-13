@@ -140,7 +140,7 @@ pub trait IUnsignedBase {
     type _Truncate<T: IUnsigned>: IUnsigned;
     type NextPow2: IUnsigned;
     type Increment: IUnsigned;
-    type _Padding: IStable + Default + Copy;
+    type _Padding: IStable + Default + Copy + Unpin;
     type _SatDecrement: IUnsigned;
     type _TruncateAtRightmostOne: NonZero;
     type _NonZero: NonZero;
@@ -171,7 +171,7 @@ pub trait IUnsigned: IUnsignedBase {
     type Max<T: IUnsigned>: IUnsigned;
     type Truncate<T: IUnsigned>: IUnsigned;
     type Mod<T: IPowerOf2>: IUnsigned;
-    type Padding: IStable + Sized + Default + Copy;
+    type Padding: IStable + Sized + Default + Copy + Unpin;
     type NonZero: NonZero;
     type NextMultipleOf<T: IPowerOf2>: IUnsigned;
     type Cmp<T: IUnsigned>;
