@@ -17,6 +17,7 @@
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
+extern crate core;
 
 pub use stabby_abi::{dynptr, export, import, stabby, vtmacro as vtable};
 

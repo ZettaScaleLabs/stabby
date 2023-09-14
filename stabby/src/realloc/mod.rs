@@ -16,6 +16,12 @@ use core::{marker::PhantomData, ptr::NonNull, sync::atomic::AtomicUsize};
 
 use self::vec::ptr_diff;
 
+pub use self::{
+    boxed::{Box, BoxedSlice, BoxedStr},
+    sync::{Arc, ArcSlice, ArcStr, Weak, WeakSlice, WeakStr},
+    vec::{String, Vec},
+};
+
 #[crate::stabby]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// ABI-stable equivalent of std::mem::Layout

@@ -13,6 +13,8 @@
 //
 
 use super::{vec::*, AllocPtr, AllocSlice, IAlloc, Layout};
+use core::fmt::Debug;
+
 /// An ABI-stable Box, provided `Alloc` is ABI-stable.
 #[cfg(not(feature = "libc"))]
 #[crate::stabby]
@@ -327,6 +329,60 @@ impl<T, Alloc: IAlloc> Drop for BoxedSlice<T, Alloc> {
     }
 }
 
+impl<T: Debug, Alloc: IAlloc> Debug for BoxedSlice<T, Alloc> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.as_slice().fmt(f)
+    }
+}
+impl<T: core::fmt::LowerHex, Alloc: IAlloc> core::fmt::LowerHex for BoxedSlice<T, Alloc> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut first = true;
+        for item in self {
+            if !first {
+                f.write_str(":")?;
+            }
+            first = false;
+            core::fmt::LowerHex::fmt(item, f)?;
+        }
+        Ok(())
+    }
+}
+impl<T: core::fmt::UpperHex, Alloc: IAlloc> core::fmt::UpperHex for BoxedSlice<T, Alloc> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut first = true;
+        for item in self {
+            if !first {
+                f.write_str(":")?;
+            }
+            first = false;
+            core::fmt::UpperHex::fmt(item, f)?;
+        }
+        Ok(())
+    }
+}
+impl<'a, T, Alloc: IAlloc> IntoIterator for &'a BoxedSlice<T, Alloc> {
+    type Item = &'a T;
+    type IntoIter = core::slice::Iter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.as_slice().iter()
+    }
+}
+impl<'a, T, Alloc: IAlloc> IntoIterator for &'a mut BoxedSlice<T, Alloc> {
+    type Item = &'a mut T;
+    type IntoIter = core::slice::IterMut<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.as_slice_mut().iter_mut()
+    }
+}
+impl<T, Alloc: IAlloc> IntoIterator for BoxedSlice<T, Alloc> {
+    type Item = T;
+    type IntoIter = super::vec::IntoIter<T, Alloc>;
+    fn into_iter(self) -> Self::IntoIter {
+        let this: super::vec::Vec<T, Alloc> = self.into();
+        this.into_iter()
+    }
+}
+
 #[crate::stabby]
 #[cfg(feature = "libc")]
 pub struct BoxedStr<Alloc: IAlloc = super::libc_alloc::LibcAlloc>(BoxedSlice<u8, Alloc>);
@@ -377,5 +433,16 @@ impl<Alloc: IAlloc> PartialOrd for BoxedStr<Alloc> {
 impl<Alloc: IAlloc> core::hash::Hash for BoxedStr<Alloc> {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.as_str().hash(state)
+    }
+}
+
+impl<Alloc: IAlloc> core::fmt::Debug for BoxedStr<Alloc> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Debug::fmt(self.as_str(), f)
+    }
+}
+impl<Alloc: IAlloc> core::fmt::Display for BoxedStr<Alloc> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Display::fmt(self.as_str(), f)
     }
 }

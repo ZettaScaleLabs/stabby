@@ -13,6 +13,7 @@
 //
 
 use core::{
+    fmt::Debug,
     hash::Hash,
     sync::atomic::{AtomicUsize, Ordering},
 };
@@ -467,7 +468,44 @@ impl<T, Alloc: IAlloc> Drop for ArcSlice<T, Alloc> {
         _ = WeakSlice(self.0)
     }
 }
-
+impl<T: Debug, Alloc: IAlloc> Debug for ArcSlice<T, Alloc> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.as_slice().fmt(f)
+    }
+}
+impl<T: core::fmt::LowerHex, Alloc: IAlloc> core::fmt::LowerHex for ArcSlice<T, Alloc> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut first = true;
+        for item in self {
+            if !first {
+                f.write_str(":")?;
+            }
+            first = false;
+            core::fmt::LowerHex::fmt(item, f)?;
+        }
+        Ok(())
+    }
+}
+impl<T: core::fmt::UpperHex, Alloc: IAlloc> core::fmt::UpperHex for ArcSlice<T, Alloc> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut first = true;
+        for item in self {
+            if !first {
+                f.write_str(":")?;
+            }
+            first = false;
+            core::fmt::UpperHex::fmt(item, f)?;
+        }
+        Ok(())
+    }
+}
+impl<'a, T, Alloc: IAlloc> IntoIterator for &'a ArcSlice<T, Alloc> {
+    type Item = &'a T;
+    type IntoIter = core::slice::Iter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.as_slice().iter()
+    }
+}
 #[cfg(feature = "libc")]
 #[crate::stabby]
 pub struct WeakSlice<T, Alloc: IAlloc = super::libc_alloc::LibcAlloc>(
@@ -542,6 +580,17 @@ impl<Alloc: IAlloc> ArcStr<Alloc> {
 impl<Alloc: IAlloc> AsRef<str> for ArcStr<Alloc> {
     fn as_ref(&self) -> &str {
         self.as_str()
+    }
+}
+
+impl<Alloc: IAlloc> core::fmt::Debug for ArcStr<Alloc> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Debug::fmt(self.as_str(), f)
+    }
+}
+impl<Alloc: IAlloc> core::fmt::Display for ArcStr<Alloc> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Display::fmt(self.as_str(), f)
     }
 }
 impl<Alloc: IAlloc> core::ops::Deref for ArcStr<Alloc> {
