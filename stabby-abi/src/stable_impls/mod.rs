@@ -609,26 +609,6 @@ unsafe impl<Ok: IStable, Err: IStable, T> IStable
     };
 }
 
-#[cfg(feature = "alloc")]
-mod cfgalloc {
-    use super::*;
-    unsafe impl<T: IStable> IStable for alloc::boxed::Box<T> {
-        same_as!(core::ptr::NonNull<T>, "alloc::boxed::Box", T);
-    }
-    unsafe impl<T: IStable> IStable for alloc::sync::Arc<T> {
-        same_as!(core::ptr::NonNull<T>, "alloc::sync::Arc", T);
-    }
-    unsafe impl<T: IStable> IStable for alloc::sync::Weak<T> {
-        same_as!(core::ptr::NonNull<T>, "alloc::sync::Weak", T);
-    }
-    unsafe impl<T: IStable> IStable for alloc::rc::Rc<T> {
-        same_as!(core::ptr::NonNull<T>, "alloc::rc::Rc", T);
-    }
-    unsafe impl<T: IStable> IStable for alloc::rc::Weak<T> {
-        same_as!(core::ptr::NonNull<T>, "alloc::rc::Weak", T);
-    }
-}
-
 struct NameAggregator<L: IStable, R: IStable>(core::marker::PhantomData<(L, R)>);
 unsafe impl<L: IStable, R: IStable> IStable for NameAggregator<L, R> {
     type Size = U0;

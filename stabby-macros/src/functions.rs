@@ -165,7 +165,7 @@ impl CanarySpec {
     pub const TARGET: Self = Self(1 << 4);
     pub const HOST: Self = Self(1 << 5);
     pub const PARANOID: Self = Self(0b111111);
-    pub const ARRAY: &[(&'static str, Self)] = &[
+    pub const ARRAY: &'static [(&'static str, Self)] = &[
         ("paranoid", Self::PARANOID),
         ("none", Self::NONE),
         ("rustc", Self::RUSTC),

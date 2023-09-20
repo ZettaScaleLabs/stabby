@@ -81,8 +81,9 @@ fn enums() {
     let _: typenum2::U2 = <stabby::option::Option<u8> as IStable>::Size::default();
     let _: typenum2::U1 = <stabby::option::Option<bool> as IStable>::Size::default();
     inner(true, (), 1);
+    let string: stabby::string::String = stabby::string::String::from("Hi");
     inner(
-        stabby::string::String::from("Hi".to_owned()),
+        string,
         stabby::str::Str::from("there"),
         core::mem::size_of::<stabby::string::String>(),
     );

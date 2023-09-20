@@ -24,14 +24,8 @@ pub struct VecInner<T, Alloc: IAlloc> {
     pub(crate) alloc: Alloc,
 }
 
-#[cfg(feature = "libc")]
 #[crate::stabby]
-pub struct Vec<T, Alloc: IAlloc = crate::realloc::libc_alloc::LibcAlloc>(
-    pub(crate) VecInner<T, Alloc>,
-);
-#[cfg(not(feature = "libc"))]
-#[crate::stabby]
-pub struct Vec<T, Alloc: IAlloc>(pub(crate) VecInner<T, Alloc>);
+pub struct Vec<T, Alloc: IAlloc = super::DefaultAllocator>(pub(crate) VecInner<T, Alloc>);
 
 pub(crate) const fn ptr_diff<T>(lhs: NonNull<T>, rhs: NonNull<T>) -> usize {
     let diff = if core::mem::size_of::<T>() == 0 {
@@ -237,6 +231,34 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         }
     }
 }
+
+impl<T: Clone, Alloc: IAlloc + Clone> Clone for Vec<T, Alloc> {
+    fn clone(&self) -> Self {
+        let mut ret = Self::with_capacity_in(self.len(), self.0.alloc.clone());
+        for (i, item) in self.iter().enumerate() {
+            unsafe { ret.0.start.ptr.as_ptr().add(i).write(item.clone()) }
+        }
+        unsafe { ret.set_len(self.len()) };
+        ret
+    }
+}
+impl<T: PartialEq, Alloc: IAlloc, Rhs: AsRef<[T]>> PartialEq<Rhs> for Vec<T, Alloc> {
+    fn eq(&self, other: &Rhs) -> bool {
+        self.as_slice() == other.as_ref()
+    }
+}
+impl<T: Eq, Alloc: IAlloc> Eq for Vec<T, Alloc> {}
+impl<T: PartialOrd, Alloc: IAlloc, Rhs: AsRef<[T]>> PartialOrd<Rhs> for Vec<T, Alloc> {
+    fn partial_cmp(&self, other: &Rhs) -> Option<core::cmp::Ordering> {
+        self.as_slice().partial_cmp(other.as_ref())
+    }
+}
+impl<T: Ord, Alloc: IAlloc> Ord for Vec<T, Alloc> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.as_slice().cmp(other.as_slice())
+    }
+}
+
 macro_rules! impl_index {
     ($index: ty) => {
         impl<T, Alloc: IAlloc> core::ops::Index<$index> for Vec<T, Alloc> {
@@ -507,90 +529,5 @@ impl<'a, T: 'a, Alloc: IAlloc + 'a> Drop for DoubleEndedDrain<'a, T, Alloc> {
             );
             self.vec.set_len(tail_length + self.from);
         }
-    }
-}
-
-#[cfg(feature = "libc")]
-#[crate::stabby]
-pub struct String<Alloc: IAlloc = super::libc_alloc::LibcAlloc>(pub(crate) Vec<u8, Alloc>);
-#[cfg(not(feature = "libc"))]
-#[crate::stabby]
-pub struct String<Alloc: IAlloc>(pub(crate) Vec<u8, Alloc>);
-
-impl<Alloc: IAlloc> String<Alloc> {
-    pub fn new_in(alloc: Alloc) -> Self {
-        Self(Vec::new_in(alloc))
-    }
-    pub fn new() -> Self
-    where
-        Alloc: Default,
-    {
-        Self(Vec::new())
-    }
-    pub fn as_str(&self) -> &str {
-        unsafe { core::str::from_utf8_unchecked(self.0.as_slice()) }
-    }
-    pub fn as_str_mut(&mut self) -> &mut str {
-        unsafe { core::str::from_utf8_unchecked_mut(self.0.as_slice_mut()) }
-    }
-}
-impl<Alloc: IAlloc + Default> Default for String<Alloc> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-impl<S: AsRef<str>, Alloc: IAlloc> core::ops::Add<S> for String<Alloc> {
-    type Output = Self;
-    fn add(mut self, rhs: S) -> Self::Output {
-        self += rhs.as_ref();
-        self
-    }
-}
-impl<S: AsRef<str>, Alloc: IAlloc> core::ops::AddAssign<S> for String<Alloc> {
-    fn add_assign(&mut self, rhs: S) {
-        self.0.copy_extend(rhs.as_ref().as_bytes())
-    }
-}
-
-impl<Alloc: IAlloc> From<String<Alloc>> for Vec<u8, Alloc> {
-    fn from(value: String<Alloc>) -> Self {
-        value.0
-    }
-}
-
-impl<Alloc: IAlloc> TryFrom<Vec<u8, Alloc>> for String<Alloc> {
-    type Error = core::str::Utf8Error;
-    fn try_from(value: Vec<u8, Alloc>) -> Result<Self, Self::Error> {
-        core::str::from_utf8(value.as_slice())?;
-        Ok(Self(value))
-    }
-}
-
-impl<Alloc: IAlloc> core::ops::Deref for String<Alloc> {
-    type Target = str;
-    fn deref(&self) -> &Self::Target {
-        self.as_str()
-    }
-}
-
-impl<Alloc: IAlloc> core::convert::AsRef<str> for String<Alloc> {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-impl<Alloc: IAlloc> core::ops::DerefMut for String<Alloc> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.as_str_mut()
-    }
-}
-
-impl<Alloc: IAlloc> core::fmt::Debug for String<Alloc> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Debug::fmt(self.as_str(), f)
-    }
-}
-impl<Alloc: IAlloc> core::fmt::Display for String<Alloc> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Display::fmt(self.as_str(), f)
     }
 }

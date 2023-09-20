@@ -15,23 +15,19 @@
 use core::{
     fmt::Debug,
     hash::Hash,
+    ptr::NonNull,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+use crate::IntoDyn;
+
 use super::{
-    boxed::Box,
-    vec::{ptr_add, ptr_diff, String, Vec, VecInner},
+    vec::{ptr_add, ptr_diff, Vec, VecInner},
     AllocPtr, AllocSlice, IAlloc, Layout,
 };
 
-#[cfg(not(feature = "libc"))]
 #[crate::stabby]
-pub struct Arc<T, Alloc: IAlloc> {
-    ptr: AllocPtr<T, Alloc>,
-}
-#[cfg(feature = "libc")]
-#[crate::stabby]
-pub struct Arc<T, Alloc: IAlloc = crate::realloc::libc_alloc::LibcAlloc> {
+pub struct Arc<T, Alloc: IAlloc = super::DefaultAllocator> {
     ptr: AllocPtr<T, Alloc>,
 }
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Send for Arc<T, Alloc> {}
@@ -180,9 +176,23 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     pub fn strong_count(this: &Self) -> usize {
         unsafe { this.ptr.prefix() }.strong.load(Ordering::Relaxed)
     }
+    pub fn increment_strong_count(this: *const T) -> usize {
+        let ptr: AllocPtr<T, Alloc> = AllocPtr {
+            ptr: NonNull::new(this.cast_mut()).unwrap(),
+            marker: core::marker::PhantomData,
+        };
+        unsafe { ptr.prefix() }
+            .strong
+            .fetch_add(1, Ordering::Relaxed)
+    }
     /// Returns the weak count. Note that all Arcs to a same value share a Weak, so the weak count can never be 0.
     pub fn weak_count(this: &Self) -> usize {
         unsafe { this.ptr.prefix() }.weak.load(Ordering::Relaxed)
+    }
+    pub fn increment_weak_count(this: &Self) -> usize {
+        unsafe { this.ptr.prefix() }
+            .weak
+            .fetch_add(1, Ordering::Relaxed)
     }
 
     /// Returns a mutable reference to this `Arc`'s value, cloning that value into a new `Arc` if [`Self::get_mut`] would have failed.
@@ -242,14 +252,8 @@ impl<T, Alloc: IAlloc> core::ops::Deref for Arc<T, Alloc> {
     }
 }
 
-#[cfg(not(feature = "libc"))]
 #[crate::stabby]
-pub struct Weak<T, Alloc: IAlloc> {
-    ptr: AllocPtr<T, Alloc>,
-}
-#[cfg(feature = "libc")]
-#[crate::stabby]
-pub struct Weak<T, Alloc: IAlloc = crate::realloc::libc_alloc::LibcAlloc> {
+pub struct Weak<T, Alloc: IAlloc = super::DefaultAllocator> {
     ptr: AllocPtr<T, Alloc>,
 }
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Send for Weak<T, Alloc> {}
@@ -312,20 +316,14 @@ impl<T, Alloc: IAlloc> Drop for Weak<T, Alloc> {
             return;
         }
         unsafe {
-            _ = Box::<_, Alloc>::from_raw(self.ptr);
+            let mut alloc = core::ptr::read(&self.ptr.prefix().alloc);
+            self.ptr.free(&mut alloc)
         }
     }
 }
 
-#[cfg(feature = "libc")]
 #[crate::stabby]
-pub struct ArcSlice<T, Alloc: IAlloc = super::libc_alloc::LibcAlloc>(
-    pub(crate) AllocSlice<T, Alloc>,
-);
-
-#[cfg(not(feature = "libc"))]
-#[crate::stabby]
-pub struct ArcSlice<T, Alloc: IAlloc>(pub(crate) AllocSlice<T, Alloc>);
+pub struct ArcSlice<T, Alloc: IAlloc = super::DefaultAllocator>(pub(crate) AllocSlice<T, Alloc>);
 
 impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
     pub const fn len(&self) -> usize {
@@ -506,15 +504,8 @@ impl<'a, T, Alloc: IAlloc> IntoIterator for &'a ArcSlice<T, Alloc> {
         self.as_slice().iter()
     }
 }
-#[cfg(feature = "libc")]
 #[crate::stabby]
-pub struct WeakSlice<T, Alloc: IAlloc = super::libc_alloc::LibcAlloc>(
-    pub(crate) AllocSlice<T, Alloc>,
-);
-
-#[cfg(not(feature = "libc"))]
-#[crate::stabby]
-pub struct WeakSlice<T, Alloc: IAlloc>(pub(crate) AllocSlice<T, Alloc>);
+pub struct WeakSlice<T, Alloc: IAlloc = super::DefaultAllocator>(pub(crate) AllocSlice<T, Alloc>);
 
 impl<T, Alloc: IAlloc> WeakSlice<T, Alloc> {
     pub fn upgrade(&self) -> Option<ArcSlice<T, Alloc>> {
@@ -562,101 +553,38 @@ impl<T, Alloc: IAlloc> Drop for WeakSlice<T, Alloc> {
         unsafe { self.0.start.free(&mut alloc) }
     }
 }
+pub use super::string::{ArcStr, WeakStr};
 
-#[crate::stabby]
-#[cfg(feature = "libc")]
-pub struct ArcStr<Alloc: IAlloc = super::libc_alloc::LibcAlloc>(ArcSlice<u8, Alloc>);
-#[cfg(not(feature = "libc"))]
-pub struct ArcStr<Alloc: IAlloc>(ArcSlice<u8, Alloc>);
-impl<Alloc: IAlloc> ArcStr<Alloc> {
-    pub fn as_str(&self) -> &str {
-        unsafe { core::str::from_utf8_unchecked(self.0.as_slice()) }
-    }
-    /// Whether or not `this` is the sole owner of its data, including weak owners.
-    pub fn is_unique(this: &Self) -> bool {
-        ArcSlice::is_unique(&this.0)
-    }
-}
-impl<Alloc: IAlloc> AsRef<str> for ArcStr<Alloc> {
-    fn as_ref(&self) -> &str {
-        self.as_str()
+impl<T, Alloc: IAlloc> crate::IPtr for Arc<T, Alloc> {
+    unsafe fn as_ref<U: Sized>(&self) -> &U {
+        self.ptr.cast().as_ref()
     }
 }
 
-impl<Alloc: IAlloc> core::fmt::Debug for ArcStr<Alloc> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Debug::fmt(self.as_str(), f)
-    }
-}
-impl<Alloc: IAlloc> core::fmt::Display for ArcStr<Alloc> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Display::fmt(self.as_str(), f)
-    }
-}
-impl<Alloc: IAlloc> core::ops::Deref for ArcStr<Alloc> {
-    type Target = str;
-    fn deref(&self) -> &Self::Target {
-        self.as_str()
-    }
-}
-impl<Alloc: IAlloc> From<String<Alloc>> for ArcStr<Alloc> {
-    fn from(value: String<Alloc>) -> Self {
-        Self(value.0.into())
-    }
-}
-impl<Alloc: IAlloc> TryFrom<ArcStr<Alloc>> for String<Alloc> {
-    type Error = ArcStr<Alloc>;
-    fn try_from(value: ArcStr<Alloc>) -> Result<Self, ArcStr<Alloc>> {
-        match value.0.try_into() {
-            Ok(vec) => Ok(String(vec)),
-            Err(slice) => Err(ArcStr(slice)),
+impl<T, Alloc: IAlloc> crate::IPtrOwned for Arc<T, Alloc> {
+    fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ())) {
+        if unsafe { this.ptr.prefix() }
+            .strong
+            .fetch_sub(1, Ordering::Relaxed)
+            != 1
+        {
+            return;
+        }
+        unsafe {
+            drop(this.ptr.cast().as_mut());
+            _ = Weak::<T, Alloc>::from_raw(this.ptr);
         }
     }
 }
-impl<Alloc: IAlloc> Clone for ArcStr<Alloc> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-impl<Alloc: IAlloc> Eq for ArcStr<Alloc> {}
-impl<Alloc: IAlloc> PartialEq for ArcStr<Alloc> {
-    fn eq(&self, other: &Self) -> bool {
-        self.as_str() == other.as_str()
-    }
-}
-impl<Alloc: IAlloc> Ord for ArcStr<Alloc> {
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.as_str().cmp(other.as_str())
-    }
-}
-impl<Alloc: IAlloc> PartialOrd for ArcStr<Alloc> {
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        self.as_str().partial_cmp(other.as_str())
-    }
-}
-impl<Alloc: IAlloc> Hash for ArcStr<Alloc> {
-    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.as_str().hash(state)
-    }
-}
 
-#[crate::stabby]
-#[cfg(feature = "libc")]
-pub struct WeakStr<Alloc: IAlloc = super::libc_alloc::LibcAlloc>(WeakSlice<u8, Alloc>);
-#[cfg(not(feature = "libc"))]
-pub struct WeakStr<Alloc: IAlloc>(WeakSlice<u8, Alloc>);
-impl<Alloc: IAlloc> WeakStr<Alloc> {
-    pub fn upgrade(&self) -> Option<ArcStr<Alloc>> {
-        self.0.upgrade().map(ArcStr)
-    }
-}
-impl<Alloc: IAlloc> From<&ArcStr<Alloc>> for WeakStr<Alloc> {
-    fn from(value: &ArcStr<Alloc>) -> Self {
-        Self((&value.0).into())
-    }
-}
-impl<Alloc: IAlloc> Clone for WeakStr<Alloc> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
+impl<T, Alloc: IAlloc> IntoDyn for Arc<T, Alloc> {
+    type Anonymized = Arc<(), Alloc>;
+    type Target = T;
+    fn anonimize(self) -> Self::Anonymized {
+        let original_prefix = self.ptr.prefix_ptr();
+        let anonymized = unsafe { core::mem::transmute::<_, Self::Anonymized>(self) };
+        let anonymized_prefix = anonymized.ptr.prefix_ptr();
+        assert_eq!(anonymized_prefix, original_prefix);
+        anonymized
     }
 }

@@ -12,20 +12,14 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use stabby_abi::IntoDyn;
+use crate::IntoDyn;
 
 use super::{vec::*, AllocPtr, AllocSlice, IAlloc};
 use core::fmt::Debug;
 
 /// An ABI-stable Box, provided `Alloc` is ABI-stable.
-#[cfg(not(feature = "libc"))]
 #[crate::stabby]
-pub struct Box<T, Alloc: IAlloc> {
-    ptr: AllocPtr<T, Alloc>,
-}
-#[cfg(feature = "libc")]
-#[crate::stabby]
-pub struct Box<T, Alloc: IAlloc = crate::realloc::libc_alloc::LibcAlloc> {
+pub struct Box<T, Alloc: IAlloc = super::DefaultAllocator> {
     ptr: AllocPtr<T, Alloc>,
 }
 unsafe impl<T: Send, Alloc: IAlloc + Send> Send for Box<T, Alloc> {}
@@ -168,17 +162,17 @@ impl<T, Alloc: IAlloc> core::ops::DerefMut for Box<T, Alloc> {
         unsafe { self.ptr.as_mut() }
     }
 }
-impl<T, Alloc: IAlloc> crate::abi::IPtr for Box<T, Alloc> {
+impl<T, Alloc: IAlloc> crate::IPtr for Box<T, Alloc> {
     unsafe fn as_ref<U: Sized>(&self) -> &U {
         self.ptr.cast().as_ref()
     }
 }
-impl<T, Alloc: IAlloc> crate::abi::IPtrMut for Box<T, Alloc> {
+impl<T, Alloc: IAlloc> crate::IPtrMut for Box<T, Alloc> {
     unsafe fn as_mut<U: Sized>(&mut self) -> &mut U {
         self.ptr.cast().as_mut()
     }
 }
-impl<T, Alloc: IAlloc> crate::abi::IPtrOwned for Box<T, Alloc> {
+impl<T, Alloc: IAlloc> crate::IPtrOwned for Box<T, Alloc> {
     fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ())) {
         let rthis = &mut ***this;
         unsafe {
@@ -214,14 +208,8 @@ impl<T, Alloc: IAlloc> IntoDyn for Box<T, Alloc> {
 /// of the capacity.
 ///
 /// The inner pointer may be dangling if the slice's length is 0 or `T` is a ZST.
-#[cfg(feature = "libc")]
 #[crate::stabby]
-pub struct BoxedSlice<T, Alloc: IAlloc = crate::realloc::libc_alloc::LibcAlloc> {
-    pub(crate) slice: AllocSlice<T, Alloc>,
-    pub(crate) alloc: Alloc,
-}
-#[cfg(not(feature = "libc"))]
-pub struct BoxedSlice<T, Alloc: IAlloc> {
+pub struct BoxedSlice<T, Alloc: IAlloc = super::DefaultAllocator> {
     pub(crate) slice: AllocSlice<T, Alloc>,
     pub(crate) alloc: Alloc,
 }
@@ -383,67 +371,4 @@ impl<T, Alloc: IAlloc> IntoIterator for BoxedSlice<T, Alloc> {
         this.into_iter()
     }
 }
-
-#[crate::stabby]
-#[cfg(feature = "libc")]
-pub struct BoxedStr<Alloc: IAlloc = super::libc_alloc::LibcAlloc>(BoxedSlice<u8, Alloc>);
-#[cfg(not(feature = "libc"))]
-pub struct BoxedStr<Alloc: IAlloc>(BoxedSlice<u8, Alloc>);
-impl<Alloc: IAlloc> BoxedStr<Alloc> {
-    pub fn as_str(&self) -> &str {
-        unsafe { core::str::from_utf8_unchecked(self.0.as_slice()) }
-    }
-}
-impl<Alloc: IAlloc> AsRef<str> for BoxedStr<Alloc> {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-impl<Alloc: IAlloc> core::ops::Deref for BoxedStr<Alloc> {
-    type Target = str;
-    fn deref(&self) -> &Self::Target {
-        self.as_str()
-    }
-}
-impl<Alloc: IAlloc> From<String<Alloc>> for BoxedStr<Alloc> {
-    fn from(value: String<Alloc>) -> Self {
-        Self(value.0.into())
-    }
-}
-impl<Alloc: IAlloc> From<BoxedStr<Alloc>> for String<Alloc> {
-    fn from(value: BoxedStr<Alloc>) -> Self {
-        String(value.0.into())
-    }
-}
-impl<Alloc: IAlloc> Eq for BoxedStr<Alloc> {}
-impl<Alloc: IAlloc> PartialEq for BoxedStr<Alloc> {
-    fn eq(&self, other: &Self) -> bool {
-        self.as_str() == other.as_str()
-    }
-}
-impl<Alloc: IAlloc> Ord for BoxedStr<Alloc> {
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.as_str().cmp(other.as_str())
-    }
-}
-impl<Alloc: IAlloc> PartialOrd for BoxedStr<Alloc> {
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        self.as_str().partial_cmp(other.as_str())
-    }
-}
-impl<Alloc: IAlloc> core::hash::Hash for BoxedStr<Alloc> {
-    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.as_str().hash(state)
-    }
-}
-
-impl<Alloc: IAlloc> core::fmt::Debug for BoxedStr<Alloc> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Debug::fmt(self.as_str(), f)
-    }
-}
-impl<Alloc: IAlloc> core::fmt::Display for BoxedStr<Alloc> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Display::fmt(self.as_str(), f)
-    }
-}
+pub use super::string::BoxedStr;

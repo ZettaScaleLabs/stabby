@@ -14,10 +14,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
-#[cfg(feature = "alloc")]
-mod allocs;
+pub mod alloc;
 
 pub use stabby_macros::{canary_suffixes, dynptr, export, import, stabby, vtable as vtmacro};
 
