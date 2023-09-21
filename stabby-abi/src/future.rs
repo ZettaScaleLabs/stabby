@@ -116,7 +116,7 @@ mod stable_waker {
                 let this = unsafe { &*(this as *const StableWaker) };
                 (this.wake_by_ref.as_ref_unchecked())(this.waker.as_ref_unchecked())
             }
-            unsafe fn drop(_: *const ()) {}
+            const unsafe fn drop(_: *const ()) {}
             let waker = RawWaker::new(self as *const Self as *const _, &VTABLE);
             let waker = unsafe { Waker::from_raw(waker) };
             f(&waker)
