@@ -17,9 +17,28 @@ use core::{marker::PhantomData, ptr::NonNull, sync::atomic::AtomicUsize};
 use self::vec::ptr_diff;
 
 #[cfg(feature = "libc")]
+pub mod libc_alloc;
+
+#[crate::stabby]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
+pub struct AllocationError();
+impl core::fmt::Display for AllocationError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("AllocationError")
+    }
+}
+#[cfg(feature = "std")]
+impl std::error::Error for AllocationError {}
+
+pub mod boxed;
+pub mod string;
+pub mod sync;
+pub mod vec;
+
+#[cfg(feature = "libc")]
 pub type DefaultAllocator = libc_alloc::LibcAlloc;
 #[cfg(not(feature = "libc"))]
-pub type DefaultAllocator = core::convert::Infallible;
+pub type DefaultAllocator = core::convert::Intry;
 
 #[crate::stabby]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -164,14 +183,6 @@ impl IAlloc for core::convert::Infallible {
         unreachable!()
     }
 }
-
-#[cfg(feature = "libc")]
-pub mod libc_alloc;
-
-pub mod boxed;
-pub mod string;
-pub mod sync;
-pub mod vec;
 
 /// The prefix common to all allocations in [`stabby::realloc`].
 ///

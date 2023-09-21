@@ -11,7 +11,7 @@ use core::hash::Hash;
 pub struct String<Alloc: IAlloc = super::DefaultAllocator>(pub(crate) Vec<u8, Alloc>);
 
 impl<Alloc: IAlloc> String<Alloc> {
-    pub fn new_in(alloc: Alloc) -> Self {
+    pub const fn new_in(alloc: Alloc) -> Self {
         Self(Vec::new_in(alloc))
     }
     pub fn new() -> Self

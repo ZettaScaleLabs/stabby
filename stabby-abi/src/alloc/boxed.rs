@@ -27,10 +27,12 @@ unsafe impl<T: Sync, Alloc: IAlloc> Sync for Box<T, Alloc> {}
 impl<T, Alloc: IAlloc> Box<T, Alloc> {
     /// Attempts to allocate [`Self`], initializing it with `constructor`.
     ///
+    /// # Errors
     /// Returns the constructor and the allocator in case of failure.
     ///
+    /// # Notes
     /// Note that the allocation may or may not be zeroed.
-    pub fn fallible_make_in<F: FnOnce(&mut core::mem::MaybeUninit<T>)>(
+    pub fn try_make_in<F: FnOnce(&mut core::mem::MaybeUninit<T>)>(
         constructor: F,
         mut alloc: Alloc,
     ) -> Result<Self, (F, Alloc)> {
@@ -46,9 +48,11 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
         }
         Ok(Self { ptr })
     }
-    /// Attempts to allocate a [`Self`] and store `value` in it, returning it and the allocator in case of failure.
-    pub fn fallible_new_in(value: T, alloc: Alloc) -> Result<Self, (T, Alloc)> {
-        match Self::fallible_make_in(
+    /// Attempts to allocate a [`Self`] and store `value` in it
+    /// # Errors
+    /// Returns `value` and the allocator in case of failure.
+    pub fn try_new_in(value: T, alloc: Alloc) -> Result<Self, (T, Alloc)> {
+        match Self::try_make_in(
             |slot| unsafe {
                 slot.write(core::ptr::read(&value));
             },
@@ -133,7 +137,7 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
     /// Constructs `Self` from a raw allocation.
     /// # Safety
     /// No other container must own (even partially) `this`.
-    pub unsafe fn from_raw(this: AllocPtr<T, Alloc>) -> Self {
+    pub const unsafe fn from_raw(this: AllocPtr<T, Alloc>) -> Self {
         Self { ptr: this }
     }
 }

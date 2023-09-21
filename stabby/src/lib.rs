@@ -12,6 +12,7 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+#![deny(clippy::missing_panics_doc)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 
@@ -37,7 +38,7 @@ pub mod tuple;
 )]
 pub mod future {
     pub use crate::abi::future::*;
-    use crate::alloc::boxed::Box;
+    use crate::boxed::Box;
     /// A type alias for `dynptr!(Box<dyn Future<Output = Output> + Send + Sync + 'a>)`
     pub type DynFuture<'a, Output> =
         crate::dynptr!(Box<dyn Future<Output = Output> + Send + Sync + 'a>);

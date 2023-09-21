@@ -37,10 +37,12 @@ const USIZE_TOP_BIT: usize = 1 << (core::mem::size_of::<usize>() as i32 * 8 - 1)
 impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     /// Attempts to allocate [`Self`], initializing it with `constructor`.
     ///
+    /// # Errors
     /// Returns the constructor and the allocator in case of failure.
     ///
+    /// # Notes
     /// Note that the allocation may or may not be zeroed.
-    pub fn fallible_make_in<F: FnOnce(&mut core::mem::MaybeUninit<T>)>(
+    pub fn try_make_in<F: FnOnce(&mut core::mem::MaybeUninit<T>)>(
         constructor: F,
         mut alloc: Alloc,
     ) -> Result<Self, (F, Alloc)> {
@@ -63,9 +65,11 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
         }
         Ok(Self { ptr })
     }
-    /// Attempts to allocate a [`Self`] and store `value` in it, returning it and the allocator in case of failure.
-    pub fn fallible_new_in(value: T, alloc: Alloc) -> Result<Self, (T, Alloc)> {
-        match Self::fallible_make_in(
+    /// Attempts to allocate a [`Self`] and store `value` in it
+    /// # Errors
+    /// Returns `value` and the allocator in case of failure.
+    pub fn try_new_in(value: T, alloc: Alloc) -> Result<Self, (T, Alloc)> {
+        match Self::try_make_in(
             |slot| unsafe {
                 slot.write(core::ptr::read(&value));
             },
@@ -176,9 +180,12 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     pub fn strong_count(this: &Self) -> usize {
         unsafe { this.ptr.prefix() }.strong.load(Ordering::Relaxed)
     }
-    pub fn increment_strong_count(this: *const T) -> usize {
+    /// Increments the strong count.
+    /// # Safety
+    /// `this` MUST be a pointer derived from `Self`
+    pub unsafe fn increment_strong_count(this: *const T) -> usize {
         let ptr: AllocPtr<T, Alloc> = AllocPtr {
-            ptr: NonNull::new(this.cast_mut()).unwrap(),
+            ptr: NonNull::new_unchecked(this.cast_mut()),
             marker: core::marker::PhantomData,
         };
         unsafe { ptr.prefix() }
@@ -211,7 +218,9 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     pub fn is_unique(this: &Self) -> bool {
         Self::strong_count(this) == 1 && Self::weak_count(this) == 1
     }
-    /// Attempts the value from the allocation, freeing said allocation, if the strong and weah counts are indeed 1.
+    /// Attempts the value from the allocation, freeing said allocation.
+    /// # Errors
+    /// Returns `this` if it's not the sole owner of its value.
     pub fn try_into_inner(this: Self) -> Result<T, Self> {
         if !Self::is_unique(&this) {
             Err(this)

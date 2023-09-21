@@ -12,7 +12,9 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use super::{AllocPtr, AllocSlice, IAlloc};
+use crate::num::NonMaxUsize;
+
+use super::{AllocPtr, AllocSlice, AllocationError, IAlloc};
 use core::fmt::Debug;
 use core::ptr::NonNull;
 
@@ -67,17 +69,40 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         Self::new_in(Alloc::default())
     }
     /// Constructs a new vector in `alloc`, allocating sufficient space for `capacity` elements.
+    ///
+    /// # Panics
+    /// If the allocator failed to provide a large enough allocation.
     pub fn with_capacity_in(capacity: usize, alloc: Alloc) -> Self {
         let mut this = Self::new_in(alloc);
         this.reserve(capacity);
         this
     }
     /// Constructs a new vector, allocating sufficient space for `capacity` elements.
+    ///
+    /// # Panics
+    /// If the allocator failed to provide a large enough allocation.
     pub fn with_capacity(capacity: usize) -> Self
     where
         Alloc: Default,
     {
         Self::with_capacity_in(capacity, Alloc::default())
+    }
+    /// Constructs a new vector in `alloc`, allocating sufficient space for `capacity` elements.
+    /// # Errors
+    /// Returns an [`AllocationError`] if the allocator couldn't provide a sufficient allocation.
+    pub fn try_with_capacity_in(capacity: usize, alloc: Alloc) -> Result<Self, AllocationError> {
+        let mut this = Self::new_in(alloc);
+        this.try_reserve(capacity)?;
+        Ok(this)
+    }
+    /// Constructs a new vector, allocating sufficient space for `capacity` elements.
+    /// # Errors
+    /// Returns an [`AllocationError`] if the allocator couldn't provide a sufficient allocation.
+    pub fn try_with_capacity(capacity: usize) -> Result<Self, AllocationError>
+    where
+        Alloc: Default,
+    {
+        Self::try_with_capacity_in(capacity, Alloc::default())
     }
     #[inline(always)]
     const fn zst_mode() -> bool {
@@ -95,14 +120,31 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     pub unsafe fn set_len(&mut self, len: usize) {
         self.0.end = ptr_add(*self.0.start, len);
     }
+    /// Adds `value` at the end of `self`.
+    /// # Panics
+    /// This function panics if the vector tried to grow due to
+    /// being full, and the allocator failed to provide a new allocation.
     pub fn push(&mut self, value: T) {
-        if self.0.end != self.0.capacity {
-            unsafe { self.0.end.as_ptr().write(value) }
-            self.0.end = ptr_add(self.0.end, 1)
-        } else {
+        if self.0.end == self.0.capacity {
             self.grow();
-            self.push(value);
         }
+        unsafe { self.0.end.as_ptr().write(value) }
+        self.0.end = ptr_add(self.0.end, 1)
+    }
+    /// Adds `value` at the end of `self`.
+    ///
+    /// # Errors
+    /// This function gives back the `value` if the vector tried to grow due to
+    /// being full, and the allocator failed to provide a new allocation.
+    ///
+    /// `self` is still valid should that happen.
+    pub fn try_push(&mut self, value: T) -> Result<(), T> {
+        if self.0.end == self.0.capacity && self.try_grow().is_err() {
+            return Err(value);
+        }
+        unsafe { self.0.end.as_ptr().write(value) }
+        self.0.end = ptr_add(self.0.end, 1);
+        Ok(())
     }
     /// The total capacity of the vector.
     pub const fn capacity(&self) -> usize {
@@ -118,15 +160,33 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         _ => 8,
     };
     fn grow(&mut self) {
+        self.try_grow().unwrap();
+    }
+    fn try_grow(&mut self) -> Result<NonMaxUsize, AllocationError> {
         if self.capacity() == 0 {
             let first_capacity = Self::FIRST_CAPACITY;
-            self.reserve(first_capacity)
+            self.try_reserve(first_capacity)
         } else {
-            self.reserve((self.capacity() >> 1).max(1))
+            self.try_reserve((self.capacity() >> 1).max(1))
         }
     }
-    /// Ensures that `additional` more elements
+    /// Ensures that `additional` more elements can be pushed on `self` without reallocating.
+    ///
+    /// This may reallocate once to provide this guarantee.
+    ///
+    /// # Panics
+    /// This function panics if the allocator failed to provide an appropriate allocation.
     pub fn reserve(&mut self, additional: usize) {
+        self.try_reserve(additional).unwrap();
+    }
+    /// Ensures that `additional` more elements can be pushed on `self` without reallocating.
+    ///
+    /// This may reallocate once to provide this guarantee.
+    ///
+    /// # Errors
+    /// Returns Ok(new_capacity) if succesful (including if no reallocation was needed),
+    /// otherwise returns Err(AllocationError)
+    pub fn try_reserve(&mut self, additional: usize) -> Result<NonMaxUsize, AllocationError> {
         if self.remaining_capacity() < additional {
             let new_capacity = self.len() + additional;
             let start = if self.capacity() != 0 {
@@ -135,13 +195,20 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
                 AllocPtr::alloc_array(&mut self.0.alloc, new_capacity)
             };
             let Some(start) = start else {
-                panic!("Allocation failed");
+                return Err(AllocationError());
             };
             let end = ptr_add(*start, self.len());
             let capacity = ptr_add(*start, new_capacity);
             self.0.start = start;
             self.0.end = end;
             self.0.capacity = capacity;
+            Ok(unsafe { NonMaxUsize::new_unchecked(new_capacity) })
+        } else {
+            let mut capacity = self.capacity();
+            if capacity == usize::MAX {
+                capacity -= 1;
+            }
+            Ok(unsafe { NonMaxUsize::new_unchecked(capacity) })
         }
     }
     /// Removes all elements from `self` from the `len`th onward.
@@ -207,6 +274,9 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     ///
     /// If the drain is leaked, then the vector may lose and leak elements,
     /// even if they weren't in the specified `range`
+    ///
+    /// # Panics
+    /// This function immediately panics if the range has a negative size, or if the range exceeeds `self.len()`
     pub fn drain<R: core::ops::RangeBounds<usize>>(&mut self, range: R) -> Drain<'_, T, Alloc> {
         let original_len = self.len();
         let from = match range.start_bound() {
@@ -229,6 +299,87 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
             index: from,
             original_len,
         }
+    }
+    /// Removes the specified range from the vector in bulk,
+    /// returning all removed elements as an iterator.
+    /// If the iterator is dropped before being fully consumed,
+    /// it drops the remaining removed elements.
+    ///
+    /// If the drain is leaked, then the vector may lose and leak elements,
+    /// even if they weren't in the specified `range`
+    pub fn try_drain<R: core::ops::RangeBounds<usize>>(
+        &mut self,
+        range: R,
+    ) -> Option<Drain<'_, T, Alloc>> {
+        let original_len = self.len();
+        let from = match range.start_bound() {
+            core::ops::Bound::Included(i) => *i,
+            core::ops::Bound::Excluded(i) => *i + 1,
+            core::ops::Bound::Unbounded => 0,
+        };
+        let to = match range.end_bound() {
+            core::ops::Bound::Included(i) => *i + 1,
+            core::ops::Bound::Excluded(i) => *i,
+            core::ops::Bound::Unbounded => original_len,
+        };
+        if to >= from || to <= original_len {
+            return None;
+        }
+        unsafe { self.set_len(from) };
+        Some(Drain {
+            vec: self,
+            from,
+            to,
+            index: from,
+            original_len,
+        })
+    }
+    /// Removes the element at `index` without reordering.
+    pub fn remove(&mut self, index: usize) -> Option<T> {
+        if index < self.len() {
+            unsafe {
+                let value = self.0.start.as_ptr().add(index).read();
+                core::ptr::copy(
+                    self.0.start.as_ptr().add(index + 1),
+                    self.0.start.as_ptr().add(index),
+                    self.len() - (index + 1),
+                );
+                self.set_len(self.len() - 1);
+                Some(value)
+            }
+        } else {
+            None
+        }
+    }
+    /// Swaps the elements at positions `a` and `b`
+    ///
+    /// # Panics
+    /// Panics if either index is out of bound.
+    pub fn swap(&mut self, a: usize, b: usize) {
+        assert!(a < self.len());
+        assert!(b < self.len());
+        unsafe { core::ptr::swap(self.0.start.as_ptr().add(a), self.0.start.as_ptr().add(b)) };
+    }
+    pub fn pop(&mut self) -> Option<T> {
+        if self.is_empty() {
+            None
+        } else {
+            unsafe {
+                let value = self.0.end.as_ptr().sub(1).read();
+                self.set_len(self.len() - 1);
+                Some(value)
+            }
+        }
+    }
+    /// Removes the element at `index`, moving the last element in its place.
+    ///
+    /// This is more efficient than [`Self::remove`], but causes reordering.
+    pub fn swap_remove(&mut self, index: usize) -> Option<T> {
+        if index >= self.len() {
+            return None;
+        }
+        self.swap(index, self.len() - 1);
+        self.pop()
     }
 }
 

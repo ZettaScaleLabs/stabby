@@ -13,8 +13,9 @@
 //
 
 use core::num::{NonZeroU16, NonZeroU32};
+use std::num::NonZeroU8;
 
-use stabby::tuple::{Tuple2, Tuple3};
+use stabby::tuple::{Tuple2, Tuple3, Tuple8};
 use stabby_abi::{typenum2::*, Array, End, Result};
 
 #[stabby::stabby]
@@ -203,4 +204,43 @@ fn layouts() {
     test!(Option<&'static u8>, End, End);
     test!(Option<&'static mut u8>, End, End);
     test!(Option<core::num::NonZeroI8>, End, End);
+    // Ensure that only 8 positions are tried before giving switching to external tags
+    assert_eq!(core::mem::size_of::<Tuple2<u64, Align128>>(), 2 * 16);
+    assert_eq!(
+        core::mem::size_of::<
+            Tuple2<
+                Tuple8<NonZeroU8, u8, u8, u8, u8, u8, u8, u8>,
+                Tuple8<u8, u8, u8, u8, u8, u8, u8, u8>,
+            >,
+        >(),
+        16
+    );
+    assert_eq!(
+        core::mem::size_of::<
+            Result<
+                Tuple2<u64, Align128>,
+                Tuple2<
+                    Tuple8<NonZeroU8, u8, u8, u8, u8, u8, u8, u8>,
+                    Tuple8<u8, u8, u8, u8, u8, u8, u8, u8>,
+                >,
+            >,
+        >(),
+        3 * 16
+    );
+}
+#[repr(align(16))]
+struct Align128(u128);
+unsafe impl stabby::abi::IStable for Align128 {
+    type Size = U16;
+    type Align = U16;
+    type ForbiddenValues = End;
+    type UnusedBits = End;
+    type HasExactlyOneNiche = B0;
+    const REPORT: &'static stabby::abi::report::TypeReport = &stabby::abi::report::TypeReport {
+        name: stabby::abi::str::Str::new("Align128"),
+        module: stabby::abi::str::Str::new(core::module_path!()),
+        fields: stabby::abi::StableLike::new(None),
+        last_break: stabby::abi::report::Version::NEVER,
+        tyty: stabby::abi::report::TyTy::Struct,
+    };
 }

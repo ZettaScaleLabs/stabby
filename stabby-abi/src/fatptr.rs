@@ -88,10 +88,10 @@ pub struct DynRef<'a, Vt: 'static> {
 }
 
 impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
-    pub fn ptr(&self) -> &() {
+    pub const fn ptr(&self) -> &() {
         self.ptr
     }
-    pub fn vtable(&self) -> &Vt {
+    pub const fn vtable(&self) -> &Vt {
         self.vtable
     }
 
@@ -187,7 +187,7 @@ impl<'a, P: IPtrOwned, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
     pub fn ptr_mut(&mut self) -> &mut P {
         &mut self.ptr
     }
-    pub fn vtable(&self) -> &'a Vt {
+    pub const fn vtable(&self) -> &'a Vt {
         self.vtable
     }
     pub fn as_ref(&self) -> DynRef<'_, Vt> {

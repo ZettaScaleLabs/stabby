@@ -169,9 +169,11 @@ where
             union,
         }
     }
+    #[allow(clippy::missing_errors_doc)]
     pub fn as_ref(&self) -> core::result::Result<&Ok, &Err> {
         self.match_ref(Ok, Err)
     }
+    #[allow(clippy::missing_errors_doc)]
     pub fn as_mut(&mut self) -> core::result::Result<&mut Ok, &mut Err> {
         self.match_mut(Ok, Err)
     }
@@ -324,6 +326,8 @@ where
     pub unsafe fn unwrap_unchecked(self) -> Ok {
         self.unwrap_or_else(|_| core::hint::unreachable_unchecked())
     }
+    /// # Panics
+    /// If `!self.is_ok()`
     pub fn unwrap(self) -> Ok
     where
         Err: core::fmt::Debug,
@@ -338,6 +342,8 @@ where
     pub unsafe fn unwrap_err_unchecked(self) -> Err {
         self.unwrap_err_or_else(|_| core::hint::unreachable_unchecked())
     }
+    /// # Panics
+    /// If `!self.is_err()`
     pub fn unwrap_err(self) -> Err
     where
         Ok: core::fmt::Debug,
