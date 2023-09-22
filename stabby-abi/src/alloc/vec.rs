@@ -248,18 +248,33 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         core::mem::forget(self);
         (AllocSlice { start, end }, capacity, alloc)
     }
+    /// Extends `self` using a `memcpy`.
+    /// This may be faster than extending through an iterator.
+    /// # Panics
+    /// If extending required an allocation that failed.
     pub fn copy_extend(&mut self, slice: &[T])
     where
         T: Copy,
     {
-        if self.is_empty() {
-            return;
+        self.try_copy_extend(slice).unwrap();
+    }
+    /// Extends `self` using a `memcpy`.
+    /// This may be faster than extending through an iterator.
+    /// # Errors
+    /// If extending required an allocation that failed.
+    pub fn try_copy_extend(&mut self, slice: &[T]) -> Result<(), AllocationError>
+    where
+        T: Copy,
+    {
+        if slice.is_empty() {
+            return Ok(());
         }
-        self.reserve(slice.len());
+        self.try_reserve(slice.len())?;
         unsafe {
             core::ptr::copy_nonoverlapping(slice.as_ptr(), self.0.end.as_ptr(), slice.len());
-            self.set_len(self.len() + slice.len())
+            self.set_len(self.len() + slice.len());
         }
+        Ok(())
     }
     pub fn iter(&self) -> core::slice::Iter<'_, T> {
         self.into_iter()
@@ -680,5 +695,18 @@ impl<'a, T: 'a, Alloc: IAlloc + 'a> Drop for DoubleEndedDrain<'a, T, Alloc> {
             );
             self.vec.set_len(tail_length + self.from);
         }
+    }
+}
+#[cfg(feature = "std")]
+impl<Alloc: IAlloc> std::io::Write for Vec<u8, Alloc> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self.try_copy_extend(buf) {
+            Ok(()) => Ok(buf.len()),
+            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::OutOfMemory, e)),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }

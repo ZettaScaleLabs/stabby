@@ -2,7 +2,7 @@ use super::{
     boxed::BoxedSlice,
     sync::{ArcSlice, WeakSlice},
     vec::Vec,
-    IAlloc,
+    AllocationError, IAlloc,
 };
 use core::hash::Hash;
 
@@ -26,21 +26,30 @@ impl<Alloc: IAlloc> String<Alloc> {
     pub fn as_str_mut(&mut self) -> &mut str {
         unsafe { core::str::from_utf8_unchecked_mut(self.0.as_slice_mut()) }
     }
+    fn try_concat_str(&mut self, s: &str) -> Result<(), AllocationError> {
+        self.0.try_copy_extend(s.as_bytes())
+    }
+    /// Attempts to concatenate `s` to `self`
+    /// # Errors
+    /// This returns an [`AllocationError`] if reallocation was needed and failed to concatenate.
+    pub fn try_concat<S: AsRef<str> + ?Sized>(&mut self, s: &S) -> Result<(), AllocationError> {
+        self.try_concat_str(s.as_ref())
+    }
 }
 impl<Alloc: IAlloc + Default> Default for String<Alloc> {
     fn default() -> Self {
         Self::new()
     }
 }
-impl<S: AsRef<str>, Alloc: IAlloc> core::ops::Add<S> for String<Alloc> {
+impl<S: AsRef<str> + ?Sized, Alloc: IAlloc> core::ops::Add<&S> for String<Alloc> {
     type Output = Self;
-    fn add(mut self, rhs: S) -> Self::Output {
+    fn add(mut self, rhs: &S) -> Self::Output {
         self += rhs.as_ref();
         self
     }
 }
-impl<S: AsRef<str>, Alloc: IAlloc> core::ops::AddAssign<S> for String<Alloc> {
-    fn add_assign(&mut self, rhs: S) {
+impl<S: AsRef<str> + ?Sized, Alloc: IAlloc> core::ops::AddAssign<&S> for String<Alloc> {
+    fn add_assign(&mut self, rhs: &S) {
         self.0.copy_extend(rhs.as_ref().as_bytes())
     }
 }
@@ -265,5 +274,11 @@ impl<Alloc: IAlloc> core::fmt::Debug for BoxedStr<Alloc> {
 impl<Alloc: IAlloc> core::fmt::Display for BoxedStr<Alloc> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         core::fmt::Display::fmt(self.as_str(), f)
+    }
+}
+
+impl core::fmt::Write for String {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.try_concat(s).map_err(|_| core::fmt::Error)
     }
 }
