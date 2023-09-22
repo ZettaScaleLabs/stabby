@@ -34,7 +34,6 @@ pub trait IDiscriminant: IStable {
 }
 
 #[repr(u8)]
-#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BitDiscriminant {
     Ok = 0,
