@@ -15,16 +15,19 @@
 use crate as stabby;
 use crate::vtable::*;
 
+/// Indicates that `Self` can be used as a pointer in dynptrs.
 pub trait IPtr {
     /// # Safety
     /// This function implies an implicit cast of the reference
     unsafe fn as_ref<U: Sized>(&self) -> &U;
 }
+/// Indicates that `Self` can be used as an unconditionally mutable pointer in dynptrs.
 pub trait IPtrMut: IPtr {
     /// # Safety
     /// This function implies an implicit cast of the reference
     unsafe fn as_mut<U: Sized>(&mut self) -> &mut U;
 }
+/// Indicates that `Self` can be used as a conditionally mutable pointer in dynptrs.
 pub trait IPtrTryAsMut {
     /// # Safety
     /// This function implies an implicit cast of the reference
@@ -35,8 +38,11 @@ impl<T: IPtrMut> IPtrTryAsMut for T {
         Some(self.as_mut())
     }
 }
+/// Provides drop support in dynptr for pointers that have at least partial ownership of their pointee.
+///
+/// `drop` is the drop function of the pointee.
 pub trait IPtrOwned: IPtr {
-    /// Must return `true` if and only if dropping one instance of
+    /// Called instead of `Drop::drop` when the dynptr is dropped.
     fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ()));
 }
 impl<'a, T> IPtr for &'a T {

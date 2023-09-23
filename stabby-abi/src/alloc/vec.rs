@@ -710,3 +710,30 @@ impl<Alloc: IAlloc> std::io::Write for Vec<u8, Alloc> {
         Ok(())
     }
 }
+
+#[cfg(all(feature = "std", feature = "libc"))]
+#[test]
+fn test() {
+    use rand::Rng;
+    const LEN: usize = 2000;
+    let mut std = std::vec::Vec::with_capacity(LEN);
+    let mut new: Vec<u8> = Vec::new();
+    let mut capacity: Vec<u8> = Vec::with_capacity(LEN);
+    let mut rng = rand::thread_rng();
+    for _ in 0..LEN {
+        let n: u8 = rng.gen();
+        new.push(n);
+        capacity.push(n);
+        std.push(n);
+    }
+    assert_eq!(new.as_slice(), std.as_slice());
+    assert_eq!(new.as_slice(), capacity.as_slice());
+    new.drain(55..100);
+    capacity.drain(55..100);
+    std.drain(55..100);
+    new.swap(5, 92);
+    std.swap(5, 92);
+    capacity.swap(5, 92);
+    assert_eq!(new.as_slice(), std.as_slice());
+    assert_eq!(new.as_slice(), capacity.as_slice());
+}

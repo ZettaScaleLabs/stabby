@@ -161,3 +161,19 @@ define_non_x!(NonXI32: i32 = core::num::NonZeroI32);
 define_non_x!(NonXI64: i64 = core::num::NonZeroI64);
 define_non_x!(NonXI128: i128 = core::num::NonZeroI128);
 define_non_x!(NonXIsize: isize = core::num::NonZeroIsize);
+
+#[test]
+fn test() {
+    for i in 0..255 {
+        assert_eq!(NonMaxU8::new(i).unwrap().get(), i);
+        assert_eq!(NonXU8::<255>::new(i).unwrap().get(), i);
+    }
+    assert!(NonMaxU8::new(255).is_none());
+    assert!(NonXU8::<255>::new(255).is_none());
+    assert!(NonXU8::<72>::new(72).is_none());
+    for i in 0..=255 {
+        if i != 72 {
+            assert_eq!(NonXU8::<72>::new(i).unwrap().get(), i);
+        }
+    }
+}
