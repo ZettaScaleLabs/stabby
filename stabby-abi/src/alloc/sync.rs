@@ -570,6 +570,11 @@ impl<T, Alloc: IAlloc> crate::IPtr for Arc<T, Alloc> {
     }
 }
 
+impl<T, Alloc: IAlloc> crate::IPtrTryAsMut for Arc<T, Alloc> {
+    unsafe fn try_as_mut<U: Sized>(&mut self) -> Option<&mut U> {
+        Self::get_mut(self).map(|r| unsafe { core::mem::transmute(r) })
+    }
+}
 impl<T, Alloc: IAlloc> crate::IPtrOwned for Arc<T, Alloc> {
     fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ())) {
         if unsafe { this.ptr.prefix() }
