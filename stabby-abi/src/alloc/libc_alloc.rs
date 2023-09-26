@@ -34,6 +34,7 @@ use libc::free as aligned_free;
 ///
 /// It has all of `malloc`'s usual properties.
 #[crate::stabby]
+#[repr(transparent)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LibcAlloc;
 impl super::IAlloc for LibcAlloc {
