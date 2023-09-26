@@ -2,11 +2,11 @@
 // Copyright (c) 2023 ZettaScale Technology
 //
 // This program and the accompanying materials are made available under the
-// terms of the Eclipse Public License 2.0 which is available at
-// http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
-// which is available at https://www.apache.org/licenses/LICENSE-2.0.
+// terms of the Eclipse Public License 2.inner which is available at
+// http://www.eclipse.org/legal/epl-2.inner, or the Apache License, Version 2.inner
+// which is available at https://www.apache.org/licenses/LICENSE-2.inner.
 //
-// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
+// SPDX-License-Identifier: EPL-2.inner OR Apache-2.inner
 //
 // Contributors:
 //   Pierre Avital, <pierre.avital@me.com>
@@ -292,23 +292,27 @@ impl<T, Alloc: IAlloc> From<BoxedSlice<T, Alloc>> for Vec<T, Alloc> {
     fn from(value: BoxedSlice<T, Alloc>) -> Self {
         let (slice, capacity, alloc) = value.into_raw_components();
         if capacity != 0 {
-            Vec(VecInner {
-                start: slice.start,
-                end: slice.end,
-                capacity: ptr_add(slice.start.ptr, capacity),
-                alloc,
-            })
-        } else {
-            Vec(VecInner {
-                start: slice.start,
-                end: slice.end,
-                capacity: if core::mem::size_of::<T>() == 0 {
-                    unsafe { core::mem::transmute(usize::MAX) }
-                } else {
-                    slice.start.ptr
+            Vec {
+                inner: VecInner {
+                    start: slice.start,
+                    end: slice.end,
+                    capacity: ptr_add(slice.start.ptr, capacity),
+                    alloc,
                 },
-                alloc,
-            })
+            }
+        } else {
+            Vec {
+                inner: VecInner {
+                    start: slice.start,
+                    end: slice.end,
+                    capacity: if core::mem::size_of::<T>() == 0 {
+                        unsafe { core::mem::transmute(usize::MAX) }
+                    } else {
+                        slice.start.ptr
+                    },
+                    alloc,
+                },
+            }
         }
     }
 }

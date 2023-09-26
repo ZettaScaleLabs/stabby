@@ -2,11 +2,11 @@
 // Copyright (c) 2023 ZettaScale Technology
 //
 // This program and the accompanying materials are made available under the
-// terms of the Eclipse Public License 2.0 which is available at
-// http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
-// which is available at https://www.apache.org/licenses/LICENSE-2.0.
+// terms of the Eclipse Public License 2.inner which is available at
+// http://www.eclipse.org/legal/epl-2.inner, or the Apache License, Version 2.inner
+// which is available at https://www.apache.org/licenses/LICENSE-2.inner.
 //
-// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
+// SPDX-License-Identifier: EPL-2.inner OR Apache-2.inner
 //
 // Contributors:
 //   Pierre Avital, <pierre.avital@me.com>
@@ -27,7 +27,9 @@ pub struct VecInner<T, Alloc: IAlloc> {
 }
 
 #[crate::stabby]
-pub struct Vec<T, Alloc: IAlloc = super::DefaultAllocator>(pub(crate) VecInner<T, Alloc>);
+pub struct Vec<T, Alloc: IAlloc = super::DefaultAllocator> {
+    pub(crate) inner: VecInner<T, Alloc>,
+}
 
 pub(crate) const fn ptr_diff<T>(lhs: NonNull<T>, rhs: NonNull<T>) -> usize {
     let diff = if core::mem::size_of::<T>() == 0 {
@@ -50,16 +52,18 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     /// Constructs a new vector in `alloc`. This doesn't actually allocate.
     pub const fn new_in(alloc: Alloc) -> Self {
         let start = AllocPtr::dangling();
-        Self(VecInner {
-            start,
-            end: start.ptr,
-            capacity: if Self::zst_mode() {
-                unsafe { core::mem::transmute(usize::MAX) }
-            } else {
-                start.ptr
+        Self {
+            inner: VecInner {
+                start,
+                end: start.ptr,
+                capacity: if Self::zst_mode() {
+                    unsafe { core::mem::transmute(usize::MAX) }
+                } else {
+                    start.ptr
+                },
+                alloc,
             },
-            alloc,
-        })
+        }
     }
     /// Constructs a new vector. This doesn't actually allocate.
     pub fn new() -> Self
@@ -90,15 +94,17 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     /// Constructs a new vector in `alloc`, allocating sufficient space for `capacity` elements.
     /// # Errors
     /// Returns an [`AllocationError`] if the allocator couldn't provide a sufficient allocation.
-    pub fn try_with_capacity_in(capacity: usize, alloc: Alloc) -> Result<Self, AllocationError> {
+    pub fn try_with_capacity_in(capacity: usize, alloc: Alloc) -> Result<Self, Alloc> {
         let mut this = Self::new_in(alloc);
-        this.try_reserve(capacity)?;
-        Ok(this)
+        match this.try_reserve(capacity) {
+            Ok(_) => Ok(this),
+            Err(_) => Err(this.into_raw_components().2),
+        }
     }
     /// Constructs a new vector, allocating sufficient space for `capacity` elements.
     /// # Errors
     /// Returns an [`AllocationError`] if the allocator couldn't provide a sufficient allocation.
-    pub fn try_with_capacity(capacity: usize) -> Result<Self, AllocationError>
+    pub fn try_with_capacity(capacity: usize) -> Result<Self, Alloc>
     where
         Alloc: Default,
     {
@@ -109,27 +115,27 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         core::mem::size_of::<T>() == 0
     }
     pub const fn len(&self) -> usize {
-        ptr_diff(self.0.end, self.0.start.ptr)
+        ptr_diff(self.inner.end, self.inner.start.ptr)
     }
     pub fn is_empty(&self) -> bool {
-        self.0.end.as_ptr() == self.0.start.as_ptr()
+        self.inner.end.as_ptr() == self.inner.start.as_ptr()
     }
     /// Sets the length of the vector, not calling any destructors.
     /// # Safety
     /// This can lead to uninitialized memory being interpreted as an initialized value of `T`.
     pub unsafe fn set_len(&mut self, len: usize) {
-        self.0.end = ptr_add(*self.0.start, len);
+        self.inner.end = ptr_add(*self.inner.start, len);
     }
     /// Adds `value` at the end of `self`.
     /// # Panics
     /// This function panics if the vector tried to grow due to
     /// being full, and the allocator failed to provide a new allocation.
     pub fn push(&mut self, value: T) {
-        if self.0.end == self.0.capacity {
+        if self.inner.end == self.inner.capacity {
             self.grow();
         }
-        unsafe { self.0.end.as_ptr().write(value) }
-        self.0.end = ptr_add(self.0.end, 1)
+        unsafe { self.inner.end.as_ptr().write(value) }
+        self.inner.end = ptr_add(self.inner.end, 1)
     }
     /// Adds `value` at the end of `self`.
     ///
@@ -139,20 +145,20 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     ///
     /// `self` is still valid should that happen.
     pub fn try_push(&mut self, value: T) -> Result<(), T> {
-        if self.0.end == self.0.capacity && self.try_grow().is_err() {
+        if self.inner.end == self.inner.capacity && self.try_grow().is_err() {
             return Err(value);
         }
-        unsafe { self.0.end.as_ptr().write(value) }
-        self.0.end = ptr_add(self.0.end, 1);
+        unsafe { self.inner.end.as_ptr().write(value) }
+        self.inner.end = ptr_add(self.inner.end, 1);
         Ok(())
     }
     /// The total capacity of the vector.
     pub const fn capacity(&self) -> usize {
-        ptr_diff(self.0.capacity, self.0.start.ptr)
+        ptr_diff(self.inner.capacity, self.inner.start.ptr)
     }
     /// The remaining number of elements that can be pushed before reallocating.
     pub const fn remaining_capacity(&self) -> usize {
-        ptr_diff(self.0.capacity, self.0.end)
+        ptr_diff(self.inner.capacity, self.inner.end)
     }
     const FIRST_CAPACITY: usize = match 1024 / core::mem::size_of::<T>() {
         0 => 1,
@@ -190,18 +196,22 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         if self.remaining_capacity() < additional {
             let new_capacity = self.len() + additional;
             let start = if self.capacity() != 0 {
-                unsafe { self.0.start.realloc(&mut self.0.alloc, new_capacity) }
+                unsafe {
+                    self.inner
+                        .start
+                        .realloc(&mut self.inner.alloc, new_capacity)
+                }
             } else {
-                AllocPtr::alloc_array(&mut self.0.alloc, new_capacity)
+                AllocPtr::alloc_array(&mut self.inner.alloc, new_capacity)
             };
             let Some(start) = start else {
                 return Err(AllocationError());
             };
             let end = ptr_add(*start, self.len());
             let capacity = ptr_add(*start, new_capacity);
-            self.0.start = start;
-            self.0.end = end;
-            self.0.capacity = capacity;
+            self.inner.start = start;
+            self.inner.end = end;
+            self.inner.capacity = capacity;
             Ok(unsafe { NonMaxUsize::new_unchecked(new_capacity) })
         } else {
             let mut capacity = self.capacity();
@@ -224,13 +234,13 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         };
     }
     pub fn as_slice(&self) -> &[T] {
-        let start = self.0.start;
-        let end = self.0.end;
+        let start = self.inner.start;
+        let end = self.inner.end;
         unsafe { core::slice::from_raw_parts(start.as_ptr(), ptr_diff(end, *start)) }
     }
     pub fn as_slice_mut(&mut self) -> &mut [T] {
-        let start = self.0.start;
-        let end = self.0.end;
+        let start = self.inner.start;
+        let end = self.inner.end;
         unsafe { core::slice::from_raw_parts_mut(start.as_ptr(), ptr_diff(end, *start)) }
     }
     pub(crate) fn into_raw_components(self) -> (AllocSlice<T, Alloc>, usize, Alloc) {
@@ -239,7 +249,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
             end,
             capacity: _,
             alloc,
-        } = unsafe { core::ptr::read(&self.0) };
+        } = unsafe { core::ptr::read(&self.inner) };
         let capacity = if core::mem::size_of::<T>() == 0 {
             0
         } else {
@@ -271,7 +281,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         }
         self.try_reserve(slice.len())?;
         unsafe {
-            core::ptr::copy_nonoverlapping(slice.as_ptr(), self.0.end.as_ptr(), slice.len());
+            core::ptr::copy_nonoverlapping(slice.as_ptr(), self.inner.end.as_ptr(), slice.len());
             self.set_len(self.len() + slice.len());
         }
         Ok(())
@@ -353,10 +363,10 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     pub fn remove(&mut self, index: usize) -> Option<T> {
         if index < self.len() {
             unsafe {
-                let value = self.0.start.as_ptr().add(index).read();
+                let value = self.inner.start.as_ptr().add(index).read();
                 core::ptr::copy(
-                    self.0.start.as_ptr().add(index + 1),
-                    self.0.start.as_ptr().add(index),
+                    self.inner.start.as_ptr().add(index + 1),
+                    self.inner.start.as_ptr().add(index),
                     self.len() - (index + 1),
                 );
                 self.set_len(self.len() - 1);
@@ -373,14 +383,19 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     pub fn swap(&mut self, a: usize, b: usize) {
         assert!(a < self.len());
         assert!(b < self.len());
-        unsafe { core::ptr::swap(self.0.start.as_ptr().add(a), self.0.start.as_ptr().add(b)) };
+        unsafe {
+            core::ptr::swap(
+                self.inner.start.as_ptr().add(a),
+                self.inner.start.as_ptr().add(b),
+            )
+        };
     }
     pub fn pop(&mut self) -> Option<T> {
         if self.is_empty() {
             None
         } else {
             unsafe {
-                let value = self.0.end.as_ptr().sub(1).read();
+                let value = self.inner.end.as_ptr().sub(1).read();
                 self.set_len(self.len() - 1);
                 Some(value)
             }
@@ -400,9 +415,9 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
 
 impl<T: Clone, Alloc: IAlloc + Clone> Clone for Vec<T, Alloc> {
     fn clone(&self) -> Self {
-        let mut ret = Self::with_capacity_in(self.len(), self.0.alloc.clone());
+        let mut ret = Self::with_capacity_in(self.len(), self.inner.alloc.clone());
         for (i, item) in self.iter().enumerate() {
-            unsafe { ret.0.start.ptr.as_ptr().add(i).write(item.clone()) }
+            unsafe { ret.inner.start.ptr.as_ptr().add(i).write(item.clone()) }
         }
         unsafe { ret.set_len(self.len()) };
         ret
@@ -471,7 +486,7 @@ impl<T, Alloc: IAlloc> Drop for Vec<T, Alloc> {
     fn drop(&mut self) {
         unsafe { core::ptr::drop_in_place(self.as_slice_mut()) }
         if core::mem::size_of::<T>() != 0 && self.capacity() != 0 {
-            unsafe { self.0.start.free(&mut self.0.alloc) }
+            unsafe { self.inner.start.free(&mut self.inner.alloc) }
         }
     }
 }
@@ -559,7 +574,7 @@ impl<T, Alloc: IAlloc> Iterator for IntoIter<T, Alloc> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         (self.index < self.vec.len()).then(|| unsafe {
-            let ret = self.vec.0.start.as_ptr().add(self.index).read();
+            let ret = self.vec.inner.start.as_ptr().add(self.index).read();
             self.index += 1;
             ret
         })
@@ -615,7 +630,7 @@ impl<'a, T: 'a, Alloc: IAlloc + 'a> Iterator for Drain<'a, T, Alloc> {
     }
     fn next(&mut self) -> Option<Self::Item> {
         (self.index < self.to).then(|| unsafe {
-            let ret = self.vec.0.start.as_ptr().add(self.index).read();
+            let ret = self.vec.inner.start.as_ptr().add(self.index).read();
             self.index += 1;
             ret
         })
@@ -631,12 +646,12 @@ impl<'a, T: 'a, Alloc: IAlloc + 'a> Drop for Drain<'a, T, Alloc> {
         let tail_length = self.original_len - self.to;
         unsafe {
             core::ptr::drop_in_place(core::slice::from_raw_parts_mut(
-                self.vec.0.start.as_ptr().add(self.index),
+                self.vec.inner.start.as_ptr().add(self.index),
                 self.to - self.index,
             ));
             core::ptr::copy(
-                self.vec.0.start.as_ptr().add(self.to),
-                self.vec.0.start.as_ptr().add(self.from),
+                self.vec.inner.start.as_ptr().add(self.to),
+                self.vec.inner.start.as_ptr().add(self.from),
                 tail_length,
             );
             self.vec.set_len(tail_length + self.from);
@@ -660,7 +675,7 @@ impl<'a, T: 'a, Alloc: IAlloc + 'a> Iterator for DoubleEndedDrain<'a, T, Alloc> 
     }
     fn next(&mut self) -> Option<Self::Item> {
         (self.lindex < self.rindex).then(|| unsafe {
-            let ret = self.vec.0.start.as_ptr().add(self.lindex).read();
+            let ret = self.vec.inner.start.as_ptr().add(self.lindex).read();
             self.lindex += 1;
             ret
         })
@@ -669,7 +684,7 @@ impl<'a, T: 'a, Alloc: IAlloc + 'a> Iterator for DoubleEndedDrain<'a, T, Alloc> 
 impl<'a, T: 'a, Alloc: IAlloc + 'a> DoubleEndedIterator for DoubleEndedDrain<'a, T, Alloc> {
     fn next_back(&mut self) -> Option<Self::Item> {
         (self.lindex < self.rindex).then(|| unsafe {
-            let ret = self.vec.0.start.as_ptr().add(self.rindex).read();
+            let ret = self.vec.inner.start.as_ptr().add(self.rindex).read();
             self.rindex -= 1;
             ret
         })
@@ -685,12 +700,12 @@ impl<'a, T: 'a, Alloc: IAlloc + 'a> Drop for DoubleEndedDrain<'a, T, Alloc> {
         let tail_length = self.original_len - self.to;
         unsafe {
             core::ptr::drop_in_place(core::slice::from_raw_parts_mut(
-                self.vec.0.start.as_ptr().add(self.lindex),
+                self.vec.inner.start.as_ptr().add(self.lindex),
                 self.rindex - self.lindex,
             ));
             core::ptr::copy(
-                self.vec.0.start.as_ptr().add(self.to),
-                self.vec.0.start.as_ptr().add(self.from),
+                self.vec.inner.start.as_ptr().add(self.to),
+                self.vec.inner.start.as_ptr().add(self.from),
                 tail_length,
             );
             self.vec.set_len(tail_length + self.from);
@@ -737,3 +752,219 @@ fn test() {
     assert_eq!(new.as_slice(), std.as_slice());
     assert_eq!(new.as_slice(), capacity.as_slice());
 }
+
+mod single_or_vec {
+    use super::Vec;
+    use crate::alloc::{AllocationError, DefaultAllocator, IAlloc};
+    use crate::num::NonMaxUsize;
+    use crate::{IDiscriminantProvider, IStable};
+    #[crate::stabby]
+    pub struct Single<T, Alloc> {
+        value: T,
+        alloc: Alloc,
+    }
+    #[crate::stabby]
+    pub struct SingleOrVec<T: IStable, Alloc: IAlloc + IStable = DefaultAllocator>
+    where
+        Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+        Vec<T, Alloc>: IStable,
+        crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+    {
+        inner: crate::Result<Single<T, Alloc>, Vec<T, Alloc>>,
+    }
+    impl<T: IStable, Alloc: IAlloc + IStable + Default> Default for SingleOrVec<T, Alloc>
+    where
+        Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+        Vec<T, Alloc>: IStable,
+        crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+    {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+    impl<T: IStable, Alloc: IAlloc + IStable> SingleOrVec<T, Alloc>
+    where
+        Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+        Vec<T, Alloc>: IStable,
+        crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+    {
+        /// Constructs a new vector in `alloc`. This doesn't actually allocate.
+        pub fn new_in(alloc: Alloc) -> Self {
+            Self {
+                inner: crate::Result::Err(Vec::new_in(alloc)),
+            }
+        }
+        /// Constructs a new vector. This doesn't actually allocate.
+        pub fn new() -> Self
+        where
+            Alloc: Default,
+        {
+            Self::new_in(Alloc::default())
+        }
+        /// Constructs a new vector in `alloc`, allocating sufficient space for `capacity` elements.
+        ///
+        /// # Panics
+        /// If the allocator failed to provide a large enough allocation.
+        pub fn with_capacity_in(capacity: usize, alloc: Alloc) -> Self {
+            let mut this = Self::new_in(alloc);
+            this.reserve(capacity);
+            this
+        }
+        /// Constructs a new vector, allocating sufficient space for `capacity` elements.
+        ///
+        /// # Panics
+        /// If the allocator failed to provide a large enough allocation.
+        pub fn with_capacity(capacity: usize) -> Self
+        where
+            Alloc: Default,
+        {
+            Self::with_capacity_in(capacity, Alloc::default())
+        }
+        /// Constructs a new vector in `alloc`, allocating sufficient space for `capacity` elements.
+        /// # Errors
+        /// Returns an [`AllocationError`] if the allocator couldn't provide a sufficient allocation.
+        pub fn try_with_capacity_in(capacity: usize, alloc: Alloc) -> Result<Self, Alloc> {
+            Vec::try_with_capacity_in(capacity, alloc).map(|vec| Self {
+                inner: crate::Result::Err(vec),
+            })
+        }
+        /// Constructs a new vector, allocating sufficient space for `capacity` elements.
+        /// # Errors
+        /// Returns an [`AllocationError`] if the allocator couldn't provide a sufficient allocation.
+        pub fn try_with_capacity(capacity: usize) -> Result<Self, Alloc>
+        where
+            Alloc: Default,
+            Self: IDiscriminantProvider<AllocationError>,
+        {
+            Self::try_with_capacity_in(capacity, Alloc::default())
+        }
+        pub fn len(&self) -> usize {
+            self.inner.match_ref(|_| 1, |vec| vec.len())
+        }
+        pub fn is_empty(&self) -> bool {
+            self.len() == 0
+        }
+        /// Adds `value` at the end of `self`.
+        /// # Panics
+        /// This function panics if the vector tried to grow due to
+        /// being full, and the allocator failed to provide a new allocation.
+        pub fn push(&mut self, value: T) {
+            if self.try_push(value).is_err() {
+                panic!("Failed to push because reallocation failed.")
+            }
+        }
+        /// Adds `value` at the end of `self`.
+        ///
+        /// # Errors
+        /// This function gives back the `value` if the vector tried to grow due to
+        /// being full, and the allocator failed to provide a new allocation.
+        ///
+        /// `self` is still valid should that happen.
+        pub fn try_push(&mut self, item: T) -> Result<(), T> {
+            let inner = &mut self.inner as *mut _;
+            self.inner.match_mut_ctx(
+                item,
+                |item, value| unsafe {
+                    // either `inner` must be leaked and overwritten by the new owner of `value` and `alloc`,
+                    // or these two must be leaked to prevent double frees.
+                    let Single { value, alloc } = core::ptr::read(value);
+                    match Vec::try_with_capacity_in(8, alloc) {
+                        Ok(mut vec) => {
+                            vec.push(value);
+                            vec.push(item);
+                            // overwrite `inner` with `value` and `alloc` with their new owner without freeing `inner`.
+                            core::ptr::write(inner, crate::Result::Err(vec));
+                            Ok(())
+                        }
+                        Err(alloc) => {
+                            // leak both `value` and `alloc` since `inner` can't be overwritten
+                            core::mem::forget((value, alloc));
+                            Err(item)
+                        }
+                    }
+                },
+                |item, vec| vec.try_push(item),
+            )
+        }
+        /// The total capacity of the vector.
+        pub fn capacity(&self) -> usize {
+            self.inner.match_ref(|_| 1, |vec| vec.capacity())
+        }
+        /// The remaining number of elements that can be pushed before reallocating.
+        pub fn remaining_capacity(&self) -> usize {
+            self.inner.match_ref(|_| 0, |vec| vec.remaining_capacity())
+        }
+        /// Ensures that `additional` more elements can be pushed on `self` without reallocating.
+        ///
+        /// This may reallocate once to provide this guarantee.
+        ///
+        /// # Panics
+        /// This function panics if the allocator failed to provide an appropriate allocation.
+        pub fn reserve(&mut self, additional: usize) {
+            self.try_reserve(additional).unwrap();
+        }
+        /// Ensures that `additional` more elements can be pushed on `self` without reallocating.
+        ///
+        /// This may reallocate once to provide this guarantee.
+        ///
+        /// # Errors
+        /// Returns Ok(new_capacity) if succesful (including if no reallocation was needed),
+        /// otherwise returns Err(AllocationError)
+        pub fn try_reserve(&mut self, additional: usize) -> Result<NonMaxUsize, AllocationError> {
+            let inner = &mut self.inner as *mut _;
+            self.inner.match_mut(
+                |value| unsafe {
+                    let new_capacity = 1 + additional;
+                    // either `inner` must be leaked and overwritten by the new owner of `value` and `alloc`,
+                    // or these two must be leaked to prevent double frees.
+                    let Single { value, alloc } = core::ptr::read(value);
+                    match Vec::try_with_capacity_in(new_capacity, alloc) {
+                        Ok(mut vec) => {
+                            vec.push(value);
+                            // overwrite `inner` with `value` and `alloc` with their new owner without freeing `inner`.
+                            core::ptr::write(inner, crate::Result::Err(vec));
+                            NonMaxUsize::new(new_capacity).ok_or(AllocationError())
+                        }
+                        Err(alloc) => {
+                            // leak both `value` and `alloc` since `inner` can't be overwritten
+                            core::mem::drop((value, alloc));
+                            Err(AllocationError())
+                        }
+                    }
+                },
+                |vec| vec.try_reserve(additional),
+            )
+        }
+        /// Removes all elements from `self` from the `len`th onward.
+        ///
+        /// Does nothing if `self.len() <= len`
+        pub fn truncate(&mut self, len: usize) {
+            if self.len() <= len {
+                return;
+            }
+            let inner = &mut self.inner as *mut _;
+            self.inner.match_mut(
+                |value| unsafe {
+                    let Single { value, alloc } = core::ptr::read(value);
+                    core::mem::drop(value); // drop `value` to prevent leaking it since we'll overwrite `inner` with something that doesn't own it
+                                            // overwrite `inner` with the new owner of `alloc`
+                    core::ptr::write(inner, crate::Result::Err(Vec::new_in(alloc)))
+                },
+                |vec| vec.truncate(len),
+            )
+        }
+        pub fn as_slice(&self) -> &[T] {
+            self.inner.match_ref(
+                |value| core::slice::from_ref(&value.value),
+                |vec| vec.as_slice(),
+            )
+        }
+        pub fn as_slice_mut(&mut self) -> &mut [T] {
+            self.inner.match_mut(
+                |value| core::slice::from_mut(&mut value.value),
+                |vec| vec.as_slice_mut(),
+            )
+        }
+    }
+}
+pub use single_or_vec::SingleOrVec;

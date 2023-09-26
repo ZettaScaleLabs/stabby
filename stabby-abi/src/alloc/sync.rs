@@ -2,11 +2,11 @@
 // Copyright (c) 2023 ZettaScale Technology
 //
 // This program and the accompanying materials are made available under the
-// terms of the Eclipse Public License 2.0 which is available at
-// http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
-// which is available at https://www.apache.org/licenses/LICENSE-2.0.
+// terms of the Eclipse Public License 2.inner which is available at
+// http://www.eclipse.org/legal/epl-2.inner, or the Apache License, Version 2.inner
+// which is available at https://www.apache.org/licenses/LICENSE-2.inner.
 //
-// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
+// SPDX-License-Identifier: EPL-2.inner OR Apache-2.inner
 //
 // Contributors:
 //   Pierre Avital, <pierre.avital@me.com>
@@ -332,30 +332,32 @@ impl<T, Alloc: IAlloc> Drop for Weak<T, Alloc> {
 }
 
 #[crate::stabby]
-pub struct ArcSlice<T, Alloc: IAlloc = super::DefaultAllocator>(pub(crate) AllocSlice<T, Alloc>);
+pub struct ArcSlice<T, Alloc: IAlloc = super::DefaultAllocator> {
+    pub(crate) inner: AllocSlice<T, Alloc>,
+}
 
 impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
     pub const fn len(&self) -> usize {
-        ptr_diff(self.0.end, self.0.start.ptr)
+        ptr_diff(self.inner.end, self.inner.start.ptr)
     }
     pub const fn is_empty(&self) -> bool {
         self.len() == 0
     }
     pub fn as_slice(&self) -> &[T] {
-        let start = self.0.start;
+        let start = self.inner.start;
         unsafe { core::slice::from_raw_parts(start.as_ptr(), self.len()) }
     }
     /// # Safety
     /// This can easily create aliased mutable references, which would be undefined behaviour.
     pub unsafe fn as_slice_mut_unchecked(&mut self) -> &mut [T] {
-        let start = self.0.start;
+        let start = self.inner.start;
         unsafe { core::slice::from_raw_parts_mut(start.as_ptr(), self.len()) }
     }
     pub fn strong_count(this: &Self) -> usize {
-        unsafe { this.0.start.prefix().strong.load(Ordering::Relaxed) }
+        unsafe { this.inner.start.prefix().strong.load(Ordering::Relaxed) }
     }
     pub fn weak_count(this: &Self) -> usize {
-        unsafe { this.0.start.prefix().weak.load(Ordering::Relaxed) }
+        unsafe { this.inner.start.prefix().weak.load(Ordering::Relaxed) }
     }
     /// Whether or not `this` is the sole owner of its data, including weak owners.
     pub fn is_unique(this: &Self) -> bool {
@@ -368,19 +370,21 @@ impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
 }
 impl<T, Alloc: IAlloc> Clone for ArcSlice<T, Alloc> {
     fn clone(&self) -> Self {
-        unsafe { self.0.start.prefix() }
+        unsafe { self.inner.start.prefix() }
             .strong
             .fetch_add(1, Ordering::Relaxed);
-        Self(self.0)
+        Self { inner: self.inner }
     }
 }
 impl<T, Alloc: IAlloc> From<Arc<T, Alloc>> for ArcSlice<T, Alloc> {
     fn from(mut value: Arc<T, Alloc>) -> Self {
         unsafe { value.ptr.prefix_mut() }.capacity = AtomicUsize::new(1);
-        Self(AllocSlice {
-            start: value.ptr,
-            end: ptr_add(value.ptr.ptr, 1),
-        })
+        Self {
+            inner: AllocSlice {
+                start: value.ptr,
+                end: ptr_add(value.ptr.ptr, 1),
+            },
+        }
     }
 }
 impl<T, Alloc: IAlloc> From<Vec<T, Alloc>> for ArcSlice<T, Alloc> {
@@ -393,10 +397,12 @@ impl<T, Alloc: IAlloc> From<Vec<T, Alloc>> for ArcSlice<T, Alloc> {
                 slice.start.prefix_mut().capacity = AtomicUsize::new(capacity);
                 core::ptr::write(&mut slice.start.prefix_mut().alloc, alloc);
             }
-            Self(AllocSlice {
-                start: slice.start,
-                end: slice.end,
-            })
+            Self {
+                inner: AllocSlice {
+                    start: slice.start,
+                    end: slice.end,
+                },
+            }
         } else {
             let mut start = AllocPtr::alloc_array(&mut alloc, 0).expect("Allocation failed");
             unsafe {
@@ -412,10 +418,12 @@ impl<T, Alloc: IAlloc> From<Vec<T, Alloc>> for ArcSlice<T, Alloc> {
                 };
                 core::ptr::write(&mut slice.start.prefix_mut().alloc, alloc);
             }
-            Self(AllocSlice {
-                start,
-                end: ptr_add(start.ptr.cast::<u8>(), slice.len()).cast(),
-            })
+            Self {
+                inner: AllocSlice {
+                    start,
+                    end: ptr_add(start.ptr.cast::<u8>(), slice.len()).cast(),
+                },
+            }
         }
     }
 }
@@ -426,15 +434,17 @@ impl<T, Alloc: IAlloc> TryFrom<ArcSlice<T, Alloc>> for Vec<T, Alloc> {
             Err(value)
         } else {
             unsafe {
-                let ret = Vec(VecInner {
-                    start: value.0.start,
-                    end: value.0.end,
-                    capacity: ptr_add(
-                        value.0.start.ptr,
-                        value.0.start.prefix().capacity.load(Ordering::Relaxed),
-                    ),
-                    alloc: core::ptr::read(&value.0.start.prefix().alloc),
-                });
+                let ret = Vec {
+                    inner: VecInner {
+                        start: value.inner.start,
+                        end: value.inner.end,
+                        capacity: ptr_add(
+                            value.inner.start.ptr,
+                            value.inner.start.prefix().capacity.load(Ordering::Relaxed),
+                        ),
+                        alloc: core::ptr::read(&value.inner.start.prefix().alloc),
+                    },
+                };
                 core::mem::forget(value);
                 Ok(ret)
             }
@@ -464,7 +474,7 @@ impl<T: Hash, Alloc: IAlloc> Hash for ArcSlice<T, Alloc> {
 }
 impl<T, Alloc: IAlloc> Drop for ArcSlice<T, Alloc> {
     fn drop(&mut self) {
-        if unsafe { self.0.start.prefix() }
+        if unsafe { self.inner.start.prefix() }
             .strong
             .fetch_sub(1, Ordering::Relaxed)
             != 1
@@ -472,7 +482,7 @@ impl<T, Alloc: IAlloc> Drop for ArcSlice<T, Alloc> {
             return;
         }
         unsafe { core::ptr::drop_in_place(self.as_slice_mut_unchecked()) }
-        _ = WeakSlice(self.0)
+        _ = WeakSlice { inner: self.inner };
     }
 }
 impl<T: Debug, Alloc: IAlloc> Debug for ArcSlice<T, Alloc> {
@@ -514,11 +524,13 @@ impl<'a, T, Alloc: IAlloc> IntoIterator for &'a ArcSlice<T, Alloc> {
     }
 }
 #[crate::stabby]
-pub struct WeakSlice<T, Alloc: IAlloc = super::DefaultAllocator>(pub(crate) AllocSlice<T, Alloc>);
+pub struct WeakSlice<T, Alloc: IAlloc = super::DefaultAllocator> {
+    pub(crate) inner: AllocSlice<T, Alloc>,
+}
 
 impl<T, Alloc: IAlloc> WeakSlice<T, Alloc> {
     pub fn upgrade(&self) -> Option<ArcSlice<T, Alloc>> {
-        let strong = &unsafe { self.0.start.prefix() }.strong;
+        let strong = &unsafe { self.inner.start.prefix() }.strong;
         let count = strong.fetch_or(USIZE_TOP_BIT, Ordering::Acquire);
         match count {
             0 | USIZE_TOP_BIT => {
@@ -528,38 +540,38 @@ impl<T, Alloc: IAlloc> WeakSlice<T, Alloc> {
             _ => {
                 strong.fetch_add(1, Ordering::Release);
                 strong.fetch_and(!USIZE_TOP_BIT, Ordering::Release);
-                Some(ArcSlice(self.0))
+                Some(ArcSlice { inner: self.inner })
             }
         }
     }
 }
 impl<T, Alloc: IAlloc> Clone for WeakSlice<T, Alloc> {
     fn clone(&self) -> Self {
-        unsafe { self.0.start.prefix() }
+        unsafe { self.inner.start.prefix() }
             .weak
             .fetch_add(1, Ordering::Relaxed);
-        Self(self.0)
+        Self { inner: self.inner }
     }
 }
 impl<T, Alloc: IAlloc> From<&ArcSlice<T, Alloc>> for WeakSlice<T, Alloc> {
     fn from(value: &ArcSlice<T, Alloc>) -> Self {
-        unsafe { value.0.start.prefix() }
+        unsafe { value.inner.start.prefix() }
             .weak
             .fetch_add(1, Ordering::Relaxed);
-        Self(value.0)
+        Self { inner: value.inner }
     }
 }
 impl<T, Alloc: IAlloc> Drop for WeakSlice<T, Alloc> {
     fn drop(&mut self) {
-        if unsafe { self.0.start.prefix() }
+        if unsafe { self.inner.start.prefix() }
             .weak
             .fetch_sub(1, Ordering::Relaxed)
             != 1
         {
             return;
         }
-        let mut alloc = unsafe { core::ptr::read(&self.0.start.prefix().alloc) };
-        unsafe { self.0.start.free(&mut alloc) }
+        let mut alloc = unsafe { core::ptr::read(&self.inner.start.prefix().alloc) };
+        unsafe { self.inner.start.free(&mut alloc) }
     }
 }
 pub use super::string::{ArcStr, WeakStr};
