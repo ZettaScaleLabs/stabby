@@ -35,7 +35,10 @@ use libc::free as aligned_free;
 /// It has all of `malloc`'s usual properties.
 #[crate::stabby]
 #[derive(Clone, Copy, Debug, Default)]
-pub struct LibcAlloc;
+pub struct LibcAlloc {
+    inner: [u8; 0],
+}
+
 impl super::IAlloc for LibcAlloc {
     fn alloc(&mut self, layout: Layout) -> *mut () {
         if layout.size == 0 {
