@@ -14,7 +14,7 @@
 
 use crate::num::NonMaxUsize;
 
-use super::{AllocPtr, AllocSlice, AllocationError, IAlloc};
+use super::{single_or_vec, AllocPtr, AllocSlice, AllocationError, IAlloc};
 use core::fmt::Debug;
 use core::ptr::NonNull;
 
@@ -440,6 +440,9 @@ impl<T: Ord, Alloc: IAlloc> Ord for Vec<T, Alloc> {
     }
 }
 
+use crate::{IDiscriminantProvider, IStable};
+use single_or_vec::Single;
+
 macro_rules! impl_index {
     ($index: ty) => {
         impl<T, Alloc: IAlloc> core::ops::Index<$index> for Vec<T, Alloc> {
@@ -449,6 +452,31 @@ macro_rules! impl_index {
             }
         }
         impl<T, Alloc: IAlloc> core::ops::IndexMut<$index> for Vec<T, Alloc> {
+            fn index_mut(&mut self, index: $index) -> &mut Self::Output {
+                &mut self.as_slice_mut()[index]
+            }
+        }
+        impl<T, Alloc: IAlloc> core::ops::Index<$index> for SingleOrVec<T, Alloc>
+        where
+            T: IStable,
+            Alloc: IStable,
+            Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+            Vec<T, Alloc>: IStable,
+            crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+        {
+            type Output = <[T] as core::ops::Index<$index>>::Output;
+            fn index(&self, index: $index) -> &Self::Output {
+                &self.as_slice()[index]
+            }
+        }
+        impl<T, Alloc: IAlloc> core::ops::IndexMut<$index> for SingleOrVec<T, Alloc>
+        where
+            T: IStable,
+            Alloc: IStable,
+            Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+            Vec<T, Alloc>: IStable,
+            crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+        {
             fn index_mut(&mut self, index: $index) -> &mut Self::Output {
                 &mut self.as_slice_mut()[index]
             }
@@ -753,218 +781,4 @@ fn test() {
     assert_eq!(new.as_slice(), capacity.as_slice());
 }
 
-mod single_or_vec {
-    use super::Vec;
-    use crate::alloc::{AllocationError, DefaultAllocator, IAlloc};
-    use crate::num::NonMaxUsize;
-    use crate::{IDiscriminantProvider, IStable};
-    #[crate::stabby]
-    pub struct Single<T, Alloc> {
-        value: T,
-        alloc: Alloc,
-    }
-    #[crate::stabby]
-    pub struct SingleOrVec<T: IStable, Alloc: IAlloc + IStable = DefaultAllocator>
-    where
-        Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
-        Vec<T, Alloc>: IStable,
-        crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
-    {
-        inner: crate::Result<Single<T, Alloc>, Vec<T, Alloc>>,
-    }
-    impl<T: IStable, Alloc: IAlloc + IStable + Default> Default for SingleOrVec<T, Alloc>
-    where
-        Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
-        Vec<T, Alloc>: IStable,
-        crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
-    {
-        fn default() -> Self {
-            Self::new()
-        }
-    }
-    impl<T: IStable, Alloc: IAlloc + IStable> SingleOrVec<T, Alloc>
-    where
-        Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
-        Vec<T, Alloc>: IStable,
-        crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
-    {
-        /// Constructs a new vector in `alloc`. This doesn't actually allocate.
-        pub fn new_in(alloc: Alloc) -> Self {
-            Self {
-                inner: crate::Result::Err(Vec::new_in(alloc)),
-            }
-        }
-        /// Constructs a new vector. This doesn't actually allocate.
-        pub fn new() -> Self
-        where
-            Alloc: Default,
-        {
-            Self::new_in(Alloc::default())
-        }
-        /// Constructs a new vector in `alloc`, allocating sufficient space for `capacity` elements.
-        ///
-        /// # Panics
-        /// If the allocator failed to provide a large enough allocation.
-        pub fn with_capacity_in(capacity: usize, alloc: Alloc) -> Self {
-            let mut this = Self::new_in(alloc);
-            this.reserve(capacity);
-            this
-        }
-        /// Constructs a new vector, allocating sufficient space for `capacity` elements.
-        ///
-        /// # Panics
-        /// If the allocator failed to provide a large enough allocation.
-        pub fn with_capacity(capacity: usize) -> Self
-        where
-            Alloc: Default,
-        {
-            Self::with_capacity_in(capacity, Alloc::default())
-        }
-        /// Constructs a new vector in `alloc`, allocating sufficient space for `capacity` elements.
-        /// # Errors
-        /// Returns an [`AllocationError`] if the allocator couldn't provide a sufficient allocation.
-        pub fn try_with_capacity_in(capacity: usize, alloc: Alloc) -> Result<Self, Alloc> {
-            Vec::try_with_capacity_in(capacity, alloc).map(|vec| Self {
-                inner: crate::Result::Err(vec),
-            })
-        }
-        /// Constructs a new vector, allocating sufficient space for `capacity` elements.
-        /// # Errors
-        /// Returns an [`AllocationError`] if the allocator couldn't provide a sufficient allocation.
-        pub fn try_with_capacity(capacity: usize) -> Result<Self, Alloc>
-        where
-            Alloc: Default,
-            Self: IDiscriminantProvider<AllocationError>,
-        {
-            Self::try_with_capacity_in(capacity, Alloc::default())
-        }
-        pub fn len(&self) -> usize {
-            self.inner.match_ref(|_| 1, |vec| vec.len())
-        }
-        pub fn is_empty(&self) -> bool {
-            self.len() == 0
-        }
-        /// Adds `value` at the end of `self`.
-        /// # Panics
-        /// This function panics if the vector tried to grow due to
-        /// being full, and the allocator failed to provide a new allocation.
-        pub fn push(&mut self, value: T) {
-            if self.try_push(value).is_err() {
-                panic!("Failed to push because reallocation failed.")
-            }
-        }
-        /// Adds `value` at the end of `self`.
-        ///
-        /// # Errors
-        /// This function gives back the `value` if the vector tried to grow due to
-        /// being full, and the allocator failed to provide a new allocation.
-        ///
-        /// `self` is still valid should that happen.
-        pub fn try_push(&mut self, item: T) -> Result<(), T> {
-            let inner = &mut self.inner as *mut _;
-            self.inner.match_mut_ctx(
-                item,
-                |item, value| unsafe {
-                    // either `inner` must be leaked and overwritten by the new owner of `value` and `alloc`,
-                    // or these two must be leaked to prevent double frees.
-                    let Single { value, alloc } = core::ptr::read(value);
-                    match Vec::try_with_capacity_in(8, alloc) {
-                        Ok(mut vec) => {
-                            vec.push(value);
-                            vec.push(item);
-                            // overwrite `inner` with `value` and `alloc` with their new owner without freeing `inner`.
-                            core::ptr::write(inner, crate::Result::Err(vec));
-                            Ok(())
-                        }
-                        Err(alloc) => {
-                            // leak both `value` and `alloc` since `inner` can't be overwritten
-                            core::mem::forget((value, alloc));
-                            Err(item)
-                        }
-                    }
-                },
-                |item, vec| vec.try_push(item),
-            )
-        }
-        /// The total capacity of the vector.
-        pub fn capacity(&self) -> usize {
-            self.inner.match_ref(|_| 1, |vec| vec.capacity())
-        }
-        /// The remaining number of elements that can be pushed before reallocating.
-        pub fn remaining_capacity(&self) -> usize {
-            self.inner.match_ref(|_| 0, |vec| vec.remaining_capacity())
-        }
-        /// Ensures that `additional` more elements can be pushed on `self` without reallocating.
-        ///
-        /// This may reallocate once to provide this guarantee.
-        ///
-        /// # Panics
-        /// This function panics if the allocator failed to provide an appropriate allocation.
-        pub fn reserve(&mut self, additional: usize) {
-            self.try_reserve(additional).unwrap();
-        }
-        /// Ensures that `additional` more elements can be pushed on `self` without reallocating.
-        ///
-        /// This may reallocate once to provide this guarantee.
-        ///
-        /// # Errors
-        /// Returns Ok(new_capacity) if succesful (including if no reallocation was needed),
-        /// otherwise returns Err(AllocationError)
-        pub fn try_reserve(&mut self, additional: usize) -> Result<NonMaxUsize, AllocationError> {
-            let inner = &mut self.inner as *mut _;
-            self.inner.match_mut(
-                |value| unsafe {
-                    let new_capacity = 1 + additional;
-                    // either `inner` must be leaked and overwritten by the new owner of `value` and `alloc`,
-                    // or these two must be leaked to prevent double frees.
-                    let Single { value, alloc } = core::ptr::read(value);
-                    match Vec::try_with_capacity_in(new_capacity, alloc) {
-                        Ok(mut vec) => {
-                            vec.push(value);
-                            // overwrite `inner` with `value` and `alloc` with their new owner without freeing `inner`.
-                            core::ptr::write(inner, crate::Result::Err(vec));
-                            NonMaxUsize::new(new_capacity).ok_or(AllocationError())
-                        }
-                        Err(alloc) => {
-                            // leak both `value` and `alloc` since `inner` can't be overwritten
-                            core::mem::drop((value, alloc));
-                            Err(AllocationError())
-                        }
-                    }
-                },
-                |vec| vec.try_reserve(additional),
-            )
-        }
-        /// Removes all elements from `self` from the `len`th onward.
-        ///
-        /// Does nothing if `self.len() <= len`
-        pub fn truncate(&mut self, len: usize) {
-            if self.len() <= len {
-                return;
-            }
-            let inner = &mut self.inner as *mut _;
-            self.inner.match_mut(
-                |value| unsafe {
-                    let Single { value, alloc } = core::ptr::read(value);
-                    core::mem::drop(value); // drop `value` to prevent leaking it since we'll overwrite `inner` with something that doesn't own it
-                                            // overwrite `inner` with the new owner of `alloc`
-                    core::ptr::write(inner, crate::Result::Err(Vec::new_in(alloc)))
-                },
-                |vec| vec.truncate(len),
-            )
-        }
-        pub fn as_slice(&self) -> &[T] {
-            self.inner.match_ref(
-                |value| core::slice::from_ref(&value.value),
-                |vec| vec.as_slice(),
-            )
-        }
-        pub fn as_slice_mut(&mut self) -> &mut [T] {
-            self.inner.match_mut(
-                |value| core::slice::from_mut(&mut value.value),
-                |vec| vec.as_slice_mut(),
-            )
-        }
-    }
-}
-pub use single_or_vec::SingleOrVec;
+pub use super::single_or_vec::SingleOrVec;

@@ -31,6 +31,7 @@ impl core::fmt::Display for AllocationError {
 impl std::error::Error for AllocationError {}
 
 pub mod boxed;
+pub mod single_or_vec;
 pub mod string;
 pub mod sync;
 pub mod vec;
