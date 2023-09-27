@@ -217,6 +217,73 @@ where
     // }
 }
 
+impl<T: Clone, Alloc: IAlloc + Clone> Clone for SingleOrVec<T, Alloc>
+where
+    T: IStable,
+    Alloc: IStable,
+    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Vec<T, Alloc>: IStable,
+    crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+{
+    fn clone(&self) -> Self {
+        self.inner.match_ref(
+            |Single { value, alloc }| Self {
+                inner: crate::Result::Ok(Single {
+                    value: value.clone(),
+                    alloc: alloc.clone(),
+                }),
+            },
+            |vec| Self {
+                inner: crate::Result::Err(vec.clone()),
+            },
+        )
+    }
+}
+impl<T: PartialEq, Alloc: IAlloc, Rhs: AsRef<[T]>> PartialEq<Rhs> for SingleOrVec<T, Alloc>
+where
+    T: IStable,
+    Alloc: IStable,
+    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Vec<T, Alloc>: IStable,
+    crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+{
+    fn eq(&self, other: &Rhs) -> bool {
+        self.as_slice() == other.as_ref()
+    }
+}
+impl<T: Eq, Alloc: IAlloc> Eq for SingleOrVec<T, Alloc>
+where
+    T: IStable,
+    Alloc: IStable,
+    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Vec<T, Alloc>: IStable,
+    crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+{
+}
+impl<T: PartialOrd, Alloc: IAlloc, Rhs: AsRef<[T]>> PartialOrd<Rhs> for SingleOrVec<T, Alloc>
+where
+    T: IStable,
+    Alloc: IStable,
+    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Vec<T, Alloc>: IStable,
+    crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+{
+    fn partial_cmp(&self, other: &Rhs) -> Option<core::cmp::Ordering> {
+        self.as_slice().partial_cmp(other.as_ref())
+    }
+}
+impl<T: Ord, Alloc: IAlloc> Ord for SingleOrVec<T, Alloc>
+where
+    T: IStable,
+    Alloc: IStable,
+    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Vec<T, Alloc>: IStable,
+    crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+{
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.as_slice().cmp(other.as_slice())
+    }
+}
 impl<T, Alloc: IAlloc> core::ops::Deref for SingleOrVec<T, Alloc>
 where
     T: IStable,
@@ -345,4 +412,24 @@ where
             |vec| vec,
         )
     }
+}
+
+#[test]
+fn test() {
+    use rand::Rng;
+    const LEN: usize = 2000;
+    let mut std = std::vec::Vec::with_capacity(LEN);
+    let mut new: SingleOrVec<u8> = SingleOrVec::new();
+    let mut capacity: SingleOrVec<u8> = SingleOrVec::with_capacity(LEN);
+    let mut rng = rand::thread_rng();
+    for _ in 0..LEN {
+        let n: u8 = rng.gen();
+        new.push(n);
+        capacity.push(n);
+        std.push(n);
+    }
+    assert_eq!(new.as_slice(), std.as_slice());
+    assert_eq!(new.as_slice(), capacity.as_slice());
+    let clone = new.clone();
+    assert_eq!(new.as_slice(), clone.as_slice());
 }

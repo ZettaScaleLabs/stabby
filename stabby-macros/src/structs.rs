@@ -41,8 +41,10 @@ pub fn stabby(
     let mut report = Vec::new();
     let struct_code = match &fields {
         syn::Fields::Named(fields) => {
+            let mut n_fields = 0;
             let fields = &fields.named;
             for field in fields {
+                n_fields += 1;
                 let ty = &field.ty;
                 layout = Some(layout.map_or_else(
                     || quote!(#ty),
@@ -50,17 +52,24 @@ pub fn stabby(
                 ));
                 report.push((field.ident.as_ref().unwrap().to_string(), ty));
             }
+            let repr = if n_fields <= 1 {
+                quote!(transparent)
+            } else {
+                quote!(C)
+            };
             quote! {
                 #(#attrs)*
-                #[repr(C)]
+                #[repr(#repr)]
                 #vis struct #ident #generics #where_clause {
                     #fields
                 }
             }
         }
         syn::Fields::Unnamed(fields) => {
+            let mut n_fields = 0;
             let fields = &fields.unnamed;
             for (i, field) in fields.iter().enumerate() {
+                n_fields += 1;
                 let ty = &field.ty;
                 layout = Some(layout.map_or_else(
                     || quote!(#ty),
@@ -68,15 +77,21 @@ pub fn stabby(
                 ));
                 report.push((i.to_string(), ty));
             }
+            let repr = if n_fields <= 1 {
+                quote!(transparent)
+            } else {
+                quote!(C)
+            };
             quote! {
                 #(#attrs)*
-                #[repr(C)]
+                #[repr(#repr)]
                 #vis struct #ident #generics #where_clause (#fields);
             }
         }
         syn::Fields::Unit => {
             quote! {
                 #(#attrs)*
+                #[repr(transparent)]
                 #vis struct #ident #generics #where_clause;
             }
         }
