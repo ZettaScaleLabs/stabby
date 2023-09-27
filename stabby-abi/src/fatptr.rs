@@ -45,6 +45,10 @@ pub trait IPtrOwned: IPtr {
     /// Called instead of `Drop::drop` when the dynptr is dropped.
     fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ()));
 }
+/// Provides Clone support for smart pointers that allow it.
+pub trait IPtrClone: IPtrOwned {
+    fn clone(this: &Self) -> Self;
+}
 impl<'a, T> IPtr for &'a T {
     unsafe fn as_ref<U>(&self) -> &U {
         core::mem::transmute(self)
@@ -186,6 +190,15 @@ impl_super!(VtSync<VTable<Head, Tail>>, VtSync<Tail>, Head, Tail: HasDropVt + 's
 impl_super!(VtSync<VtSend<VTable<Head, Tail>>>, VtSync<VtSend<Tail>>, Head, Tail: HasDropVt + 'static);
 impl_super!(VtSend<VtSync<VTable<Head, Tail>>>, VtSend<VtSync<Tail>>, Head, Tail: HasDropVt + 'static);
 
+impl<'a, P: IPtrOwned + IPtrClone, Vt: HasDropVt + 'a> Clone for Dyn<'a, P, Vt> {
+    fn clone(&self) -> Self {
+        Self {
+            ptr: core::mem::ManuallyDrop::new(IPtrClone::clone(&self.ptr)),
+            vtable: self.vtable,
+            unsend: self.unsend,
+        }
+    }
+}
 impl<'a, P: IPtrOwned, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
     pub fn ptr(&self) -> &P {
         &self.ptr

@@ -581,6 +581,11 @@ impl<T, Alloc: IAlloc> crate::IPtr for Arc<T, Alloc> {
         self.ptr.cast().as_ref()
     }
 }
+impl<T, Alloc: IAlloc> crate::IPtrClone for Arc<T, Alloc> {
+    fn clone(this: &Self) -> Self {
+        this.clone()
+    }
+}
 
 impl<T, Alloc: IAlloc> crate::IPtrTryAsMut for Arc<T, Alloc> {
     unsafe fn try_as_mut<U: Sized>(&mut self) -> Option<&mut U> {
