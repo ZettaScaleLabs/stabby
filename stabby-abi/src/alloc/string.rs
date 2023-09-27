@@ -8,26 +8,30 @@ use core::hash::Hash;
 
 #[crate::stabby]
 #[derive(Clone)]
-pub struct String<Alloc: IAlloc = super::DefaultAllocator>(pub(crate) Vec<u8, Alloc>);
+pub struct String<Alloc: IAlloc = super::DefaultAllocator> {
+    pub(crate) inner: Vec<u8, Alloc>,
+}
 
 impl<Alloc: IAlloc> String<Alloc> {
     pub const fn new_in(alloc: Alloc) -> Self {
-        Self(Vec::new_in(alloc))
+        Self {
+            inner: Vec::new_in(alloc),
+        }
     }
     pub fn new() -> Self
     where
         Alloc: Default,
     {
-        Self(Vec::new())
+        Self { inner: Vec::new() }
     }
     pub fn as_str(&self) -> &str {
-        unsafe { core::str::from_utf8_unchecked(self.0.as_slice()) }
+        unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
     }
     pub fn as_str_mut(&mut self) -> &mut str {
-        unsafe { core::str::from_utf8_unchecked_mut(self.0.as_slice_mut()) }
+        unsafe { core::str::from_utf8_unchecked_mut(self.inner.as_slice_mut()) }
     }
     fn try_concat_str(&mut self, s: &str) -> Result<(), AllocationError> {
-        self.0.try_copy_extend(s.as_bytes())
+        self.inner.try_copy_extend(s.as_bytes())
     }
     /// Attempts to concatenate `s` to `self`
     /// # Errors
@@ -50,13 +54,13 @@ impl<S: AsRef<str> + ?Sized, Alloc: IAlloc> core::ops::Add<&S> for String<Alloc>
 }
 impl<S: AsRef<str> + ?Sized, Alloc: IAlloc> core::ops::AddAssign<&S> for String<Alloc> {
     fn add_assign(&mut self, rhs: &S) {
-        self.0.copy_extend(rhs.as_ref().as_bytes())
+        self.inner.copy_extend(rhs.as_ref().as_bytes())
     }
 }
 
 impl<Alloc: IAlloc> From<String<Alloc>> for Vec<u8, Alloc> {
     fn from(value: String<Alloc>) -> Self {
-        value.0
+        value.inner
     }
 }
 
@@ -64,7 +68,7 @@ impl<Alloc: IAlloc> TryFrom<Vec<u8, Alloc>> for String<Alloc> {
     type Error = core::str::Utf8Error;
     fn try_from(value: Vec<u8, Alloc>) -> Result<Self, Self::Error> {
         core::str::from_utf8(value.as_slice())?;
-        Ok(Self(value))
+        Ok(Self { inner: value })
     }
 }
 
@@ -125,14 +129,16 @@ impl<Alloc: IAlloc + Default> From<&str> for String<Alloc> {
 }
 
 #[crate::stabby]
-pub struct ArcStr<Alloc: IAlloc = super::DefaultAllocator>(ArcSlice<u8, Alloc>);
+pub struct ArcStr<Alloc: IAlloc = super::DefaultAllocator> {
+    inner: ArcSlice<u8, Alloc>,
+}
 impl<Alloc: IAlloc> ArcStr<Alloc> {
     pub fn as_str(&self) -> &str {
-        unsafe { core::str::from_utf8_unchecked(self.0.as_slice()) }
+        unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
     }
     /// Whether or not `this` is the sole owner of its data, including weak owners.
     pub fn is_unique(this: &Self) -> bool {
-        ArcSlice::is_unique(&this.0)
+        ArcSlice::is_unique(&this.inner)
     }
 }
 impl<Alloc: IAlloc> AsRef<str> for ArcStr<Alloc> {
@@ -159,21 +165,25 @@ impl<Alloc: IAlloc> core::ops::Deref for ArcStr<Alloc> {
 }
 impl<Alloc: IAlloc> From<String<Alloc>> for ArcStr<Alloc> {
     fn from(value: String<Alloc>) -> Self {
-        Self(value.0.into())
+        Self {
+            inner: value.inner.into(),
+        }
     }
 }
 impl<Alloc: IAlloc> TryFrom<ArcStr<Alloc>> for String<Alloc> {
     type Error = ArcStr<Alloc>;
     fn try_from(value: ArcStr<Alloc>) -> Result<Self, ArcStr<Alloc>> {
-        match value.0.try_into() {
-            Ok(vec) => Ok(String(vec)),
-            Err(slice) => Err(ArcStr(slice)),
+        match value.inner.try_into() {
+            Ok(vec) => Ok(String { inner: vec }),
+            Err(slice) => Err(ArcStr { inner: slice }),
         }
     }
 }
 impl<Alloc: IAlloc> Clone for ArcStr<Alloc> {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        Self {
+            inner: self.inner.clone(),
+        }
     }
 }
 impl<Alloc: IAlloc> Eq for ArcStr<Alloc> {}
@@ -199,28 +209,36 @@ impl<Alloc: IAlloc> Hash for ArcStr<Alloc> {
 }
 
 #[crate::stabby]
-pub struct WeakStr<Alloc: IAlloc = super::DefaultAllocator>(WeakSlice<u8, Alloc>);
+pub struct WeakStr<Alloc: IAlloc = super::DefaultAllocator> {
+    inner: WeakSlice<u8, Alloc>,
+}
 impl<Alloc: IAlloc> WeakStr<Alloc> {
     pub fn upgrade(&self) -> Option<ArcStr<Alloc>> {
-        self.0.upgrade().map(ArcStr)
+        self.inner.upgrade().map(|inner| ArcStr { inner })
     }
 }
 impl<Alloc: IAlloc> From<&ArcStr<Alloc>> for WeakStr<Alloc> {
     fn from(value: &ArcStr<Alloc>) -> Self {
-        Self((&value.0).into())
+        Self {
+            inner: (&value.inner).into(),
+        }
     }
 }
 impl<Alloc: IAlloc> Clone for WeakStr<Alloc> {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        Self {
+            inner: self.inner.clone(),
+        }
     }
 }
 
 #[crate::stabby]
-pub struct BoxedStr<Alloc: IAlloc = super::DefaultAllocator>(BoxedSlice<u8, Alloc>);
+pub struct BoxedStr<Alloc: IAlloc = super::DefaultAllocator> {
+    inner: BoxedSlice<u8, Alloc>,
+}
 impl<Alloc: IAlloc> BoxedStr<Alloc> {
     pub fn as_str(&self) -> &str {
-        unsafe { core::str::from_utf8_unchecked(self.0.as_slice()) }
+        unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
     }
 }
 impl<Alloc: IAlloc> AsRef<str> for BoxedStr<Alloc> {
@@ -236,12 +254,16 @@ impl<Alloc: IAlloc> core::ops::Deref for BoxedStr<Alloc> {
 }
 impl<Alloc: IAlloc> From<String<Alloc>> for BoxedStr<Alloc> {
     fn from(value: String<Alloc>) -> Self {
-        Self(value.0.into())
+        Self {
+            inner: value.inner.into(),
+        }
     }
 }
 impl<Alloc: IAlloc> From<BoxedStr<Alloc>> for String<Alloc> {
     fn from(value: BoxedStr<Alloc>) -> Self {
-        String(value.0.into())
+        String {
+            inner: value.inner.into(),
+        }
     }
 }
 impl<Alloc: IAlloc> Eq for BoxedStr<Alloc> {}

@@ -5,11 +5,13 @@ macro_rules! define_non_max {
         /// `x` is stored as `NonZero(!x)`, so transmuting results in wrong values.
         #[repr(transparent)]
         #[derive(Clone, Copy, PartialEq, Eq)]
-        pub struct $NonMaxU8($NonZeroU8);
+        pub struct $NonMaxU8 {
+            inner: $NonZeroU8,
+        }
         impl $NonMaxU8 {
             pub const fn new(n: $u8) -> Option<Self> {
                 match <$NonZeroU8>::new(!n) {
-                    Some(n) => Some(Self(n)),
+                    Some(n) => Some(Self { inner: n }),
                     None => None,
                 }
             }
@@ -18,10 +20,12 @@ macro_rules! define_non_max {
             /// # Safety
             /// Calling this with the illegal value may result in undefined behaviour.
             pub const unsafe fn new_unchecked(n: $u8) -> Self {
-                Self(<$NonZeroU8>::new_unchecked(!n))
+                Self {
+                    inner: <$NonZeroU8>::new_unchecked(!n),
+                }
             }
             pub const fn get(self) -> $u8 {
-                !self.0.get()
+                !self.inner.get()
             }
         }
         impl From<$NonMaxU8> for $u8 {
@@ -73,11 +77,13 @@ macro_rules! define_non_x {
         /// `x` is stored as `NonZero(x.wrapping_sub(FORBIDDEN))`, so transmuting results in wrong values.
         #[repr(transparent)]
         #[derive(Clone, Copy, PartialEq, Eq)]
-        pub struct $NonMaxU8<const FORBIDDEN: $u8>($NonZeroU8);
+        pub struct $NonMaxU8<const FORBIDDEN: $u8> {
+            inner: $NonZeroU8,
+        }
         impl<const FORBIDDEN: $u8> $NonMaxU8<{ FORBIDDEN }> {
             pub const fn new(n: $u8) -> Option<Self> {
                 match <$NonZeroU8>::new(n.wrapping_sub(FORBIDDEN)) {
-                    Some(n) => Some(Self(n)),
+                    Some(n) => Some(Self { inner: n }),
                     None => None,
                 }
             }
@@ -86,10 +92,12 @@ macro_rules! define_non_x {
             /// # Safety
             /// Calling this with the illegal value may result in undefined behaviour.
             pub const unsafe fn new_unchecked(n: $u8) -> Self {
-                Self(<$NonZeroU8>::new_unchecked(n.wrapping_sub(FORBIDDEN)))
+                Self {
+                    inner: <$NonZeroU8>::new_unchecked(n.wrapping_sub(FORBIDDEN)),
+                }
             }
             pub const fn get(self) -> $u8 {
-                self.0.get().wrapping_add(FORBIDDEN)
+                self.inner.get().wrapping_add(FORBIDDEN)
             }
         }
         impl<const FORBIDDEN: $u8> From<$NonMaxU8<{ FORBIDDEN }>> for $u8 {
