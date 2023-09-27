@@ -209,12 +209,12 @@ where
             |vec| vec.as_slice_mut(),
         )
     }
-    pub fn iter(&self) -> core::slice::Iter<'_, T> {
-        self.into_iter()
-    }
-    pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, T> {
-        self.into_iter()
-    }
+    // pub fn iter(&self) -> core::slice::Iter<'_, T> {
+    //     self.into_iter()
+    // }
+    // pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, T> {
+    //     self.into_iter()
+    // }
 }
 
 impl<T, Alloc: IAlloc> core::ops::Deref for SingleOrVec<T, Alloc>
@@ -284,9 +284,9 @@ where
     }
 }
 
-impl<'a, T, Alloc: IAlloc> IntoIterator for &'a Vec<T, Alloc>
+impl<'a, T, Alloc: IAlloc> IntoIterator for &'a SingleOrVec<T, Alloc>
 where
-    T: IStable,
+    T: IStable + 'a,
     Alloc: IStable,
     Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
@@ -298,9 +298,9 @@ where
         self.as_slice().iter()
     }
 }
-impl<'a, T, Alloc: IAlloc> IntoIterator for &'a mut Vec<T, Alloc>
+impl<'a, T, Alloc: IAlloc> IntoIterator for &'a mut SingleOrVec<T, Alloc>
 where
-    T: IStable,
+    T: IStable + 'a,
     Alloc: IStable,
     Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
@@ -336,7 +336,7 @@ where
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
     fn from(value: SingleOrVec<T, Alloc>) -> Self {
-        self.inner.match_owned(
+        value.inner.match_owned(
             |Single { value, alloc }| {
                 let mut vec = Vec::new_in(alloc);
                 vec.push(value);
