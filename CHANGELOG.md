@@ -1,3 +1,16 @@
+# 2.0.0
+- BREAKING CHANGE:
+	- `std::boxed::Box` and `std::sync::Arc` were originally marked as `IStable` because their representation was indeed stable provided they pointed to sized types. However, Rust has historically changed the default global allocator, and since it can be overriden, it's also possible to create two binaries with mismatching allocators on each side. This meant that these types didn't have "invariant stability": moving one over FFI wasn't guaranteed to not introduce UB.
+- Introducing `stabby::alloc`:
+	- `IAlloc`: a trait that defines an allocator. It's basically just an ABI-stable equivalent to `std::alloc::GlobalAllocator`.
+	- `Box<T, Alloc>`, `Arc<T, Alloc>`, and `Vec<T, Alloc>`, which emulate their `std` counterparts. `Alloc` defaults to `LibcAlloc`, which is built atop `posix_memalign`/`aligned_malloc`. They have been built such that converting between them never causes a reallocation (converting from an empty `Vec` to a `Box` or `Arc` will allocate, since these two types must always be allocated).
+	- `BoxedSlice<T, Alloc>`, `BoxedStr<Alloc>`, `ArcSlice<T, Alloc>`, `ArcStr<Alloc>`, exist to emulate `Box<[T]>` &co, and are also built to be convertible from `Vec<T>` without reallocating.
+	- All of these duplicate all operations that may allocate with `try` variants that will return an error instead of panicking on allocation failures.
+- Better test coverage: the correct implementation of the spec is now fully verified.
+- Better documentation: `stabby` now uses the `deny(missing_(safety|errors|panics)_doc)` lints to ensure all failure conditions are always documented, and documents all of its macros outputs (often based on your own documentation) to allow `stabby` to be used in `deny(missing_docs)` environments.
+- `[T; N]` is now marked as `IStable` for `N` in `0..=128`.
+- `SingleOrVec<T, Alloc>` is a `Vec`-like container that will avoid allocating until you attempt to push a second element in it.
+
 # 1.0.10
 - Make bound deduction better for enums.
 - Introduce `MaybeResolved`: a future that may already be resolved to handle "maybe async" functions.

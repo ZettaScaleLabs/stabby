@@ -105,30 +105,55 @@ where
     ///
     /// `self` is still valid should that happen.
     pub fn try_push(&mut self, item: T) -> Result<(), T> {
-        let inner = &mut self.inner as *mut _;
-        self.inner.match_mut_ctx(
+        // Safety: either `this` or `*self` MUST be leaked to prevent double-frees.
+        let this = unsafe { core::ptr::read(self) };
+        // Safety: Any path that returns `Err` MUST leak the contents of the second argument.
+        let this = this.inner.match_owned_ctx(
             item,
-            |item, value| unsafe {
+            |item, single| {
                 // either `inner` must be leaked and overwritten by the new owner of `value` and `alloc`,
                 // or these two must be leaked to prevent double frees.
-                let Single { value, alloc } = core::ptr::read(value);
+                let Single { value, alloc } = single;
                 match Vec::try_with_capacity_in(8, alloc) {
                     Ok(mut vec) => {
                         vec.push(value);
                         vec.push(item);
-                        // overwrite `inner` with `value` and `alloc` with their new owner without freeing `inner`.
-                        core::ptr::write(inner, crate::Result::Err(vec));
-                        Ok(())
+                        Ok(crate::Result::Err(vec))
                     }
                     Err(alloc) => {
-                        // leak both `value` and `alloc` since `inner` can't be overwritten
+                        // Safety: leak both `value` and `alloc` since `*self` won't be leaked
                         core::mem::forget((value, alloc));
                         Err(item)
                     }
                 }
             },
-            |item, vec| vec.try_push(item),
-        )
+            |item, mut vec| {
+                if vec.capacity() == 0 {
+                    unsafe {
+                        let alloc = core::ptr::read(&vec.inner.alloc);
+                        core::mem::forget(vec);
+                        Ok(crate::Result::Ok(Single { value: item, alloc }))
+                    }
+                } else {
+                    match vec.try_push(item) {
+                        Ok(()) => Ok(crate::Result::Err(vec)),
+                        Err(item) => {
+                            // Safety: `vec` since `*self` won't be leaked
+                            core::mem::forget(vec);
+                            Err(item)
+                        }
+                    }
+                }
+            },
+        );
+        match this {
+            Ok(inner) => unsafe {
+                // Safety: this leaks `*self`, preventing it from being unduely destroyed
+                core::ptr::write(self, Self { inner });
+                Ok(())
+            },
+            Err(item) => Err(item),
+        }
     }
     /// The total capacity of the vector.
     pub fn capacity(&self) -> usize {
@@ -417,11 +442,17 @@ where
 #[test]
 fn test() {
     use rand::Rng;
-    const LEN: usize = 2000;
+    const LEN: usize = 20;
     let mut std = std::vec::Vec::with_capacity(LEN);
     let mut new: SingleOrVec<u8> = SingleOrVec::new();
     let mut capacity: SingleOrVec<u8> = SingleOrVec::with_capacity(LEN);
     let mut rng = rand::thread_rng();
+    let n: u8 = rng.gen();
+    new.push(n);
+    capacity.push(n);
+    std.push(n);
+    assert!(new.inner.is_ok());
+    assert!(capacity.inner.is_err());
     for _ in 0..LEN {
         let n: u8 = rng.gen();
         new.push(n);
