@@ -59,3 +59,16 @@ pub use crate::abi::{vtable::Any, AccessAs, IStable, IntoSuperTrait};
 pub mod libloading;
 
 pub mod time;
+
+#[macro_export]
+macro_rules! format {
+    ($($t: tt)*) => {{
+        use ::core::fmt::Write;
+        match $crate::string::String::try_new() {
+            ::core::result::Result::Ok(mut s) => {
+                ::core::write!(s, $($t)*).map(move |_| s)
+            }
+            ::core::result::Result::Err(_) => ::core::result::Result::Err(::core::fmt::Error)
+        }
+    }};
+}
