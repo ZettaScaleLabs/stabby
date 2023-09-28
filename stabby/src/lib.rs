@@ -12,7 +12,12 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-#![deny(clippy::missing_panics_doc)]
+#![deny(
+    clippy::missing_panics_doc,
+    clippy::missing_const_for_fn,
+    clippy::missing_safety_doc,
+    clippy::missing_errors_doc
+)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 

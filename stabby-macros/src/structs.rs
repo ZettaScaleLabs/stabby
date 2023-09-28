@@ -110,6 +110,7 @@ pub fn stabby(
     });
     let (report, report_bounds) = crate::report(&report);
     let sident = format!("{ident}");
+    let optdoc = format!("Returns true if the layout for [`{ident}`] is smaller or equal to that Rust would have generated for it.");
     quote! {
         #struct_code
 
@@ -128,10 +129,11 @@ pub fn stabby(
                 tyty: #st::report::TyTy::Struct,
             };
         }
-        #[allow(dead_code)]
+        #[allow(dead_code, missing_docs)]
         struct #opt_id #generics #where_clause #fields #semi_token
         #assertion
         impl < #generics_without_defaults > #ident <#unbound_generics> #where_clause {
+            #[doc = #optdoc]
             pub const fn has_optimal_layout() -> bool {
                 core::mem::size_of::<Self>() <= core::mem::size_of::<#opt_id<#unbound_generics>>()
             }
