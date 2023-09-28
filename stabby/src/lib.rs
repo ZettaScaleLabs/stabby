@@ -64,11 +64,7 @@ pub mod time;
 macro_rules! format {
     ($($t: tt)*) => {{
         use ::core::fmt::Write;
-        match $crate::string::String::try_new() {
-            ::core::result::Result::Ok(mut s) => {
-                ::core::write!(s, $($t)*).map(move |_| s)
-            }
-            ::core::result::Result::Err(_) => ::core::result::Result::Err(::core::fmt::Error)
-        }
+        let mut s = $crate::string::String::new();
+        ::core::write!(s, $($t)*).map(move |_| s)
     }};
 }
