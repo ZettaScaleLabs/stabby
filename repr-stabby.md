@@ -27,7 +27,7 @@ Max types have the same layout as C-unions. Max-types never have any niches, as 
 
 ## Sum types (Rust `enum`)
 ### `#[repr(u*/i*)]` enums
-Explicitly tagged unions are treated like `struct {tag: u*, union}`: the tag's potential forbidden values are not exported, nor are potential niches within the union, but the padding between tag and union
+Explicitly tagged unions are treated like `struct {tag: u*, union}`: the tag's potential forbidden values are not exported, nor are potential niches within the union, but the padding between tag and union is exported.
 
 ### `#[repr(stabby)]` enums
 Sum types are defined as a balanced binary tree of `Result<A, B>`. This binary tree is constructed by the following algorithm:
@@ -104,7 +104,30 @@ def determinant(Ok, Err) -> (Determinant, int, int, Unbits):
 ## `Option<T>`
 `Option<T>` is laid out in memory as if it was `Result<T, ()>`.
 
+## Trait Objects
+Trait objects, usually named with `dynptr!(Ptr<dyn Trait1 + Trait2 + 'lt>)` are represented as 
+```rust
+#[repr(C)]
+pub struct DynPtrTrait1Trait2<'lt> {
+    ptr: Ptr<()>, // ptr is transmuted from an instance of `Ptr<T> where T: Trait1 + Trait2 + 'lt
+    vtable: &'static VTable,
+}
+```
+where `VTable` is a structure that contains, in order:
+- `T::drop` wrapped with an `extern "C"` shim,
+- All of `Trait1`'s methods, in the order they are declared in the trait definition,
+- All of `Trait2`'s methods, in the order they are declared in the trait definition.
+
+This layout implies that a trait object can be upcast into a less restrictive trait object by transmutation,
+on the condition that only traits to right of the `dynptr` definition are removed.
+
 # Future possibilities
 At the moment, `Result<Ok, Err>` never has any forbidden values left, even if `Ok` had multiple fvs that could fit in `Err`'s unbits. This means that `Option<Option<bool>>` occupies 2 bytes, instead of 1 as it does with Rust's current layout.
 
 Since extracting only the correct FV from FVs can be complex to implement in computation contexts such as Rust's trait-solver, the choice was made not to do it. Should this become feasible, a release process will have to be designed. If you implement `#[repr(stabby)]`, please [file an issue on `stabby`'s original repository'](https://github.com/ZettaScaleLabs/stabby/issues/new) to be notified.
+
+# `stabby`'s semver policy
+Stabby's semver policy is built as such:
+- patch: `stabby` will never break your builds _or_ your ABI, whatever sections of it you are using, through a patch update. New APIs may be added, and implementations may be refined, provided those refinements don't break ABI, including implicit invariants.
+- minor: `stabby` reserves the right to break API _and_ ABI for a small set of types on minor releases. These breaks shall be clearly highlighted in the CHANGELOG, and will be avoided unless they provide major benefits (extreme performance increase, important new feature, or vulnerability fix).
+- major: these releases indicate that `stabby`'s ABI has changed in a global way: binaries that use different major releases of `stabby` are unlikely to be able to interact correctly. For examples, if `#[repr(stabby)]`'s implementation for enums was to change, this would be a major release. Note that if `stabby` is unable to detect such a change at runtime through its reflection system, this shall be explicitly stated in the changelog. Note that this applies to bugfixes: if a widely used type from `stabby` needs to have its layout or invariants changed in order to fix a bug, the fix will still be a major release.

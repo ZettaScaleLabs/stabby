@@ -68,6 +68,7 @@ pub unsafe trait IStable: Sized {
 /// You could theoretically use this to export niches from your own internally tagged unions,
 /// but this is the ONLY pertinent use-case for this struct, and failing to do so properly WILL
 /// make your sum types containing this memory-corruptors.
+#[repr(transparent)]
 pub struct NicheExporter<
     ForbiddenValues: IForbiddenValues,
     UnusedBits: IBitMask,

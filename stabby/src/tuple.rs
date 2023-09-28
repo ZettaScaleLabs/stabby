@@ -31,3 +31,25 @@ pub struct Tuple5<A, B, C, D, E>(pub A, pub B, pub C, pub D, pub E);
 #[crate::stabby]
 #[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Tuple6<A, B, C, D, E, F>(pub A, pub B, pub C, pub D, pub E, pub F);
+
+#[crate::stabby]
+#[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct Tuple7<A, B, C, D, E, F, G>(pub A, pub B, pub C, pub D, pub E, pub F, pub G);
+
+#[crate::stabby]
+#[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct Tuple8<A, B, C, D, E, F, G, H>(pub A, pub B, pub C, pub D, pub E, pub F, pub G, pub H);
+
+#[crate::stabby]
+#[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct Tuple9<A, B, C, D, E, F, G, H, I>(
+    pub A,
+    pub B,
+    pub C,
+    pub D,
+    pub E,
+    pub F,
+    pub G,
+    pub H,
+    pub I,
+);

@@ -14,6 +14,7 @@
 
 use quote::quote;
 pub fn gen_closures() -> proc_macro2::TokenStream {
+    let st = crate::tl_mod();
     let generator = (0..10).map(|i| {
         let c = quote::format_ident!("Call{i}");
         let cm = quote::format_ident!("CallMut{i}");
@@ -35,17 +36,17 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 					StableIf, StableLike,
 				};
 				pub trait #co<O #(, #argtys)* > {
-					extern "C" fn call_once(self: Box<Self> #(, #args: #argtys)*) -> O;
+					extern "C" fn call_once(self: #st::boxed::Box<Self> #(, #args: #argtys)*) -> O;
 				}
 				impl<O #(, #argtys)* , F: FnOnce(#(#argtys,)*) -> O> #co<O #(, #argtys)*> for F {
-					extern "C" fn call_once(self: Box<Self> #(, #args: #argtys)*) -> O {
+					extern "C" fn call_once(self: #st::boxed::Box<Self> #(, #args: #argtys)*) -> O {
 						self(#(#args,)*)
 					}
 				}
 
 				#[crate::stabby]
 				pub struct #covt<O #(, #argtys)* > {
-					call_once: StableIf<StableLike<unsafe extern "C" fn(Box<()>  #(, #argtys)* ) -> O, &'static ()>, O>,
+					call_once: StableIf<StableLike<unsafe extern "C" fn(#st::boxed::Box<()>  #(, #argtys)* ) -> O, &'static ()>, O>,
 				}
 				impl<O #(, #argtys)* > Copy for #covt<O #(, #argtys)* > {}
 				impl<O #(, #argtys)* > Clone for #covt<O #(, #argtys)* > {
@@ -75,7 +76,7 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 				{
 					const VTABLE: &'a Self = &Self {
 						call_once: unsafe {
-							core::mem::transmute(<F as #co< O #(, #argtys)* >>::call_once as extern "C" fn(Box<F> #(, #argtys)* ) -> O)
+							core::mem::transmute(<F as #co< O #(, #argtys)* >>::call_once as extern "C" fn(#st::boxed::Box<F> #(, #argtys)* ) -> O)
 						},
 					};
 				}

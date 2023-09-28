@@ -11,13 +11,16 @@
 // Contributors:
 //   Pierre Avital, <pierre.avital@me.com>
 //
-
+#![deny(
+    clippy::missing_panics_doc,
+    clippy::missing_const_for_fn,
+    clippy::missing_safety_doc,
+    clippy::missing_errors_doc
+)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
-#[cfg(feature = "alloc")]
-mod allocs;
+pub mod alloc;
+pub mod num;
 
 pub use stabby_macros::{canary_suffixes, dynptr, export, import, stabby, vtable as vtmacro};
 
@@ -142,8 +145,11 @@ impl<T: Clone, As> Clone for StableLike<T, As> {
     }
 }
 impl<T: Copy, As> Copy for StableLike<T, As> {}
-impl<T, As: IStable> StableLike<T, As> {
-    pub const fn new(value: T) -> Self {
+trait ConstChecks {
+    const CHECK: ();
+}
+impl<T, As: IStable> ConstChecks for StableLike<T, As> {
+    const CHECK: () = {
         if core::mem::size_of::<T>() != <As::Size as Unsigned>::USIZE {
             panic!(
                 "Attempted to construct `StableLike<T, As>` despite As::Size not matching T's size"
@@ -154,6 +160,12 @@ impl<T, As: IStable> StableLike<T, As> {
                 "Attempted to construct `StableLike<T, As>` despite As::Size not matching T's size"
             )
         }
+    };
+}
+impl<T, As: IStable> StableLike<T, As> {
+    #[allow(clippy::let_unit_value)]
+    pub const fn new(value: T) -> Self {
+        _ = Self::CHECK;
         Self {
             value,
             marker: core::marker::PhantomData,

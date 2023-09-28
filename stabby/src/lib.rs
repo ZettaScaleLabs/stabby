@@ -12,20 +12,22 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+#![deny(
+    clippy::missing_panics_doc,
+    clippy::missing_const_for_fn,
+    clippy::missing_safety_doc,
+    clippy::missing_errors_doc
+)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
+extern crate core;
 
 pub use stabby_abi::{dynptr, export, import, stabby, vtmacro as vtable};
 
 pub use stabby_abi as abi;
 
-#[cfg(feature = "alloc")]
-mod allocs;
-#[cfg(feature = "alloc")]
-pub use allocs::*;
+pub use stabby_abi::alloc::{self, boxed, string, sync, vec};
 
 pub use stabby_abi::{Dyn, DynRef};
 
@@ -41,15 +43,13 @@ pub mod tuple;
 )]
 pub mod future {
     pub use crate::abi::future::*;
-    #[cfg(feature = "alloc")]
+    use crate::boxed::Box;
     /// A type alias for `dynptr!(Box<dyn Future<Output = Output> + Send + Sync + 'a>)`
     pub type DynFuture<'a, Output> =
         crate::dynptr!(Box<dyn Future<Output = Output> + Send + Sync + 'a>);
-    #[cfg(feature = "alloc")]
     /// A type alias for `dynptr!(Box<dyn Future<Output = Output> + Send + 'a>)`
     pub type DynFutureUnsync<'a, Output> =
         crate::dynptr!(Box<dyn Future<Output = Output> + Send + 'a>);
-    #[cfg(feature = "alloc")]
     /// A type alias for `dynptr!(Box<dyn Future<Output = Output> + 'a>)`
     pub type DynFutureUnsend<'a, Output> = crate::dynptr!(Box<dyn Future<Output = Output> + 'a>);
 }
@@ -65,4 +65,11 @@ pub mod libloading;
 
 pub mod time;
 
-pub mod realloc;
+#[macro_export]
+macro_rules! format {
+    ($($t: tt)*) => {{
+        use ::core::fmt::Write;
+        let mut s = $crate::string::String::new();
+        ::core::write!(s, $($t)*).map(move |_| s)
+    }};
+}

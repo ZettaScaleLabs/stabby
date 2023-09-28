@@ -94,6 +94,8 @@ impl<F> CheckedImport<F> {
             loaded: unsafe { (self.get_report)() },
         }
     }
+    /// # Errors
+    /// Returns a [`ReportMismatch`] if the local and loaded reports differ.
     pub fn as_ref(&self) -> Result<&F, ReportMismatch> {
         loop {
             match self.checked.load(Ordering::Relaxed) {

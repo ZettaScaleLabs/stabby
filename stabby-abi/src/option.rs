@@ -144,6 +144,8 @@ where
     pub unsafe fn unwrap_unchecked(self) -> T {
         self.unwrap_or_else(|| core::hint::unreachable_unchecked())
     }
+    /// # Panics
+    /// If `!self.is_some`
     pub fn unwrap(self) -> T {
         self.unwrap_or_else(|| panic!("Option::unwrap called on None"))
     }

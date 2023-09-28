@@ -122,7 +122,7 @@ impl core::hash::Hash for FieldReport {
 }
 
 impl TypeReport {
-    pub fn fields(&self) -> Fields {
+    pub const fn fields(&self) -> Fields {
         Fields(self.fields.value)
     }
 }

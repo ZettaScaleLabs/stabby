@@ -2,26 +2,24 @@
 // Copyright (c) 2023 ZettaScale Technology
 //
 // This program and the accompanying materials are made available under the
-// terms of the Eclipse Public License 2.0 which is available at
-// http://www.eclipse.org/legal/epl-2.0, or the Apache License, Version 2.0
-// which is available at https://www.apache.org/licenses/LICENSE-2.0.
+// terms of the Eclipse Public License 2.inner which is available at
+// http://www.eclipse.org/legal/epl-2.inner, or the Apache License, Version 2.inner
+// which is available at https://www.apache.org/licenses/LICENSE-2.inner.
 //
-// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0
+// SPDX-License-Identifier: EPL-2.inner OR Apache-2.inner
 //
 // Contributors:
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use super::{vec::*, AllocPtr, AllocSlice, IAlloc, Layout};
+use crate::IntoDyn;
+
+use super::{vec::*, AllocPtr, AllocSlice, IAlloc};
+use core::fmt::Debug;
+
 /// An ABI-stable Box, provided `Alloc` is ABI-stable.
-#[cfg(not(feature = "libc"))]
 #[crate::stabby]
-pub struct Box<T, Alloc: IAlloc> {
-    ptr: AllocPtr<T, Alloc>,
-}
-#[cfg(feature = "libc")]
-#[crate::stabby]
-pub struct Box<T, Alloc: IAlloc = crate::realloc::libc_alloc::LibcAlloc> {
+pub struct Box<T, Alloc: IAlloc = super::DefaultAllocator> {
     ptr: AllocPtr<T, Alloc>,
 }
 unsafe impl<T: Send, Alloc: IAlloc + Send> Send for Box<T, Alloc> {}
@@ -29,33 +27,32 @@ unsafe impl<T: Sync, Alloc: IAlloc> Sync for Box<T, Alloc> {}
 impl<T, Alloc: IAlloc> Box<T, Alloc> {
     /// Attempts to allocate [`Self`], initializing it with `constructor`.
     ///
+    /// # Errors
     /// Returns the constructor and the allocator in case of failure.
     ///
+    /// # Notes
     /// Note that the allocation may or may not be zeroed.
-    pub fn fallible_make_in<F: FnOnce(&mut core::mem::MaybeUninit<T>)>(
+    pub fn try_make_in<F: FnOnce(&mut core::mem::MaybeUninit<T>)>(
         constructor: F,
         mut alloc: Alloc,
     ) -> Result<Self, (F, Alloc)> {
-        let layout = Layout::of::<T>();
-        let mut ptr = if layout.size != 0 {
-            match AllocPtr::alloc(&mut alloc) {
-                Some(mut ptr) => {
-                    unsafe { core::ptr::write(&mut ptr.prefix_mut().alloc, alloc) };
-                    ptr
-                }
-                None => return Err((constructor, alloc)),
+        let mut ptr = match AllocPtr::alloc(&mut alloc) {
+            Some(mut ptr) => {
+                unsafe { core::ptr::write(&mut ptr.prefix_mut().alloc, alloc) };
+                ptr
             }
-        } else {
-            AllocPtr::dangling()
+            None => return Err((constructor, alloc)),
         };
         unsafe {
             constructor(core::mem::transmute::<&mut T, _>(ptr.as_mut()));
         }
         Ok(Self { ptr })
     }
-    /// Attempts to allocate a [`Self`] and store `value` in it, returning it and the allocator in case of failure.
-    pub fn fallible_new_in(value: T, alloc: Alloc) -> Result<Self, (T, Alloc)> {
-        match Self::fallible_make_in(
+    /// Attempts to allocate a [`Self`] and store `value` in it
+    /// # Errors
+    /// Returns `value` and the allocator in case of failure.
+    pub fn try_new_in(value: T, alloc: Alloc) -> Result<Self, (T, Alloc)> {
+        match Self::try_make_in(
             |slot| unsafe {
                 slot.write(core::ptr::read(&value));
             },
@@ -75,17 +72,12 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
         constructor: F,
         mut alloc: Alloc,
     ) -> Self {
-        let layout = Layout::of::<T>();
-        let mut ptr = if layout.size != 0 {
-            match AllocPtr::alloc(&mut alloc) {
-                Some(mut ptr) => {
-                    unsafe { core::ptr::write(&mut ptr.prefix_mut().alloc, alloc) };
-                    ptr
-                }
-                None => panic!("Allocation failed"),
+        let mut ptr = match AllocPtr::alloc(&mut alloc) {
+            Some(mut ptr) => {
+                unsafe { core::ptr::write(&mut ptr.prefix_mut().alloc, alloc) };
+                ptr
             }
-        } else {
-            AllocPtr::dangling()
+            None => panic!("Allocation failed"),
         };
         unsafe {
             constructor(core::mem::transmute::<&mut T, _>(ptr.as_mut()));
@@ -145,17 +137,15 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
     /// Constructs `Self` from a raw allocation.
     /// # Safety
     /// No other container must own (even partially) `this`.
-    pub unsafe fn from_raw(this: AllocPtr<T, Alloc>) -> Self {
+    pub const unsafe fn from_raw(this: AllocPtr<T, Alloc>) -> Self {
         Self { ptr: this }
     }
 }
 
 impl<T, Alloc: IAlloc> Box<T, Alloc> {
     fn free(&mut self) {
-        if Layout::of::<T>().size != 0 {
-            let mut alloc = unsafe { core::ptr::read(&self.ptr.prefix().alloc) };
-            unsafe { self.ptr.free(&mut alloc) }
-        }
+        let mut alloc = unsafe { core::ptr::read(&self.ptr.prefix().alloc) };
+        unsafe { self.ptr.free(&mut alloc) }
     }
 }
 
@@ -176,17 +166,17 @@ impl<T, Alloc: IAlloc> core::ops::DerefMut for Box<T, Alloc> {
         unsafe { self.ptr.as_mut() }
     }
 }
-impl<T, Alloc: IAlloc> crate::abi::IPtr for Box<T, Alloc> {
+impl<T, Alloc: IAlloc> crate::IPtr for Box<T, Alloc> {
     unsafe fn as_ref<U: Sized>(&self) -> &U {
         self.ptr.cast().as_ref()
     }
 }
-impl<T, Alloc: IAlloc> crate::abi::IPtrMut for Box<T, Alloc> {
+impl<T, Alloc: IAlloc> crate::IPtrMut for Box<T, Alloc> {
     unsafe fn as_mut<U: Sized>(&mut self) -> &mut U {
         self.ptr.cast().as_mut()
     }
 }
-impl<T, Alloc: IAlloc> crate::abi::IPtrOwned for Box<T, Alloc> {
+impl<T, Alloc: IAlloc> crate::IPtrOwned for Box<T, Alloc> {
     fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ())) {
         let rthis = &mut ***this;
         unsafe {
@@ -203,6 +193,17 @@ impl<T, Alloc: IAlloc> Drop for Box<T, Alloc> {
         self.free()
     }
 }
+impl<T, Alloc: IAlloc> IntoDyn for Box<T, Alloc> {
+    type Anonymized = Box<(), Alloc>;
+    type Target = T;
+    fn anonimize(self) -> Self::Anonymized {
+        let original_prefix = self.ptr.prefix_ptr();
+        let anonymized = unsafe { core::mem::transmute::<_, Self::Anonymized>(self) };
+        let anonymized_prefix = anonymized.ptr.prefix_ptr();
+        assert_eq!(anonymized_prefix, original_prefix);
+        anonymized
+    }
+}
 
 /// An ABI-stable boxed slice.
 ///
@@ -211,14 +212,8 @@ impl<T, Alloc: IAlloc> Drop for Box<T, Alloc> {
 /// of the capacity.
 ///
 /// The inner pointer may be dangling if the slice's length is 0 or `T` is a ZST.
-#[cfg(feature = "libc")]
 #[crate::stabby]
-pub struct BoxedSlice<T, Alloc: IAlloc = crate::realloc::libc_alloc::LibcAlloc> {
-    pub(crate) slice: AllocSlice<T, Alloc>,
-    pub(crate) alloc: Alloc,
-}
-#[cfg(not(feature = "libc"))]
-pub struct BoxedSlice<T, Alloc: IAlloc> {
+pub struct BoxedSlice<T, Alloc: IAlloc = super::DefaultAllocator> {
     pub(crate) slice: AllocSlice<T, Alloc>,
     pub(crate) alloc: Alloc,
 }
@@ -297,23 +292,27 @@ impl<T, Alloc: IAlloc> From<BoxedSlice<T, Alloc>> for Vec<T, Alloc> {
     fn from(value: BoxedSlice<T, Alloc>) -> Self {
         let (slice, capacity, alloc) = value.into_raw_components();
         if capacity != 0 {
-            Vec(VecInner {
-                start: slice.start,
-                end: slice.end,
-                capacity: ptr_add(slice.start.ptr, capacity),
-                alloc,
-            })
-        } else {
-            Vec(VecInner {
-                start: slice.start,
-                end: slice.end,
-                capacity: if core::mem::size_of::<T>() == 0 {
-                    unsafe { core::mem::transmute(usize::MAX) }
-                } else {
-                    slice.start.ptr
+            Vec {
+                inner: VecInner {
+                    start: slice.start,
+                    end: slice.end,
+                    capacity: ptr_add(slice.start.ptr, capacity),
+                    alloc,
                 },
-                alloc,
-            })
+            }
+        } else {
+            Vec {
+                inner: VecInner {
+                    start: slice.start,
+                    end: slice.end,
+                    capacity: if core::mem::size_of::<T>() == 0 {
+                        unsafe { core::mem::transmute(usize::MAX) }
+                    } else {
+                        slice.start.ptr
+                    },
+                    alloc,
+                },
+            }
         }
     }
 }
@@ -327,55 +326,57 @@ impl<T, Alloc: IAlloc> Drop for BoxedSlice<T, Alloc> {
     }
 }
 
-#[crate::stabby]
-#[cfg(feature = "libc")]
-pub struct BoxedStr<Alloc: IAlloc = super::libc_alloc::LibcAlloc>(BoxedSlice<u8, Alloc>);
-#[cfg(not(feature = "libc"))]
-pub struct BoxedStr<Alloc: IAlloc>(BoxedSlice<u8, Alloc>);
-impl<Alloc: IAlloc> BoxedStr<Alloc> {
-    pub fn as_str(&self) -> &str {
-        unsafe { core::str::from_utf8_unchecked(self.0.as_slice()) }
+impl<T: Debug, Alloc: IAlloc> Debug for BoxedSlice<T, Alloc> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.as_slice().fmt(f)
     }
 }
-impl<Alloc: IAlloc> AsRef<str> for BoxedStr<Alloc> {
-    fn as_ref(&self) -> &str {
-        self.as_str()
+impl<T: core::fmt::LowerHex, Alloc: IAlloc> core::fmt::LowerHex for BoxedSlice<T, Alloc> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut first = true;
+        for item in self {
+            if !first {
+                f.write_str(":")?;
+            }
+            first = false;
+            core::fmt::LowerHex::fmt(item, f)?;
+        }
+        Ok(())
     }
 }
-impl<Alloc: IAlloc> core::ops::Deref for BoxedStr<Alloc> {
-    type Target = str;
-    fn deref(&self) -> &Self::Target {
-        self.as_str()
+impl<T: core::fmt::UpperHex, Alloc: IAlloc> core::fmt::UpperHex for BoxedSlice<T, Alloc> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut first = true;
+        for item in self {
+            if !first {
+                f.write_str(":")?;
+            }
+            first = false;
+            core::fmt::UpperHex::fmt(item, f)?;
+        }
+        Ok(())
     }
 }
-impl<Alloc: IAlloc> From<String<Alloc>> for BoxedStr<Alloc> {
-    fn from(value: String<Alloc>) -> Self {
-        Self(value.0.into())
+impl<'a, T, Alloc: IAlloc> IntoIterator for &'a BoxedSlice<T, Alloc> {
+    type Item = &'a T;
+    type IntoIter = core::slice::Iter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.as_slice().iter()
     }
 }
-impl<Alloc: IAlloc> From<BoxedStr<Alloc>> for String<Alloc> {
-    fn from(value: BoxedStr<Alloc>) -> Self {
-        String(value.0.into())
+impl<'a, T, Alloc: IAlloc> IntoIterator for &'a mut BoxedSlice<T, Alloc> {
+    type Item = &'a mut T;
+    type IntoIter = core::slice::IterMut<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.as_slice_mut().iter_mut()
     }
 }
-impl<Alloc: IAlloc> Eq for BoxedStr<Alloc> {}
-impl<Alloc: IAlloc> PartialEq for BoxedStr<Alloc> {
-    fn eq(&self, other: &Self) -> bool {
-        self.as_str() == other.as_str()
+impl<T, Alloc: IAlloc> IntoIterator for BoxedSlice<T, Alloc> {
+    type Item = T;
+    type IntoIter = super::vec::IntoIter<T, Alloc>;
+    fn into_iter(self) -> Self::IntoIter {
+        let this: super::vec::Vec<T, Alloc> = self.into();
+        this.into_iter()
     }
 }
-impl<Alloc: IAlloc> Ord for BoxedStr<Alloc> {
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.as_str().cmp(other.as_str())
-    }
-}
-impl<Alloc: IAlloc> PartialOrd for BoxedStr<Alloc> {
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        self.as_str().partial_cmp(other.as_str())
-    }
-}
-impl<Alloc: IAlloc> core::hash::Hash for BoxedStr<Alloc> {
-    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.as_str().hash(state)
-    }
-}
+pub use super::string::BoxedStr;

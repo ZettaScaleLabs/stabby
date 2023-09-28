@@ -16,6 +16,31 @@ use core::{marker::PhantomData, ptr::NonNull, sync::atomic::AtomicUsize};
 
 use self::vec::ptr_diff;
 
+#[cfg(feature = "libc")]
+pub mod libc_alloc;
+
+#[crate::stabby]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
+pub struct AllocationError();
+impl core::fmt::Display for AllocationError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("AllocationError")
+    }
+}
+#[cfg(feature = "std")]
+impl std::error::Error for AllocationError {}
+
+pub mod boxed;
+pub mod single_or_vec;
+pub mod string;
+pub mod sync;
+pub mod vec;
+
+#[cfg(feature = "libc")]
+pub type DefaultAllocator = libc_alloc::LibcAlloc;
+#[cfg(not(feature = "libc"))]
+pub type DefaultAllocator = core::convert::Intry;
+
 #[crate::stabby]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// ABI-stable equivalent of std::mem::Layout
@@ -140,7 +165,7 @@ impl<T: IAlloc> IStableAlloc for T {
     }
 }
 
-impl<T: IStableAllocDynMut<stabby_abi::vtable::H> + Unpin> IAlloc for T {
+impl<T: IStableAllocDynMut<crate::vtable::H> + Unpin> IAlloc for T {
     fn alloc(&mut self, layout: Layout) -> *mut () {
         IStableAllocDynMut::alloc(self, layout)
     }
@@ -151,13 +176,14 @@ impl<T: IStableAllocDynMut<stabby_abi::vtable::H> + Unpin> IAlloc for T {
         IStableAllocDynMut::realloc(self, ptr, new_layout)
     }
 }
-
-#[cfg(feature = "libc")]
-pub mod libc_alloc;
-
-pub mod boxed;
-pub mod sync;
-pub mod vec;
+impl IAlloc for core::convert::Infallible {
+    fn alloc(&mut self, _layout: Layout) -> *mut () {
+        unreachable!()
+    }
+    unsafe fn free(&mut self, _ptr: *mut ()) {
+        unreachable!()
+    }
+}
 
 /// The prefix common to all allocations in [`stabby::realloc`].
 ///
@@ -188,7 +214,7 @@ impl<Alloc> AllocPrefix<Alloc> {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AllocPtr<T, Alloc> {
     pub ptr: NonNull<T>,
-    pub maker: PhantomData<Alloc>,
+    pub marker: PhantomData<Alloc>,
 }
 impl<T, Alloc> Copy for AllocPtr<T, Alloc> {}
 impl<T, Alloc> Clone for AllocPtr<T, Alloc> {
@@ -212,7 +238,7 @@ impl<T, Alloc> AllocPtr<T, Alloc> {
     pub const fn dangling() -> Self {
         Self {
             ptr: NonNull::dangling(),
-            maker: PhantomData,
+            marker: PhantomData,
         }
     }
     /// The offset between `self.ptr` and the prefix.
@@ -255,7 +281,7 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
                 ptr: NonNull::new_unchecked(
                     ptr.as_ptr().cast::<u8>().add(Self::prefix_skip()).cast(),
                 ),
-                maker: PhantomData,
+                marker: PhantomData,
             }
         })
     }
@@ -269,7 +295,7 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
                 ptr: NonNull::new_unchecked(
                     ptr.as_ptr().cast::<u8>().add(Self::prefix_skip()).cast(),
                 ),
-                maker: PhantomData,
+                marker: PhantomData,
             }
         })
     }
@@ -290,7 +316,7 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
                 ptr: NonNull::new_unchecked(
                     ptr.as_ptr().cast::<u8>().add(Self::prefix_skip()).cast(),
                 ),
-                maker: PhantomData,
+                marker: PhantomData,
             }
         })
     }

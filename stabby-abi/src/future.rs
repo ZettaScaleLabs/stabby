@@ -38,14 +38,15 @@ mod stable_waker {
         }
     }
 }
-#[cfg(all(feature = "alloc", not(feature = "unsafe_wakers")))]
+#[cfg(not(feature = "unsafe_wakers"))]
 mod stable_waker {
     use core::{
         mem::ManuallyDrop,
+        ptr::NonNull,
         task::{RawWaker, RawWakerVTable, Waker},
     };
 
-    use alloc::sync::Arc;
+    use crate::alloc::{sync::Arc, AllocPtr, IAlloc};
 
     use crate::StableLike;
     #[crate::stabby]
@@ -64,36 +65,46 @@ mod stable_waker {
         }
     }
     #[crate::stabby]
-    pub struct SharedStableWaker(Arc<StableWakerInner>);
-    impl SharedStableWaker {
+    pub struct SharedStableWaker<Alloc: IAlloc>(Arc<StableWakerInner, Alloc>);
+    impl<Alloc: IAlloc> SharedStableWaker<Alloc> {
+        unsafe fn clone(this: *const ()) -> RawWaker {
+            Arc::<_, Alloc>::increment_strong_count(this);
+            RawWaker::new(this, &Self::VTABLE)
+        }
+        unsafe fn drop(this: *const ()) {
+            let this = AllocPtr {
+                ptr: NonNull::new(this as *mut _).unwrap(),
+                marker: core::marker::PhantomData,
+            };
+            let this = Arc::from_raw(this);
+            Self(this);
+        }
+        unsafe fn wake(this: *const ()) {
+            Self::wake_by_ref(this);
+            Self::drop(this);
+        }
+        unsafe fn wake_by_ref(this: *const ()) {
+            let this = unsafe { &*(this as *const StableWakerInner) };
+            (this.wake_by_ref.as_ref_unchecked())(this.waker.as_ref_unchecked())
+        }
+        const VTABLE: RawWakerVTable =
+            RawWakerVTable::new(Self::clone, Self::wake, Self::wake_by_ref, Self::drop);
         fn into_raw_waker(self) -> RawWaker {
-            const VTABLE: RawWakerVTable = RawWakerVTable::new(clone, wake, wake_by_ref, drop);
-            unsafe fn clone(this: *const ()) -> RawWaker {
-                Arc::increment_strong_count(this);
-                RawWaker::new(this, &VTABLE)
-            }
-            unsafe fn wake(this: *const ()) {
-                wake_by_ref(this);
-                drop(this);
-            }
-            unsafe fn wake_by_ref(this: *const ()) {
-                let this = unsafe { &*(this as *const StableWakerInner) };
-                (this.wake_by_ref.as_ref_unchecked())(this.waker.as_ref_unchecked())
-            }
-            unsafe fn drop(this: *const ()) {
-                Arc::from_raw(this as *const StableWakerInner);
-            }
-            RawWaker::new(Arc::into_raw(self.0) as *const _, &VTABLE)
+            RawWaker::new(
+                Arc::into_raw(self.0).ptr.as_ptr() as *const _,
+                &Self::VTABLE,
+            )
         }
     }
     #[crate::stabby]
-    pub struct StableWaker<'a> {
+    pub struct StableWaker<'a, Alloc: IAlloc = crate::alloc::DefaultAllocator> {
         waker: StableLike<&'a Waker, &'a ()>,
         #[allow(improper_ctypes_definitions)]
-        clone: unsafe extern "C" fn(StableLike<&'a Waker, &'a ()>) -> SharedStableWaker,
+        clone: unsafe extern "C" fn(StableLike<&'a Waker, &'a ()>) -> SharedStableWaker<Alloc>,
         wake_by_ref: StableLike<unsafe extern "C" fn(&Waker), &'a ()>,
     }
-    impl<'a> StableWaker<'a> {
+    impl<'a, Alloc: IAlloc + Default> StableWaker<'a, Alloc> {
+        /// Turns this into a waker whose clone implementation is to clone the underlying waker into a stable Arc.
         pub fn with_waker<F: FnOnce(&Waker) -> U, U>(&self, f: F) -> U {
             const VTABLE: RawWakerVTable =
                 RawWakerVTable::new(clone, wake_by_ref, wake_by_ref, drop);
@@ -105,36 +116,37 @@ mod stable_waker {
                 let this = unsafe { &*(this as *const StableWaker) };
                 (this.wake_by_ref.as_ref_unchecked())(this.waker.as_ref_unchecked())
             }
-            unsafe fn drop(_: *const ()) {}
+            const unsafe fn drop(_: *const ()) {}
             let waker = RawWaker::new(self as *const Self as *const _, &VTABLE);
             let waker = unsafe { Waker::from_raw(waker) };
             f(&waker)
         }
+        unsafe extern "C" fn waker_drop(waker: &mut ManuallyDrop<Waker>) {
+            ManuallyDrop::drop(waker)
+        }
+        unsafe extern "C" fn waker_wake_by_ref(waker: &Waker) {
+            waker.wake_by_ref()
+        }
+        unsafe extern "C" fn clone_borrowed(
+            borrowed_waker: StableLike<&Waker, &()>,
+        ) -> SharedStableWaker<Alloc> {
+            let borrowed_waker = *borrowed_waker.as_ref_unchecked();
+            let waker = borrowed_waker.clone();
+            let waker = StableWakerInner {
+                waker: StableLike::new(ManuallyDrop::new(waker)),
+                wake_by_ref: StableLike::new(Self::waker_wake_by_ref),
+                drop: StableLike::new(Self::waker_drop),
+            };
+            let shared = Arc::new(waker);
+            SharedStableWaker(shared)
+        }
     }
-    impl<'a> From<&'a Waker> for StableWaker<'a> {
+    impl<'a, Alloc: IAlloc + Default> From<&'a Waker> for StableWaker<'a, Alloc> {
         fn from(value: &'a Waker) -> Self {
-            unsafe extern "C" fn drop(waker: &mut ManuallyDrop<Waker>) {
-                ManuallyDrop::drop(waker)
-            }
-            unsafe extern "C" fn wake_by_ref(waker: &Waker) {
-                waker.wake_by_ref()
-            }
-            #[allow(improper_ctypes_definitions)]
-            unsafe extern "C" fn clone(
-                borrowed_waker: StableLike<&Waker, &()>,
-            ) -> SharedStableWaker {
-                let waker = (*borrowed_waker.as_ref_unchecked()).clone();
-                let waker = StableWakerInner {
-                    waker: StableLike::new(ManuallyDrop::new(waker)),
-                    wake_by_ref: StableLike::new(wake_by_ref),
-                    drop: StableLike::new(drop),
-                };
-                SharedStableWaker(Arc::new(waker))
-            }
             StableWaker {
                 waker: StableLike::new(value),
-                clone,
-                wake_by_ref: StableLike::new(wake_by_ref),
+                clone: Self::clone_borrowed,
+                wake_by_ref: StableLike::new(Self::waker_wake_by_ref),
             }
         }
     }

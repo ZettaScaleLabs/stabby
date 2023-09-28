@@ -20,7 +20,7 @@ use stabby_macros::tyeval;
 use typenames::*;
 
 use crate::{
-    istable::{IBitMask, ISingleForbiddenValue, Saturator},
+    istable::{IBitMask, IForbiddenValues, ISaturatingAdd, ISingleForbiddenValue, Saturator},
     Array, End, IStable,
 };
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -51,6 +51,9 @@ pub trait IBitBase {
     type _BTernary<A: IBit, B: IBit>: IBit;
     type _BmTernary<A: IBitMask, B: IBitMask>: IBitMask;
     type _PTernary<A: IPowerOf2, B: IPowerOf2>: IPowerOf2;
+    type _FvTernary<A: IForbiddenValues, B: IForbiddenValues>: IForbiddenValues;
+    type _UbTernary<A: IBitMask, B: IBitMask>: IBitMask;
+    type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd>: ISaturatingAdd;
     type AsForbiddenValue: ISingleForbiddenValue;
 }
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -66,6 +69,9 @@ impl IBitBase for B0 {
     type _BTernary<A: IBit, B: IBit> = B;
     type _BmTernary<A: IBitMask, B: IBitMask> = B;
     type _PTernary<A: IPowerOf2, B: IPowerOf2> = B;
+    type _FvTernary<A: IForbiddenValues, B: IForbiddenValues> = B;
+    type _UbTernary<A: IBitMask, B: IBitMask> = B;
+    type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = B;
     type AsForbiddenValue = Saturator;
 }
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -81,6 +87,9 @@ impl IBitBase for B1 {
     type _BTernary<A: IBit, B: IBit> = A;
     type _BmTernary<A: IBitMask, B: IBitMask> = A;
     type _PTernary<A: IPowerOf2, B: IPowerOf2> = A;
+    type _FvTernary<A: IForbiddenValues, B: IForbiddenValues> = A;
+    type _UbTernary<A: IBitMask, B: IBitMask> = A;
+    type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = A;
     type AsForbiddenValue = End;
 }
 pub trait IBit: IBitBase {
@@ -94,6 +103,9 @@ pub trait IBit: IBitBase {
     type BTernary<A: IBit, B: IBit>: IBit + Sized;
     type BmTernary<A: IBitMask, B: IBitMask>: IBitMask + Sized;
     type PTernary<A: IPowerOf2, B: IPowerOf2>: IPowerOf2 + Sized;
+    type FvTernary<A: IForbiddenValues, B: IForbiddenValues>: IForbiddenValues;
+    type UbTernary<A: IBitMask, B: IBitMask>: IBitMask;
+    type SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd>: ISaturatingAdd;
     type Nand<T: IBit>: IBit + Sized;
     type Xor<T: IBit>: IBit + Sized;
     type Equals<T: IBit>: IBit + Sized;
@@ -113,6 +125,9 @@ impl<Bit: IBitBase> IBit for Bit {
     type BTernary<A: IBit, B: IBit> = Self::_BTernary<A, B>;
     type BmTernary<A: IBitMask, B: IBitMask> = Self::_BmTernary<A, B>;
     type PTernary<A: IPowerOf2, B: IPowerOf2> = Self::_PTernary<A, B>;
+    type FvTernary<A: IForbiddenValues, B: IForbiddenValues> = Self::_FvTernary<A, B>;
+    type UbTernary<A: IBitMask, B: IBitMask> = Self::_UbTernary<A, B>;
+    type SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = Self::_SaddTernary<A, B>;
     type Nand<T: IBit> = <Self::_And<T> as IBitBase>::_Not;
     type Xor<T: IBit> = <Self::_And<T::_Not> as IBitBase>::_Or<T::_And<Self::_Not>>;
     type Equals<T: IBit> = <Self::Xor<T> as IBitBase>::_Not;

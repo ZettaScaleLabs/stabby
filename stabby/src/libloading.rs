@@ -19,6 +19,9 @@ pub trait StabbyLibrary {
     ///
     /// # Safety
     /// Since this function calls foreign code, it is inherently unsafe.
+    ///
+    /// # Errors
+    /// If the symbol is not found OR reflection indicated an ABI-mismatch
     unsafe fn get_stabbied<'a, T: crate::IStable>(
         &'a self,
         symbol: &[u8],
@@ -32,6 +35,9 @@ pub trait StabbyLibrary {
     /// # Safety
     /// The symbol on the other side of the FFI boundary cannot be type-checked, and may still have a different
     /// ABI than expected (although the canaries should greatly reduce that risk).
+    ///
+    /// # Errors
+    /// If the symbol is not found OR the canaries were not found.
     unsafe fn get_canaried<'a, T>(
         &'a self,
         symbol: &[u8],

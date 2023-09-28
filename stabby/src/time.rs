@@ -112,7 +112,7 @@ mod impls {
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct Instant(pub(crate) Duration);
     impl Instant {
-        pub fn zero() -> Self {
+        pub const fn zero() -> Self {
             Self(Duration { secs: 0, nanos: 0 })
         }
     }

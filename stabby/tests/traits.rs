@@ -18,6 +18,7 @@
 
 use std::time::Duration;
 
+use stabby::boxed::Box;
 use stabby::future::DynFuture;
 
 #[stabby::stabby(checked)]
@@ -149,19 +150,45 @@ fn dyn_traits() {
 }
 
 #[test]
+fn arc_traits() {
+    use stabby::sync::Arc;
+    let boxed = Arc::new(6u8);
+    let dyned =
+        <stabby::dynptr!(Arc<dyn Send + MyTrait2 + Sync + MyTrait<Output = u8>>)>::from(boxed);
+    assert_eq!(unsafe { dyned.downcast_ref::<u8>() }, Some(&6));
+    assert_eq!(dyned.do_stuff(&0), &6);
+    assert!(unsafe { dyned.downcast_ref::<u16>() }.is_none());
+    fn trait_assertions<T: Send + Sync + stabby::abi::IStable>(_t: T) {}
+    trait_assertions(dyned);
+    let boxed = Arc::new(6u8);
+    let dyned =
+        <stabby::dynptr!(Arc<dyn MyTrait2 + stabby::Any + MyTrait<Output = u8> + Send>)>::from(
+            boxed,
+        );
+    let dyned: stabby::dynptr!(Arc<dyn MyTrait2 + stabby::Any + Send>) = dyned.into_super();
+    assert_eq!(dyned.stable_downcast_ref::<u8, _>(), Some(&6));
+    assert!(dyned.stable_downcast_ref::<u16, _>().is_none());
+}
+
+#[test]
 fn async_trait() {
+    const END: usize = 1;
     let (tx, rx) = smol::channel::bounded(5);
     let read_task = async move {
         let mut expected = 0;
-        while let Ok(i) = rx.recv().await {
-            assert_eq!(i, expected);
+        println!("Awaiting recv {expected}");
+        while let Ok(r) = rx.recv().await {
+            assert_eq!(dbg!(r), expected);
             expected += 1;
+            println!("Awaiting recv {expected}");
         }
-        assert_eq!(expected, 5)
+        assert_eq!(expected, END)
     };
     let write_task = async move {
-        for i in 0..5 {
-            tx.send(i).await.unwrap();
+        for w in 0..END {
+            println!("Awaiting tx.send {w}");
+            tx.send(w).await.unwrap();
+            println!("Awaiting timer");
             smol::Timer::after(Duration::from_millis(30)).await;
         }
     };

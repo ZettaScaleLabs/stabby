@@ -15,16 +15,19 @@
 use crate as stabby;
 use crate::vtable::*;
 
+/// Indicates that `Self` can be used as a pointer in dynptrs.
 pub trait IPtr {
     /// # Safety
     /// This function implies an implicit cast of the reference
     unsafe fn as_ref<U: Sized>(&self) -> &U;
 }
+/// Indicates that `Self` can be used as an unconditionally mutable pointer in dynptrs.
 pub trait IPtrMut: IPtr {
     /// # Safety
     /// This function implies an implicit cast of the reference
     unsafe fn as_mut<U: Sized>(&mut self) -> &mut U;
 }
+/// Indicates that `Self` can be used as a conditionally mutable pointer in dynptrs.
 pub trait IPtrTryAsMut {
     /// # Safety
     /// This function implies an implicit cast of the reference
@@ -35,9 +38,16 @@ impl<T: IPtrMut> IPtrTryAsMut for T {
         Some(self.as_mut())
     }
 }
+/// Provides drop support in dynptr for pointers that have at least partial ownership of their pointee.
+///
+/// `drop` is the drop function of the pointee.
 pub trait IPtrOwned: IPtr {
-    /// Must return `true` if and only if dropping one instance of
+    /// Called instead of `Drop::drop` when the dynptr is dropped.
     fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ()));
+}
+/// Provides Clone support for smart pointers that allow it.
+pub trait IPtrClone: IPtrOwned {
+    fn clone(this: &Self) -> Self;
 }
 impl<'a, T> IPtr for &'a T {
     unsafe fn as_ref<U>(&self) -> &U {
@@ -88,10 +98,10 @@ pub struct DynRef<'a, Vt: 'static> {
 }
 
 impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
-    pub fn ptr(&self) -> &() {
+    pub const fn ptr(&self) -> &() {
         self.ptr
     }
-    pub fn vtable(&self) -> &Vt {
+    pub const fn vtable(&self) -> &Vt {
         self.vtable
     }
 
@@ -180,6 +190,15 @@ impl_super!(VtSync<VTable<Head, Tail>>, VtSync<Tail>, Head, Tail: HasDropVt + 's
 impl_super!(VtSync<VtSend<VTable<Head, Tail>>>, VtSync<VtSend<Tail>>, Head, Tail: HasDropVt + 'static);
 impl_super!(VtSend<VtSync<VTable<Head, Tail>>>, VtSend<VtSync<Tail>>, Head, Tail: HasDropVt + 'static);
 
+impl<'a, P: IPtrOwned + IPtrClone, Vt: HasDropVt + 'a> Clone for Dyn<'a, P, Vt> {
+    fn clone(&self) -> Self {
+        Self {
+            ptr: core::mem::ManuallyDrop::new(IPtrClone::clone(&self.ptr)),
+            vtable: self.vtable,
+            unsend: self.unsend,
+        }
+    }
+}
 impl<'a, P: IPtrOwned, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
     pub fn ptr(&self) -> &P {
         &self.ptr
@@ -187,7 +206,7 @@ impl<'a, P: IPtrOwned, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
     pub fn ptr_mut(&mut self) -> &mut P {
         &mut self.ptr
     }
-    pub fn vtable(&self) -> &'a Vt {
+    pub const fn vtable(&self) -> &'a Vt {
         self.vtable
     }
     pub fn as_ref(&self) -> DynRef<'_, Vt> {

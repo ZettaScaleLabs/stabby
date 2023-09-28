@@ -645,15 +645,19 @@ impl<'a> DynTraitDescription<'a> {
         let traitid_dyn = quote::format_ident!("{}Dyn", trait_id);
         let traitid_dynmut = quote::format_ident!("{}DynMut", trait_id);
 
+        let vt_doc = format!("An stabby-generated item for [`{}`]", trait_id);
         let mut vtable_decl = quote! {
             #vis struct #vtid < #vt_generics > where #(#vt_bounds)* {
-                #(pub #all_fn_ids: #all_stabled_fns, )*
+                #(
+                    #[doc = #vt_doc]
+                    pub #all_fn_ids: #all_stabled_fns,
+                )*
             }
         };
         vtable_decl = crate::stabby(proc_macro::TokenStream::new(), vtable_decl.into()).into();
         quote! {
+            #[doc = #vt_doc]
             #vtable_decl
-
             impl< #vt_generics > Clone for #vtid < #nbvt_generics > where #(#vt_bounds)* {
                 fn clone(&self) -> Self {
                     *self
@@ -678,6 +682,7 @@ impl<'a> DynTraitDescription<'a> {
                 #(#vt_bounds)*
                 #(#unbound_trait_types: 'stabby_vt_lt,)*
                 #(#dyntrait_types: 'stabby_vt_lt,)* {
+                #[doc = #vt_doc]
                 const VTABLE: &'stabby_vt_lt #vt_signature = & #vtid {
                     #(#all_fn_ids: unsafe {core::mem::transmute(#self_as_trait::#all_fn_ids as #fn_ptrs)},)*
                 };
@@ -689,11 +694,13 @@ impl<'a> DynTraitDescription<'a> {
                 #(#trait_types,)*
                 #(#trait_consts,)*
             > #st::vtable::CompoundVt for dyn #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)* #(#trait_to_vt_bindings,)* > where #(#vt_bounds)* {
+                #[doc = #vt_doc]
                 type Vt<StabbyNextVtable> = #st::vtable::VTable<
                     #vt_signature,
                     StabbyNextVtable>;
             }
 
+            #[doc = #vt_doc]
             #vis trait #traitid_dyn<
                 #(#trait_lts,)*
                 StabbyTransitiveDerefN,
@@ -701,8 +708,14 @@ impl<'a> DynTraitDescription<'a> {
                 #(#trait_types,)*
                 #(#trait_consts,)*
             > where #(#vt_bounds)* {
-                #(type #sdts #sdtbounds;)*
-                #(#fns;)*
+                #(
+                    #[doc = #vt_doc]
+                    type #sdts #sdtbounds;
+                )*
+                #(
+                    #[doc = #vt_doc]
+                    #fns;
+                )*
             }
             impl<
                 #(#trait_lts,)*
@@ -724,10 +737,16 @@ impl<'a> DynTraitDescription<'a> {
             >
             for #st::DynRef<'_, StabbyVtProvider> where #(#vt_bounds)*
             {
-                #(type #trait_to_vt_bindings;)*
-                #(#fns {
-                    unsafe{(self.vtable().tderef().#fn_ids.as_ref_unchecked())(self.ptr(), #fn_args)}
-                })*
+                #(
+                    #[doc = #vt_doc]
+                    type #trait_to_vt_bindings;
+                )*
+                #(
+                    #[doc = #vt_doc]
+                    #fns {
+                        unsafe{(self.vtable().tderef().#fn_ids.as_ref_unchecked())(self.ptr(), #fn_args)}
+                    }
+                )*
             }
             impl<
                 #(#trait_lts,)*
@@ -750,13 +769,20 @@ impl<'a> DynTraitDescription<'a> {
             >
             for #st::Dyn<'_, StabbyPtrProvider, StabbyVtProvider> where #(#vt_bounds)*
             {
-                #(type #trait_to_vt_bindings;)*
-                #(#fns {
-                    unsafe{(self.vtable().tderef().#fn_ids.as_ref_unchecked())(self.ptr().as_ref(), #fn_args)}
-                })*
+                #(
+                    #[doc = #vt_doc]
+                    type #trait_to_vt_bindings;
+                )*
+                #(
+                    #[doc = #vt_doc]
+                    #fns {
+                        unsafe{(self.vtable().tderef().#fn_ids.as_ref_unchecked())(self.ptr().as_ref(), #fn_args)}
+                    }
+                )*
             }
 
 
+            #[doc = #vt_doc]
             #vis trait #traitid_dynmut<
                 #(#trait_lts,)*
                 StabbyTransitiveDerefN,
@@ -770,7 +796,10 @@ impl<'a> DynTraitDescription<'a> {
                 #(#unbound_trait_types,)*
                 #(#unbound_trait_consts,)*
             > where #(#vt_bounds)* {
-                #(#mut_fns;)*
+                #(
+                    #[doc = #vt_doc]
+                    #mut_fns;
+                )*
             }
             impl<
                 #(#trait_lts,)*
@@ -793,9 +822,12 @@ impl<'a> DynTraitDescription<'a> {
             >
             for #st::Dyn<'_, StabbyPtrProvider, StabbyVtProvider> where #(#vt_bounds)*
             {
-                #(#mut_fns {
-                    unsafe {(self.vtable().tderef().#mut_fn_ids.as_ref_unchecked())(self.ptr_mut().as_mut(), #mut_fn_args)}
-                })*
+                #(
+                    #[doc = #vt_doc]
+                    #mut_fns {
+                        unsafe {(self.vtable().tderef().#mut_fn_ids.as_ref_unchecked())(self.ptr_mut().as_mut(), #mut_fn_args)}
+                    }
+                )*
             }
         }
     }

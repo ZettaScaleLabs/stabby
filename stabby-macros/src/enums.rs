@@ -160,6 +160,7 @@ pub fn stabby(
 struct Variant {
     ident: Ident,
     field: Option<syn::Field>,
+    attrs: Vec<Attribute>,
 }
 impl From<syn::Variant> for Variant {
     fn from(value: syn::Variant) -> Self {
@@ -167,6 +168,7 @@ impl From<syn::Variant> for Variant {
             ident,
             fields,
             discriminant: None,
+            attrs,
             ..
         } = value
         else {
@@ -181,7 +183,11 @@ impl From<syn::Variant> for Variant {
             }
             syn::Fields::Named(_) => unreachable!(),
         };
-        Variant { ident, field }
+        Variant {
+            ident,
+            field,
+            attrs,
+        }
     }
 }
 struct Variants {
@@ -270,6 +276,7 @@ pub fn repr_stabby(
         .map(|v| v.map(|ty| quote!(&'st_lt mut #ty)))
         .collect::<Vec<_>>();
     let vid = variants.iter().map(|v| &v.ident).collect::<Vec<_>>();
+    let vattrs = variants.iter().map(|v| &v.attrs);
     let fnvid = vid
         .iter()
         .map(|i| quote::format_ident!("{i}Fn"))
@@ -314,7 +321,7 @@ pub fn repr_stabby(
     );
     let matcher = |matcher| {
         variants.map_with_finalizer(
-            |Variant { ident, field }| match field {
+            |Variant { ident, field, .. }| match field {
                 Some(_) => quote!(#ident),
                 None => quote!(|_| #ident()),
             },
@@ -324,7 +331,7 @@ pub fn repr_stabby(
     };
     let matcher_ctx = |matcher| {
         variants.map_with_finalizer(
-            |Variant { ident, field }| match field {
+            |Variant { ident, field, .. }| match field {
                 Some(_) => quote!(#ident),
                 None => quote!(|stabby_ctx, _| #ident(stabby_ctx)),
             },
@@ -370,31 +377,38 @@ pub fn repr_stabby(
         impl #generics #ident < #unbound_generics > where #report_bounds #bounds {
             #(
                 #[allow(non_snake_case)]
+                #(#vattrs)*
                 pub fn #vid(#cparams) -> Self {
                     Self (#constructors)
                 }
             )*
             #[allow(non_snake_case)]
+            /// Equivalent to `match self`.
             pub fn match_owned<StabbyOut, #(#fnvid: FnOnce(#vty) -> StabbyOut,)*>(self, #(#vid: #fnvid,)*) -> StabbyOut {
                 #owned_matcher
             }
             #[allow(non_snake_case)]
+            /// Equivalent to `match &self`.
             pub fn match_ref<'st_lt, StabbyOut, #(#fnvid: FnOnce(#vtyref) -> StabbyOut,)*>(&'st_lt self, #(#vid: #fnvid,)*) -> StabbyOut {
                 #ref_matcher
             }
             #[allow(non_snake_case)]
+            /// Equivalent to `match &mut self`.
             pub fn match_mut<'st_lt, StabbyOut, #(#fnvid: FnOnce(#vtymut) -> StabbyOut,)*>(&'st_lt mut self, #(#vid: #fnvid,)*) -> StabbyOut {
                 #mut_matcher
             }
             #[allow(non_snake_case)]
+            /// Equivalent to `match self`, but allows you to pass common arguments to all closures to make the borrow checker happy.
             pub fn match_owned_ctx<StabbyOut, StabbyCtx, #(#fnvid: FnOnce(StabbyCtx, #vty) -> StabbyOut,)*>(self, stabby_ctx: StabbyCtx, #(#vid: #fnvid,)*) -> StabbyOut {
                 #owned_matcher_ctx
             }
             #[allow(non_snake_case)]
+            /// Equivalent to `match &self`, but allows you to pass common arguments to all closures to make the borrow checker happy.
             pub fn match_ref_ctx<'st_lt, StabbyCtx, StabbyOut, #(#fnvid: FnOnce(StabbyCtx, #vtyref) -> StabbyOut,)*>(&'st_lt self, stabby_ctx: StabbyCtx, #(#vid: #fnvid,)*) -> StabbyOut {
                 #ref_matcher_ctx
             }
             #[allow(non_snake_case)]
+            /// Equivalent to `match &mut self`, but allows you to pass common arguments to all closures to make the borrow checker happy.
             pub fn match_mut_ctx<'st_lt, StabbyCtx, StabbyOut, #(#fnvid: FnOnce(StabbyCtx, #vtymut) -> StabbyOut,)*>(&'st_lt mut self, stabby_ctx: StabbyCtx, #(#vid: #fnvid,)*) -> StabbyOut {
                 #mut_matcher_ctx
             }

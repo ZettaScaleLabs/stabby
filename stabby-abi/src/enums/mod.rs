@@ -34,7 +34,6 @@ pub trait IDiscriminant: IStable {
 }
 
 #[repr(u8)]
-#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BitDiscriminant {
     Ok = 0,
@@ -111,7 +110,7 @@ where
     }
     fn is_ok(&self, union: *const u8) -> bool {
         let ptr = union;
-        unsafe { dbg!(*ptr.add(Offset::USIZE)) != Value::U8 || self.1.is_ok(union) }
+        unsafe { *ptr.add(Offset::USIZE) != Value::U8 || self.1.is_ok(union) }
     }
 }
 pub trait IntoValueIsErr {

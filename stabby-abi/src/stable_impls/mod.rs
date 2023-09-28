@@ -609,26 +609,6 @@ unsafe impl<Ok: IStable, Err: IStable, T> IStable
     };
 }
 
-#[cfg(feature = "alloc")]
-mod cfgalloc {
-    use super::*;
-    unsafe impl<T: IStable> IStable for alloc::boxed::Box<T> {
-        same_as!(core::ptr::NonNull<T>, "alloc::boxed::Box", T);
-    }
-    unsafe impl<T: IStable> IStable for alloc::sync::Arc<T> {
-        same_as!(core::ptr::NonNull<T>, "alloc::sync::Arc", T);
-    }
-    unsafe impl<T: IStable> IStable for alloc::sync::Weak<T> {
-        same_as!(core::ptr::NonNull<T>, "alloc::sync::Weak", T);
-    }
-    unsafe impl<T: IStable> IStable for alloc::rc::Rc<T> {
-        same_as!(core::ptr::NonNull<T>, "alloc::rc::Rc", T);
-    }
-    unsafe impl<T: IStable> IStable for alloc::rc::Weak<T> {
-        same_as!(core::ptr::NonNull<T>, "alloc::rc::Weak", T);
-    }
-}
-
 struct NameAggregator<L: IStable, R: IStable>(core::marker::PhantomData<(L, R)>);
 unsafe impl<L: IStable, R: IStable> IStable for NameAggregator<L, R> {
     type Size = U0;
@@ -709,3 +689,53 @@ unsafe impl<'a> IStable for std::os::fd::BorrowedFd<'a> {
     same_as!(core::ffi::c_int);
     primitive_report!("std::os::fd::BorrowedFd");
 }
+
+const ARRAY_NAME: [&str; 129] = [
+    "[T;0]", "[T;1]", "[T;2]", "[T;3]", "[T;4]", "[T;5]", "[T;6]", "[T;7]", "[T;8]", "[T;9]",
+    "[T;10]", "[T;11]", "[T;12]", "[T;13]", "[T;14]", "[T;15]", "[T;16]", "[T;17]", "[T;18]",
+    "[T;19]", "[T;20]", "[T;21]", "[T;22]", "[T;23]", "[T;24]", "[T;25]", "[T;26]", "[T;27]",
+    "[T;28]", "[T;29]", "[T;30]", "[T;31]", "[T;32]", "[T;33]", "[T;34]", "[T;35]", "[T;36]",
+    "[T;37]", "[T;38]", "[T;39]", "[T;40]", "[T;41]", "[T;42]", "[T;43]", "[T;44]", "[T;45]",
+    "[T;46]", "[T;47]", "[T;48]", "[T;49]", "[T;50]", "[T;51]", "[T;52]", "[T;53]", "[T;54]",
+    "[T;55]", "[T;56]", "[T;57]", "[T;58]", "[T;59]", "[T;60]", "[T;61]", "[T;62]", "[T;63]",
+    "[T;64]", "[T;65]", "[T;66]", "[T;67]", "[T;68]", "[T;69]", "[T;70]", "[T;71]", "[T;72]",
+    "[T;73]", "[T;74]", "[T;75]", "[T;76]", "[T;77]", "[T;78]", "[T;79]", "[T;80]", "[T;81]",
+    "[T;82]", "[T;83]", "[T;84]", "[T;85]", "[T;86]", "[T;87]", "[T;88]", "[T;89]", "[T;90]",
+    "[T;91]", "[T;92]", "[T;93]", "[T;94]", "[T;95]", "[T;96]", "[T;97]", "[T;98]", "[T;99]",
+    "[T;100]", "[T;101]", "[T;102]", "[T;103]", "[T;104]", "[T;105]", "[T;106]", "[T;107]",
+    "[T;108]", "[T;109]", "[T;110]", "[T;111]", "[T;112]", "[T;113]", "[T;114]", "[T;115]",
+    "[T;116]", "[T;117]", "[T;118]", "[T;119]", "[T;120]", "[T;121]", "[T;122]", "[T;123]",
+    "[T;124]", "[T;125]", "[T;126]", "[T;127]", "[T;128]",
+];
+macro_rules! sliceimpl {
+    ($size: ty) => {
+        unsafe impl<T: IStable> IStable for [T; <$size as Unsigned>::USIZE] {
+            type Size = <T::Size as Unsigned>::Mul<$size>;
+            type Align = T::Align;
+            type ForbiddenValues = <<$size as Unsigned>::Equal<U1> as Bit>::FvTernary<T::ForbiddenValues, End>;
+            type UnusedBits = <<$size as Unsigned>::Equal<U1> as Bit>::UbTernary<T::UnusedBits, End>;
+            type HasExactlyOneNiche = <<$size as Unsigned>::Equal<U0> as Bit>::SaddTernary<
+                B0,
+                <<$size as Unsigned>::Equal<U1> as Bit>::SaddTernary<T::HasExactlyOneNiche, Saturator>,
+            >;
+            primitive_report!(ARRAY_NAME[<$size as Unsigned>::USIZE], T);
+        }
+    };
+    ($size: ty, $($t: tt)*) => {
+        sliceimpl!($size);
+        sliceimpl!($($t)*);
+    };
+}
+
+sliceimpl!(
+    U0, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15, U16, U17, U18, U19, U20,
+    U21, U22, U23, U24, U25, U26, U27, U28, U29, U30, U31, U32, U33, U34, U35, U36, U37, U38, U39,
+    U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53, U54, U55, U56, U57, U58,
+    U59, U60, U61, U62, U63
+);
+sliceimpl!(
+    U64, U65, U66, U67, U68, U69, U70, U71, U72, U73, U74, U75, U76, U77, U78, U79, U80, U81, U82,
+    U83, U84, U85, U86, U87, U88, U89, U90, U91, U92, U93, U94, U95, U96, U97, U98, U99, U100,
+    U101, U102, U103, U104, U105, U106, U107, U108, U109, U110, U111, U112, U113, U114, U115, U116,
+    U117, U118, U119, U120, U121, U122, U123, U124, U125, U126, U127, U128
+);

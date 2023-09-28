@@ -14,7 +14,7 @@
 
 [package]
 name = "stabby-macros"
-version = "1.0.10"
+version = "2.0.0"
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }
