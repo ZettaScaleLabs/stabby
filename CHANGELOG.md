@@ -1,3 +1,7 @@
+# 2.0.1
+- Update constness to fit 1.72
+- Ensure that 1.66 MSRV is respected
+
 # 2.0.0
 - BREAKING CHANGE:
 	- `std::boxed::Box` and `std::sync::Arc` were originally marked as `IStable` because their representation was indeed stable provided they pointed to sized types. However, Rust has historically changed the default global allocator, and since it can be overriden, it's also possible to create two binaries with mismatching allocators on each side. This meant that these types didn't have "invariant stability": moving one over FFI wasn't guaranteed to not introduce UB.
@@ -10,6 +14,7 @@
 - Better documentation: `stabby` now uses the `deny(missing_(safety|errors|panics)_doc)` lints to ensure all failure conditions are always documented, and documents all of its macros outputs (often based on your own documentation) to allow `stabby` to be used in `deny(missing_docs)` environments.
 - `[T; N]` is now marked as `IStable` for `N` in `0..=128`.
 - `SingleOrVec<T, Alloc>` is a `Vec`-like container that will avoid allocating until you attempt to push a second element in it.
+- Introducing `NonMaxUx`, `NonXUx<const X: ux>` and `NonXIx<const X: ux>`: equivalents to `NonZero` that allow you to have another value as the niche.
 
 # 1.0.10
 - Make bound deduction better for enums.
