@@ -260,6 +260,11 @@ impl<T, Alloc> AllocPtr<T, Alloc> {
     /// A reference to the prefix for this allocation.
     /// # Safety
     /// `self` must not be dangling, and have been properly allocated, using [`Self::alloc`] or [`Self::realloc`] for example.
+    #[rustversion::since(1.72)]
+    pub const unsafe fn prefix(&self) -> &AllocPrefix<Alloc> {
+        unsafe { self.prefix_ptr().as_ref() }
+    }
+    #[rustversion::before(1.72)]
     pub unsafe fn prefix(&self) -> &AllocPrefix<Alloc> {
         unsafe { self.prefix_ptr().as_ref() }
     }
