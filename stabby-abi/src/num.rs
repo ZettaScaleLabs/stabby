@@ -41,7 +41,7 @@ macro_rules! define_non_max {
         }
         impl PartialOrd for $NonMaxU8 {
             fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-                self.get().partial_cmp(&other.get())
+                Some(self.cmp(other))
             }
         }
         impl Ord for $NonMaxU8 {
@@ -113,7 +113,7 @@ macro_rules! define_non_x {
         }
         impl<const FORBIDDEN: $u8> PartialOrd for $NonMaxU8<{ FORBIDDEN }> {
             fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-                self.get().partial_cmp(&other.get())
+                Some(self.cmp(other))
             }
         }
         impl<const FORBIDDEN: $u8> Ord for $NonMaxU8<{ FORBIDDEN }> {

@@ -199,7 +199,7 @@ impl<Alloc: IAlloc> Ord for ArcStr<Alloc> {
 }
 impl<Alloc: IAlloc> PartialOrd for ArcStr<Alloc> {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        self.as_str().partial_cmp(other.as_str())
+        Some(self.cmp(other))
     }
 }
 impl<Alloc: IAlloc> Hash for ArcStr<Alloc> {
@@ -279,7 +279,7 @@ impl<Alloc: IAlloc> Ord for BoxedStr<Alloc> {
 }
 impl<Alloc: IAlloc> PartialOrd for BoxedStr<Alloc> {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        self.as_str().partial_cmp(other.as_str())
+        Some(self.cmp(other))
     }
 }
 impl<Alloc: IAlloc> core::hash::Hash for BoxedStr<Alloc> {
