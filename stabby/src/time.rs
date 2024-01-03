@@ -116,6 +116,7 @@ mod impls {
             Self(Duration { secs: 0, nanos: 0 })
         }
     }
+    #[rustversion::attr(since(1.75), const)]
     fn instant_epoch() -> std::time::Instant {
         unsafe { core::mem::MaybeUninit::zeroed().assume_init() }
     }
