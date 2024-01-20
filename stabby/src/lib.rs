@@ -13,6 +13,7 @@
 //
 
 #![deny(
+    missing_docs,
     clippy::missing_panics_doc,
     clippy::missing_const_for_fn,
     clippy::missing_safety_doc,
@@ -61,10 +62,13 @@ pub use crate::abi::{option, result, slice, str};
 pub use crate::abi::{vtable::Any, AccessAs, IStable, IntoSuperTrait};
 
 #[cfg(all(feature = "libloading", any(unix, windows)))]
+/// Integration with [`::libloading`], allowing symbol loads to be validated thanks to either reflection or canaries.
 pub mod libloading;
 
+/// ABI-stable representations of durations and instants.
 pub mod time;
 
+/// Like [`std::format`], but returning an ABI-stable [`String`](crate::string::String)
 #[macro_export]
 macro_rules! format {
     ($($t: tt)*) => {{

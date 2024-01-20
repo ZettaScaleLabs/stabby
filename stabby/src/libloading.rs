@@ -12,6 +12,7 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+/// An extension trait to load symbols from libraries while checking for ABI-compatibility.
 pub trait StabbyLibrary {
     /// Gets `symbol` from the library, using stabby's reports to check for compatibility.
     ///
@@ -43,6 +44,7 @@ pub trait StabbyLibrary {
         symbol: &[u8],
     ) -> Result<libloading::Symbol<'a, T>, Box<dyn std::error::Error + Send + Sync>>;
 }
+/// A symbol bound to a library's lifetime.
 pub struct Symbol<'a, T> {
     inner: T,
     lt: core::marker::PhantomData<&'a ()>,
