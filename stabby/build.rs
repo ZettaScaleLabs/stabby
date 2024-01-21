@@ -25,14 +25,17 @@ fn main() {
     writeln!(compiler_versions, r"use crate::abi::IStable;").unwrap();
     for version in [
         "1.65.0", "1.66.0", "1.66.1", "1.67.0", "1.67.1", "1.68.0", "1.69.0", "1.70.0", "1.71.0",
+        "1.72.0", "1.72.1", "1.73.0", "1.74.0", "1.74.1", "1.75.0", "1.76.0",
     ] {
         let snake_version = version.replace('.', "_");
         writeln!(
             compiler_versions,
             r#"
+/// A ZST that allows inserting some information about the expected compiler for a type.
 #[allow(non_camel_case_types)]
 pub struct CompilerVersion_{snake_version}<Layout: IStable>(core::marker::PhantomData<Layout>);
 impl<Layout: IStable> CompilerVersion_{snake_version}<Layout> {{
+	/// The constructor for the compiler version.
 	pub const UNIT: Self = Self(core::marker::PhantomData);
 }}
 

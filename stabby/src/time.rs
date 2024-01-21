@@ -2,7 +2,9 @@
 #[crate::stabby]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Duration {
+    /// The number of seconds elapsed.
     pub secs: u64,
+    /// The number of subsecond nanos elapsed.
     pub nanos: u32,
 }
 impl core::ops::AddAssign for Duration {
@@ -47,7 +49,11 @@ mod impls {
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct SystemTime(pub(crate) Duration);
     impl SystemTime {
+        /// An anchor in time which can be used to create new SystemTime instances or learn about where in time a SystemTime lies.
+        ///
+        /// This constant is defined to be "1970-01-01 00:00:00 UTC" on all systems with respect to the system clock. Using duration_since on an existing SystemTime instance can tell how far away from this point in time a measurement lies, and using UNIX_EPOCH + duration can be used to create a SystemTime instance to represent another fixed point in time.
         pub const UNIX_EPOCH: Self = SystemTime(Duration { secs: 0, nanos: 0 });
+        /// Measure the current [`SystemTime`].
         pub fn now() -> Self {
             std::time::SystemTime::now().into()
         }
@@ -104,7 +110,7 @@ mod impls {
     /// given process, but accross dynamic linkage units, the OS will use the same clock
     /// to construct [`std::time::Instant`].
     ///
-    /// While very likely to be true, this is unverified yet for most platforms.
+    /// While very likely to be true, this is unverified yet for niche platforms.
     /// Please write an issue on [stabby's official repo](https://github.com/ZettaScaleLabs/stabby)
     /// if you have proof either way for your system of choice, and it will be added
     /// to this documentation.
@@ -112,8 +118,13 @@ mod impls {
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct Instant(pub(crate) Duration);
     impl Instant {
+        /// The first possible instant.
         pub const fn zero() -> Self {
             Self(Duration { secs: 0, nanos: 0 })
+        }
+        /// Measure the current [`Instant`].
+        pub fn now() -> Self {
+            std::time::Instant::now().into()
         }
     }
     #[rustversion::attr(since(1.75), const)]
