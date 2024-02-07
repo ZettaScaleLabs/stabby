@@ -37,6 +37,7 @@ unsafe impl IStable for PadByte {
     type ForbiddenValues = End;
     type UnusedBits = Array<U0, UxFF, End>;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = B0;
     primitive_report!("PadByte");
 }
 
@@ -294,6 +295,7 @@ unsafe impl<L: IStable + Copy + Default> IStable for OneMoreByte<L> {
     type ForbiddenValues = L::ForbiddenValues;
     type UnusedBits = <L::UnusedBits as IBitMask>::BitOr<Array<L::Size, UxFF, End>>;
     type HasExactlyOneNiche = L::HasExactlyOneNiche;
+    type ContainsIndirections = L::ContainsIndirections;
     primitive_report!("OneMoreByte");
 }
 impl<Msb: IUnsigned, Bit: IBit> NonZero for UInt<Msb, Bit> {

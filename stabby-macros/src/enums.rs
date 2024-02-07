@@ -146,6 +146,7 @@ pub fn stabby(
             type Size = <#layout as #st::IStable>::Size;
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
+            type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
             const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
                 name: #st::str::Str::new(#sident),
                 module: #st::str::Str::new(core::module_path!()),
@@ -153,6 +154,7 @@ pub fn stabby(
                 last_break: #st::report::Version::NEVER,
                 tyty: #st::report::TyTy::Enum(#st::str::Str::new(#repr)),
             };
+            const ID: u64 = #st::istable::gen_id(Self::REPORT);
         }
     }
 }
@@ -365,6 +367,7 @@ pub fn repr_stabby(
             type Size = <#layout as #st::IStable>::Size;
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
+            type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
             const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
                 name: #st::str::Str::new(#sident),
                 module: #st::str::Str::new(core::module_path!()),
@@ -372,6 +375,7 @@ pub fn repr_stabby(
                 last_break: #st::report::Version::NEVER,
                 tyty: #st::report::TyTy::Enum(#st::str::Str::new("stabby")),
             };
+            const ID: u64 = #st::istable::gen_id(Self::REPORT);
         }
         #[automatically_derived]
         impl #generics #ident < #unbound_generics > where #report_bounds #bounds {

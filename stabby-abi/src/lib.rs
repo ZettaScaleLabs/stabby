@@ -46,6 +46,7 @@ macro_rules! primitive_report {
             last_break: $crate::report::Version::NEVER,
             tyty: $crate::report::TyTy::Struct,
         };
+        const ID: u64 = $crate::istable::gen_id(Self::REPORT);
     };
     ($name: expr) => {
         const REPORT: &'static $crate::report::TypeReport = &$crate::report::TypeReport {
@@ -55,6 +56,7 @@ macro_rules! primitive_report {
             last_break: $crate::report::Version::NEVER,
             tyty: $crate::report::TyTy::Struct,
         };
+        const ID: u64 = $crate::istable::gen_id(Self::REPORT);
     };
 }
 
@@ -171,10 +173,18 @@ impl<T, As: IStable> StableLike<T, As> {
             marker: core::marker::PhantomData,
         }
     }
+    /// Returns a reference to the underlying type
     /// # Safety
     /// This is only safe if `T` is FFI-safe, or if this `self` was constructed from a value
     /// of `T` that was instanciated within the same shared object.
     pub const unsafe fn as_ref_unchecked(&self) -> &T {
+        &self.value
+    }
+    /// Returns a reference to the underlying type
+    pub const fn as_ref(&self) -> &T
+    where
+        T: IStable,
+    {
         &self.value
     }
     /// # Safety
@@ -214,6 +224,8 @@ unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
     type ForbiddenValues = As::ForbiddenValues;
     type UnusedBits = As::UnusedBits;
     type HasExactlyOneNiche = As::HasExactlyOneNiche;
+    type ContainsIndirections = As::ContainsIndirections;
+    const ID: u64 = crate::istable::gen_id(Self::REPORT);
     const REPORT: &'static report::TypeReport = As::REPORT;
 }
 
@@ -223,18 +235,28 @@ unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
 /// want to inform `stabby` that the type it emulates has exactly zero or one niche respectively that the
 /// compiler knows about. This information can be used by `stabby` to determine that `core::option::Option`s
 /// transitively containing the emulated type are indeed ABI-stable.
-pub struct NoNiches<Size: Unsigned, Align: PowerOf2, HasExactlyOneNiche: ISaturatingAdd = Saturator>(
+pub struct NoNiches<
+    Size: Unsigned,
+    Align: PowerOf2,
+    HasExactlyOneNiche: ISaturatingAdd = Saturator,
+    ContainsIndirections: Bit = B0,
+>(
     Size::Padding,
-    core::marker::PhantomData<(Size, Align, HasExactlyOneNiche)>,
+    core::marker::PhantomData<(Size, Align, HasExactlyOneNiche, ContainsIndirections)>,
 );
-unsafe impl<Size: Unsigned, Align: PowerOf2, HasExactlyOneNiche: ISaturatingAdd> IStable
-    for NoNiches<Size, Align, HasExactlyOneNiche>
+unsafe impl<
+        Size: Unsigned,
+        Align: PowerOf2,
+        HasExactlyOneNiche: ISaturatingAdd,
+        ContainsIndirections: Bit,
+    > IStable for NoNiches<Size, Align, HasExactlyOneNiche, ContainsIndirections>
 {
     type Size = Size;
     type Align = Align;
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = HasExactlyOneNiche;
+    type ContainsIndirections = ContainsIndirections;
     primitive_report!("NoNiches");
 }
 
@@ -284,7 +306,9 @@ unsafe impl<T: IStable, Cond: IStable> IStable for StableIf<T, Cond> {
     type ForbiddenValues = T::ForbiddenValues;
     type UnusedBits = T::UnusedBits;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
+    type ContainsIndirections = T::ContainsIndirections;
     const REPORT: &'static report::TypeReport = T::REPORT;
+    const ID: u64 = crate::istable::gen_id(Self::REPORT);
 }
 
 #[repr(C)]

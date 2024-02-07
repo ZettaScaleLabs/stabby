@@ -13,6 +13,7 @@
 //
 
 use crate::{str::Str, StableLike};
+use sha2_const_stable::Sha256;
 
 #[crate::stabby]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
@@ -128,6 +129,14 @@ impl TypeReport {
 }
 #[crate::stabby]
 pub struct Fields(Option<&'static FieldReport>);
+impl Fields {
+    pub const fn next_const(self) -> (Self, Option<&'static FieldReport>) {
+        match self.0 {
+            Some(field) => (Self(*field.next_field.as_ref()), Some(field)),
+            None => (self, None),
+        }
+    }
+}
 impl Iterator for Fields {
     type Item = &'static FieldReport;
     fn next(&mut self) -> Option<Self::Item> {
@@ -135,4 +144,29 @@ impl Iterator for Fields {
         self.0 = field.next_field.value;
         Some(field)
     }
+}
+
+const fn hash_report(report: &TypeReport) -> Sha256 {
+    let mut hash = Sha256::new()
+        .update(report.module.as_str().as_bytes())
+        .update(report.name.as_str().as_bytes());
+    hash = match report.tyty {
+        crate::report::TyTy::Struct => hash.update(&[0]),
+        crate::report::TyTy::Union => hash.update(&[1]),
+        crate::report::TyTy::Enum(s) => hash.update(s.as_str().as_bytes()),
+    };
+    let mut fields = report.fields();
+    while let (new, Some(next)) = fields.next_const() {
+        fields = new;
+        hash = hash
+            .update(next.name.as_str().as_bytes())
+            .update(&hash_report(next.ty).finalize())
+    }
+    hash
+}
+/// Generates an ID based on a [`TypeReport`] using [`Sha256`]
+pub const fn gen_id(report: &TypeReport) -> u64 {
+    let [hash @ .., _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _] =
+        hash_report(report).finalize();
+    u64::from_le_bytes(hash)
 }

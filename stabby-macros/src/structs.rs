@@ -121,6 +121,7 @@ pub fn stabby(
             type Size = <#layout as #st::IStable>::Size;
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = <#layout as #st::IStable>::HasExactlyOneNiche;
+            type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
             const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
                 name: #st::str::Str::new(#sident),
                 module: #st::str::Str::new(core::module_path!()),
@@ -128,6 +129,7 @@ pub fn stabby(
                 last_break: #st::report::Version::NEVER,
                 tyty: #st::report::TyTy::Struct,
             };
+            const ID: u64 = #st::istable::gen_id(Self::REPORT);
         }
         #[allow(dead_code, missing_docs)]
         struct #opt_id #generics #where_clause #fields #semi_token

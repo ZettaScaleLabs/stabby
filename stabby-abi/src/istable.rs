@@ -17,6 +17,7 @@ use crate::report::TypeReport;
 use super::typenum2::*;
 use super::unsigned::{IBitBase, NonZero};
 use super::{FieldPair, Struct, Union};
+use sha2_const_stable::Sha256;
 use stabby_macros::tyeval;
 macro_rules! same_as {
     ($t: ty) => {
@@ -25,7 +26,9 @@ macro_rules! same_as {
         type UnusedBits = <$t as IStable>::UnusedBits;
         type ForbiddenValues = <$t as IStable>::ForbiddenValues;
         type HasExactlyOneNiche = <$t as IStable>::HasExactlyOneNiche;
+        type ContainsIndirections = <$t as IStable>::ContainsIndirections;
         const REPORT: &'static TypeReport = <$t as IStable>::REPORT;
+        const ID: u64 = <$t as IStable>::ID;
     };
 }
 /// A trait to describe the layout of a type, marking it as ABI-stable.
@@ -49,8 +52,11 @@ pub unsafe trait IStable: Sized {
     /// - [`Saturator`] if the type has more than a single value, which would mean rustc could change its
     ///     way of representing the [`None`] variant.
     type HasExactlyOneNiche: ISaturatingAdd;
+    /// Whether or not the type contains indirections (pointers, indices in independent data-structures...)
+    type ContainsIndirections: Bit;
     /// A compile-time generated report of the fields of the type, allowing for compatibility inspection.
     const REPORT: &'static TypeReport;
+    const ID: u64;
     fn size() -> usize {
         let size = Self::Size::USIZE;
         let align = Self::Align::USIZE;
@@ -59,6 +65,82 @@ pub unsafe trait IStable: Sized {
     fn align() -> usize {
         Self::Align::USIZE
     }
+}
+const fn hash_report(report: &TypeReport) -> Sha256 {
+    let mut hash = Sha256::new()
+        .update(report.module.as_str().as_bytes())
+        .update(report.name.as_str().as_bytes());
+    hash = match report.tyty {
+        crate::report::TyTy::Struct => hash.update(&[0]),
+        crate::report::TyTy::Union => hash.update(&[1]),
+        crate::report::TyTy::Enum(s) => hash.update(s.as_str().as_bytes()),
+    };
+    let mut fields = report.fields();
+    while let (new, Some(next)) = fields.next_const() {
+        fields = new;
+        hash = hash
+            .update(next.name.as_str().as_bytes())
+            .update(&hash_report(next.ty).finalize())
+    }
+    hash
+}
+pub const fn gen_id(report: &TypeReport) -> u64 {
+    let [hash @ .., _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _] =
+        hash_report(report).finalize();
+    u64::from_le_bytes(hash)
+}
+
+/// A static proof that a type is "Plain Old Data".
+///
+/// A type is POD iff copying its byte-representation is sufficient to fully transferring it to
+/// a recipient that shares no other context with the sender. Conditions for this to be true include,
+/// but might not be limited to:
+/// - The type doesn't contain pointers, as they may not point to the same memory on the recipient's end.
+/// - The type doesn't have a destructor, as destructors generally imply a context needs to be cleaned up,
+/// implying that a context exists.
+///
+/// In some circumstances, a POD type may be used as a key in a context (index in an array, key in a HashMap...) that
+/// may not be available to all potential recipient. In such a case, you can wrap that type in [`NotPod`] to strip it
+/// of its POD-ness.
+///
+/// # Safety
+/// Mis-implementing this trait can lead to undefined behaviour, as systems requiring an `IPod` will
+/// assume that `core::ptr::read(slice.as_ptr().cast::<Self>())`, where `slice` is a `&[u8]` that was obtained through
+/// _any_ mean (including reading from a network interface), is _always_ safe provided that the slice was original constructed
+/// by `core::slice::from_raw_parts(&self as *const Self as *const u8, core::mem::size_of::<Self>())`.
+pub unsafe trait IPod: Copy {
+    /// Produces an identifier for the type, allowing to check type at runtime (barring collisions).
+    fn identifier() -> u64;
+}
+unsafe impl<T: IStable<ContainsIndirections = B0> + Copy> IPod for T {
+    fn identifier() -> u64 {
+        T::ID
+    }
+}
+
+/// Strips `T` of its status as [Plain Old Data](IPod).
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NotPod<T>(pub T);
+impl<T> core::ops::Deref for NotPod<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl<T> core::ops::DerefMut for NotPod<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+unsafe impl<T: IStable> IStable for NotPod<T> {
+    type Size = T::Size;
+    type Align = T::Align;
+    type ContainsIndirections = B1;
+    type ForbiddenValues = T::ForbiddenValues;
+    type HasExactlyOneNiche = T::HasExactlyOneNiche;
+    type UnusedBits = T::UnusedBits;
+    primitive_report!("NotPod", T);
 }
 
 /// DO NOT PUT THIS IN YOUR OWN STRUCTURE! NOT EVER!!!
@@ -121,6 +203,7 @@ unsafe impl<
     type ForbiddenValues = ForbiddenValues;
     type UnusedBits = UnusedBits;
     type HasExactlyOneNiche = HasExactlyOneNiche;
+    type ContainsIndirections = B0;
     primitive_report!("NicheExporter");
 }
 
@@ -261,6 +344,7 @@ where
     type HasExactlyOneNiche = <A::HasExactlyOneNiche as ISaturatingAdd>::SaturatingAdd<
         <AlignedAfter<B, A::Size> as IStable>::HasExactlyOneNiche,
     >;
+    type ContainsIndirections = <A::ContainsIndirections as Bit>::Or<B::ContainsIndirections>;
     primitive_report!("FP");
 }
 pub enum SaturatingAddValue {
@@ -381,6 +465,7 @@ unsafe impl<A: IStable, B: IStable> IStable for (Union<A, B>, B1) {
     type Size = <A::Size as Unsigned>::Max<B::Size>;
     type Align = <A::Align as PowerOf2>::Max<B::Align>;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = <A::ContainsIndirections as Bit>::Or<B::ContainsIndirections>;
     primitive_report!("Union");
 }
 unsafe impl<A: IStable, B: IStable> IStable for (Union<A, B>, B0)
@@ -410,6 +495,7 @@ unsafe impl<T: IStable, Start: Unsigned> IStable for (AlignedAfter<T, Start>, U1
     type UnusedBits = <T::UnusedBits as IBitMask>::Shift<Start>;
     type ForbiddenValues = <T::ForbiddenValues as IForbiddenValues>::Shift<Start>;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
+    type ContainsIndirections = T::ContainsIndirections;
     primitive_report!("FP");
 }
 // non-ZST aligned after a non-ZST
@@ -439,6 +525,7 @@ unsafe impl<T: IStable, Start: Unsigned, TAlignB: Unsigned, TAlignInt: Bit> ISta
     type UnusedBits = <T::UnusedBits as IBitMask>::Shift<Start>;
     type ForbiddenValues = <T::ForbiddenValues as IForbiddenValues>::Shift<Start>;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
+    type ContainsIndirections = T::ContainsIndirections;
     primitive_report!("FP");
 }
 // non-ZST needs alignment
@@ -458,6 +545,7 @@ where
     type ForbiddenValues =
         <T::ForbiddenValues as IForbiddenValues>::Shift<tyeval!(Start + (T::Align - UInt<B, Int>))>;
     type HasExactlyOneNiche = Saturator;
+    type ContainsIndirections = T::ContainsIndirections;
     primitive_report!("FP");
 }
 
@@ -491,5 +579,6 @@ where
     type UnusedBits = <T::UnusedBits as IBitMask>::BitOr<
         <<<tyeval!(T::Align - UInt<RemU, RemB>) as Unsigned>::Padding as IStable>::UnusedBits as IBitMask>::Shift<T::Size>>;
     type HasExactlyOneNiche = Saturator;
+    type ContainsIndirections = T::ContainsIndirections;
     primitive_report!("FP");
 }

@@ -45,6 +45,7 @@ unsafe impl IStable for BitDiscriminant {
     type ForbiddenValues = End;
     type UnusedBits = Array<U0, U254, End>;
     type HasExactlyOneNiche = Saturator;
+    type ContainsIndirections = B0;
     primitive_report!("BitDiscriminant");
 }
 
@@ -80,6 +81,7 @@ unsafe impl<Offset, Value, Tail: IStable> IStable for ValueIsErr<Offset, Value, 
     type ForbiddenValues = Tail::ForbiddenValues;
     type UnusedBits = Tail::UnusedBits;
     type HasExactlyOneNiche = Tail::HasExactlyOneNiche;
+    type ContainsIndirections = B0;
     primitive_report!("ValueIsErr");
 }
 impl<Offset: Unsigned, Value: Unsigned, Tail: IDiscriminant + core::fmt::Debug> core::fmt::Debug
@@ -158,6 +160,7 @@ unsafe impl<Discriminant: IStable> IStable for Not<Discriminant> {
     type ForbiddenValues = Discriminant::ForbiddenValues;
     type UnusedBits = Discriminant::UnusedBits;
     type HasExactlyOneNiche = Discriminant::HasExactlyOneNiche;
+    type ContainsIndirections = Discriminant::ContainsIndirections;
     primitive_report!("Not", Discriminant);
 }
 impl<Discriminant: IDiscriminant> IDiscriminant for Not<Discriminant>
