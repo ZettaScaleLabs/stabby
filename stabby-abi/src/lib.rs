@@ -89,7 +89,7 @@ macro_rules! assert_optimal_layout {
         };
     };
 }
-pub use crate::enums::IDiscriminantProvider;
+pub use crate::enums::IDeterminantProvider;
 /// Helpers to treat ABI-stable types as if they were their unstable equivalents.
 pub mod as_mut;
 /// ABI-stable equivalents of iterators.

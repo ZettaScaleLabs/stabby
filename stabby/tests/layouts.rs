@@ -58,6 +58,7 @@ pub enum MultiFieldsC {
 }
 
 #[stabby::stabby]
+#[repr(stabby)]
 pub enum MultiFieldsStabby {
     A(NonZeroU16),
     B,

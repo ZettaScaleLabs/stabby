@@ -1,8 +1,8 @@
-use stabby_abi::{IDiscriminantProvider, IStable};
+use stabby_abi::{IDeterminantProvider, IStable};
 
 #[crate::stabby]
 /// A trait for key-value maps, allowing to pass hashmaps and the likes accross FFI boundary.
-pub trait IMap<K: IStable, V: IStable + IDiscriminantProvider<()>> {
+pub trait IMap<K: IStable, V: IStable + IDeterminantProvider<()>> {
     /// Returns a reference to the value associated to `key`, or None if the key isn't present in the map.
     extern "C" fn get<'a>(&'a self, key: &K) -> crate::option::Option<&'a V>;
     /// Returns a mutable reference to the value associated to `key`, or None if the key isn't present in the map.
@@ -12,7 +12,7 @@ pub trait IMap<K: IStable, V: IStable + IDiscriminantProvider<()>> {
 }
 
 #[cfg(feature = "alloc")]
-impl<K: IStable + Ord, V: IStable + IDiscriminantProvider<()>> IMap<K, V>
+impl<K: IStable + Ord, V: IStable + IDeterminantProvider<()>> IMap<K, V>
     for std_alloc::collections::BTreeMap<K, V>
 {
     extern "C" fn get<'a>(&'a self, key: &K) -> crate::option::Option<&'a V> {
@@ -29,7 +29,7 @@ impl<K: IStable + Ord, V: IStable + IDiscriminantProvider<()>> IMap<K, V>
 }
 
 #[cfg(feature = "std")]
-impl<K: IStable + core::hash::Hash + Eq, V: IStable + IDiscriminantProvider<()>> IMap<K, V>
+impl<K: IStable + core::hash::Hash + Eq, V: IStable + IDeterminantProvider<()>> IMap<K, V>
     for std::collections::HashMap<K, V>
 {
     extern "C" fn get<'a>(&'a self, key: &K) -> crate::option::Option<&'a V> {

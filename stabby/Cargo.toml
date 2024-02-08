@@ -26,7 +26,6 @@ description = "A Stable ABI for Rust with compact sum-types."
 [features]
 default = ["std", "libc"]
 std = ["libc"]
-unsafe_wakers = ["stabby-abi/unsafe_wakers"]
 libloading = ["dep:libloading", "std"]
 libc = ["stabby-abi/libc"]
 

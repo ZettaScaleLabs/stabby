@@ -14,7 +14,7 @@
 
 use core::task::Context;
 
-use crate::enums::IDiscriminantProvider;
+use crate::enums::IDeterminantProvider;
 use crate::option::Option;
 use crate::vtable::HasDropVt;
 use crate::{IPtrMut, IPtrOwned, IStable};
@@ -175,13 +175,13 @@ mod stable_waker {
 #[crate::stabby]
 pub trait Future {
     /// The output type of the future.
-    type Output: IDiscriminantProvider<()>;
+    type Output: IDeterminantProvider<()>;
     /// Equivalent to [`core::fututre::Future::poll`].
     extern "C" fn poll<'a>(&'a mut self, waker: StableWaker<'a>) -> Option<Self::Output>;
 }
 impl<T: core::future::Future> Future for T
 where
-    T::Output: IDiscriminantProvider<()>,
+    T::Output: IDeterminantProvider<()>,
 {
     type Output = T::Output;
     #[allow(improper_ctypes_definitions)]
@@ -198,7 +198,7 @@ where
     }
 }
 
-impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()>>
+impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>>
     core::future::Future
     for crate::Dyn<'a, P, crate::vtable::VTable<StabbyVtableFuture<Output>, Vt>>
 {
@@ -215,7 +215,7 @@ impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()
     }
 }
 
-impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()>>
+impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>>
     core::future::Future
     for crate::Dyn<
         'a,
@@ -239,7 +239,7 @@ impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()
     }
 }
 
-impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()>>
+impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>>
     core::future::Future
     for crate::Dyn<
         'a,
@@ -263,7 +263,7 @@ impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()
     }
 }
 
-impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()>>
+impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>>
     core::future::Future
     for crate::Dyn<
         'a,
@@ -289,7 +289,7 @@ impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()
     }
 }
 
-impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()>>
+impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>>
     core::future::Future
     for crate::Dyn<
         'a,
@@ -340,8 +340,8 @@ impl<T: IStable + Unpin, F: IStable + core::future::Future<Output = T> + Unpin> 
 where
     F: crate::IStable,
     crate::Result<(), F>: crate::IStable,
-    T: crate::IDiscriminantProvider<crate::Result<(), F>>,
-    (): crate::IDiscriminantProvider<F>,
+    T: crate::IDeterminantProvider<crate::Result<(), F>>,
+    (): crate::IDeterminantProvider<F>,
 {
     type Output = T;
     fn poll(

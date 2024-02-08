@@ -24,7 +24,7 @@ use super::{
 use crate::*;
 
 /// A type that can inspect a union to detect if it's in `ok` or `err` state.
-pub trait IDiscriminant: IStable {
+pub trait IDeterminant: IStable {
     /// Sets the union in `ok` state.
     /// # Safety
     /// This function MUST be called after setting `union` to a valid value for type `Ok`
@@ -40,34 +40,34 @@ pub trait IDiscriminant: IStable {
 /// If no niche can be found, an external tag is used.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BitDiscriminant {
+pub enum BitDeterminant {
     /// The union is in the `ok` state.
     Ok = 0,
     /// The union is in the `err` state.
     Err = 1,
 }
-unsafe impl IStable for BitDiscriminant {
+unsafe impl IStable for BitDeterminant {
     type Size = U1;
     type Align = U1;
     type ForbiddenValues = End;
     type UnusedBits = Array<U0, U254, End>;
     type HasExactlyOneNiche = Saturator;
     type ContainsIndirections = B0;
-    primitive_report!("BitDiscriminant");
+    primitive_report!("BitDeterminant");
 }
 
-impl IDiscriminant for BitDiscriminant {
+impl IDeterminant for BitDeterminant {
     unsafe fn ok(_: *mut u8) -> Self {
-        BitDiscriminant::Ok
+        BitDeterminant::Ok
     }
     unsafe fn err(_: *mut u8) -> Self {
-        BitDiscriminant::Err
+        BitDeterminant::Err
     }
     fn is_ok(&self, _: *const u8) -> bool {
         (*self as u8 & 1) == 0
     }
 }
-impl IDiscriminant for End {
+impl IDeterminant for End {
     unsafe fn ok(_: *mut u8) -> Self {
         End
     }
@@ -93,7 +93,7 @@ unsafe impl<Offset, Value, Tail: IStable> IStable for ValueIsErr<Offset, Value, 
     type ContainsIndirections = B0;
     primitive_report!("ValueIsErr");
 }
-impl<Offset: Unsigned, Value: Unsigned, Tail: IDiscriminant + core::fmt::Debug> core::fmt::Debug
+impl<Offset: Unsigned, Value: Unsigned, Tail: IDeterminant + core::fmt::Debug> core::fmt::Debug
     for ValueIsErr<Offset, Value, Tail>
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -106,7 +106,7 @@ impl<Offset: Unsigned, Value: Unsigned, Tail: IDiscriminant + core::fmt::Debug> 
         )
     }
 }
-impl<Offset: Unsigned, Value: Unsigned, Tail: IDiscriminant> IDiscriminant
+impl<Offset: Unsigned, Value: Unsigned, Tail: IDeterminant> IDeterminant
     for ValueIsErr<Offset, Value, Tail>
 where
     ValueIsErr<Offset, Value, Tail>: IStable,
@@ -127,7 +127,7 @@ where
 /// Coerces a type into a [`ValueIsErr`].
 pub trait IntoValueIsErr {
     /// The coerced type.
-    type ValueIsErr: IDiscriminant + IStable + Unpin;
+    type ValueIsErr: IDeterminant + IStable + Unpin;
 }
 impl IntoValueIsErr for End {
     type ValueIsErr = End;
@@ -147,7 +147,7 @@ impl<Offset: Unsigned, Mask: Unsigned> core::fmt::Debug for BitIsErr<Offset, Mas
     }
 }
 impl<Offset, Mask> Unpin for BitIsErr<Offset, Mask> {}
-impl<Offset: Unsigned, Mask: Unsigned> IDiscriminant for BitIsErr<Offset, Mask> {
+impl<Offset: Unsigned, Mask: Unsigned> IDeterminant for BitIsErr<Offset, Mask> {
     unsafe fn ok(union: *mut u8) -> Self {
         let ptr = union;
         *ptr.add(Offset::USIZE) &= u8::MAX ^ Mask::U8;
@@ -163,28 +163,28 @@ impl<Offset: Unsigned, Mask: Unsigned> IDiscriminant for BitIsErr<Offset, Mask> 
         unsafe { *ptr.add(Offset::USIZE) & Mask::U8 == 0 }
     }
 }
-/// Inverts the return value of `Discriminant`'s inspection.
+/// Inverts the return value of `Determinant`'s inspection.
 #[derive(Debug, Clone, Copy)]
-pub struct Not<Discriminant>(Discriminant);
-impl<Discriminant> Unpin for Not<Discriminant> {}
-unsafe impl<Discriminant: IStable> IStable for Not<Discriminant> {
-    type Size = Discriminant::Size;
-    type Align = Discriminant::Align;
-    type ForbiddenValues = Discriminant::ForbiddenValues;
-    type UnusedBits = Discriminant::UnusedBits;
-    type HasExactlyOneNiche = Discriminant::HasExactlyOneNiche;
-    type ContainsIndirections = Discriminant::ContainsIndirections;
-    primitive_report!("Not", Discriminant);
+pub struct Not<Determinant>(Determinant);
+impl<Determinant> Unpin for Not<Determinant> {}
+unsafe impl<Determinant: IStable> IStable for Not<Determinant> {
+    type Size = Determinant::Size;
+    type Align = Determinant::Align;
+    type ForbiddenValues = Determinant::ForbiddenValues;
+    type UnusedBits = Determinant::UnusedBits;
+    type HasExactlyOneNiche = Determinant::HasExactlyOneNiche;
+    type ContainsIndirections = Determinant::ContainsIndirections;
+    primitive_report!("Not", Determinant);
 }
-impl<Discriminant: IDiscriminant> IDiscriminant for Not<Discriminant>
+impl<Determinant: IDeterminant> IDeterminant for Not<Determinant>
 where
-    Not<Discriminant>: IStable,
+    Not<Determinant>: IStable,
 {
     unsafe fn ok(union: *mut u8) -> Self {
-        Not(Discriminant::err(union))
+        Not(Determinant::err(union))
     }
     unsafe fn err(union: *mut u8) -> Self {
-        Not(Discriminant::ok(union))
+        Not(Determinant::ok(union))
     }
     fn is_ok(&self, union: *const u8) -> bool {
         !self.0.is_ok(union)
@@ -193,27 +193,27 @@ where
 
 // "And now for the tricky bit..."
 ///Proof that stabby can construct a [`crate::Result`] based on `Self` and `Other`'s niches.
-pub trait IDiscriminantProvider<Other>: IStable {
+pub trait IDeterminantProvider<Other>: IStable {
     /// How much the `Ok` variant must be shifted.
     type OkShift: Unsigned;
     /// How much the `Err` variant must be shifted.
     type ErrShift: Unsigned;
     /// The discriminant.
-    type Discriminant: IDiscriminant + Unpin;
+    type Determinant: IDeterminant + Unpin;
     /// The remaining niches.
     type NicheExporter: IStable + Default + Copy + Unpin;
 }
 mod seal {
     use super::*;
-    pub trait IDiscriminantProviderInnerRev {
+    pub trait IDeterminantProviderInnerRev {
         type OkShift: Unsigned;
         type ErrShift: Unsigned;
-        type Discriminant: IDiscriminant + Unpin;
+        type Determinant: IDeterminant + Unpin;
         type NicheExporter: IStable + Default + Copy + Unpin;
     }
-    pub trait IDiscriminantProviderInner {
+    pub trait IDeterminantProviderInner {
         type ErrShift: Unsigned;
-        type Discriminant: IDiscriminant + Unpin;
+        type Determinant: IDeterminant + Unpin;
         type NicheExporter: IStable + Default + Copy + Unpin;
     }
 }
@@ -244,45 +244,45 @@ pub(crate) type UnionMemberUnusedBits<Ok, Err, OkShift> =
 
 macro_rules! same_as {
     ($T: ty) => {
-        type ErrShift = <$T as IDiscriminantProviderInner>::ErrShift;
-        type Discriminant = <$T as IDiscriminantProviderInner>::Discriminant;
-        type NicheExporter = <$T as IDiscriminantProviderInner>::NicheExporter;
-        // type Debug = <$T as IDiscriminantProviderInner>::Debug;
+        type ErrShift = <$T as IDeterminantProviderInner>::ErrShift;
+        type Determinant = <$T as IDeterminantProviderInner>::Determinant;
+        type NicheExporter = <$T as IDeterminantProviderInner>::NicheExporter;
+        // type Debug = <$T as IDeterminantProviderInner>::Debug;
     };
     ($T: ty, $Trait: ty) => {
         type OkShift = <$T as $Trait>::OkShift;
         type ErrShift = <$T as $Trait>::ErrShift;
-        type Discriminant = <$T as $Trait>::Discriminant;
+        type Determinant = <$T as $Trait>::Determinant;
         type NicheExporter = <$T as $Trait>::NicheExporter;
         // type Debug = <$T as $Trait>::Debug;
     };
 }
 
-impl<A: IStable, B: IStable> IDiscriminantProvider<B> for A
+impl<A: IStable, B: IStable> IDeterminantProvider<B> for A
 where
-    (A, B, <A::Size as Unsigned>::GreaterOrEq<B::Size>): IDiscriminantProviderInnerRev,
+    (A, B, <A::Size as Unsigned>::GreaterOrEq<B::Size>): IDeterminantProviderInnerRev,
 {
     same_as!(
         (A, B, <A::Size as Unsigned>::GreaterOrEq<B::Size>),
-        IDiscriminantProviderInnerRev
+        IDeterminantProviderInnerRev
     );
 }
 
 // IF Ok::Size < Err::Size
-impl<Ok: IStable, Err: IStable> IDiscriminantProviderInnerRev for (Ok, Err, B0)
+impl<Ok: IStable, Err: IStable> IDeterminantProviderInnerRev for (Ok, Err, B0)
 where
-    (Err, Ok, Ok::Size): IDiscriminantProviderInner,
+    (Err, Ok, Ok::Size): IDeterminantProviderInner,
 {
-    type OkShift = <(Err, Ok, Ok::Size) as IDiscriminantProviderInner>::ErrShift;
+    type OkShift = <(Err, Ok, Ok::Size) as IDeterminantProviderInner>::ErrShift;
     type ErrShift = U0;
-    type Discriminant = Not<<(Err, Ok, Ok::Size) as IDiscriminantProviderInner>::Discriminant>;
-    type NicheExporter = <(Err, Ok, Ok::Size) as IDiscriminantProviderInner>::NicheExporter;
-    // type Debug = <(Err, Ok, Ok::Size) as IDiscriminantProviderInner>::Debug;
+    type Determinant = Not<<(Err, Ok, Ok::Size) as IDeterminantProviderInner>::Determinant>;
+    type NicheExporter = <(Err, Ok, Ok::Size) as IDeterminantProviderInner>::NicheExporter;
+    // type Debug = <(Err, Ok, Ok::Size) as IDeterminantProviderInner>::Debug;
 }
 // ELSE
-impl<Ok: IStable, Err: IStable> IDiscriminantProviderInnerRev for (Ok, Err, B1)
+impl<Ok: IStable, Err: IStable> IDeterminantProviderInnerRev for (Ok, Err, B1)
 where
-    (Ok, Err, Err::Size): IDiscriminantProviderInner,
+    (Ok, Err, Err::Size): IDeterminantProviderInner,
 {
     type OkShift = U0;
     same_as!((Ok, Err, Err::Size));

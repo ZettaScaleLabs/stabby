@@ -14,18 +14,18 @@
 
 //! A stable option for when rust's `Option<T>` isn't!
 
-use crate::enums::IDiscriminantProvider;
+use crate::enums::IDeterminantProvider;
 use crate::IStable;
 
 /// A niche optimizing equivalent of [`core::option::Option`] that's ABI-stable regardless of the inner type's niches.
 #[crate::stabby]
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Option<T: IStable + IDiscriminantProvider<()>> {
+pub struct Option<T: IStable + IDeterminantProvider<()>> {
     inner: crate::result::Result<T, ()>,
 }
 impl<T: IStable> core::fmt::Debug for Option<T>
 where
-    T: IDiscriminantProvider<()>,
+    T: IDeterminantProvider<()>,
     T: core::fmt::Debug,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -34,7 +34,7 @@ where
 }
 impl<T: IStable> From<core::option::Option<T>> for Option<T>
 where
-    T: IDiscriminantProvider<()>,
+    T: IDeterminantProvider<()>,
 {
     fn from(value: core::option::Option<T>) -> Self {
         match value {
@@ -49,7 +49,7 @@ where
 }
 impl<T: IStable> From<Option<T>> for core::option::Option<T>
 where
-    T: IDiscriminantProvider<()>,
+    T: IDeterminantProvider<()>,
 {
     fn from(value: Option<T>) -> Self {
         value.inner.ok()
@@ -57,7 +57,7 @@ where
 }
 impl<T: IStable> Default for Option<T>
 where
-    T: IDiscriminantProvider<()>,
+    T: IDeterminantProvider<()>,
 {
     fn default() -> Self {
         Self::None()
@@ -65,7 +65,7 @@ where
 }
 impl<T: IStable> Option<T>
 where
-    T: IDiscriminantProvider<()>,
+    T: IDeterminantProvider<()>,
 {
     /// Construct the `Some` variant.
     #[allow(non_snake_case)]

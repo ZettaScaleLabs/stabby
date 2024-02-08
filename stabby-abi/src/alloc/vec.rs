@@ -453,7 +453,7 @@ impl<T: Ord, Alloc: IAlloc> Ord for Vec<T, Alloc> {
     }
 }
 
-use crate::{IDiscriminantProvider, IStable};
+use crate::{IDeterminantProvider, IStable};
 use single_or_vec::Single;
 
 macro_rules! impl_index {
@@ -473,7 +473,7 @@ macro_rules! impl_index {
         where
             T: IStable,
             Alloc: IStable,
-            Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+            Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
             Vec<T, Alloc>: IStable,
             crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
         {
@@ -486,7 +486,7 @@ macro_rules! impl_index {
         where
             T: IStable,
             Alloc: IStable,
-            Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+            Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
             Vec<T, Alloc>: IStable,
             crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
         {
