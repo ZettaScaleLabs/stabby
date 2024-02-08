@@ -241,8 +241,8 @@ unsafe impl stabby::abi::IStable for Align128 {
         name: stabby::abi::str::Str::new("Align128"),
         module: stabby::abi::str::Str::new(core::module_path!()),
         fields: stabby::abi::StableLike::new(None),
-        last_break: stabby::abi::report::Version::NEVER,
+        version: 0,
         tyty: stabby::abi::report::TyTy::Struct,
     };
-    const ID: u64 = stabby::abi::istable::gen_id(Self::REPORT);
+    const ID: u64 = stabby::abi::report::gen_id(Self::REPORT);
 }

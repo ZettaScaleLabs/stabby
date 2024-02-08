@@ -16,6 +16,7 @@ use core::{
     ops::Deref,
     sync::atomic::{AtomicU8, Ordering},
 };
+/// Used in `#[stabby::import(canaries)]`
 #[crate::stabby]
 pub struct CanariedImport<F> {
     result: F,
@@ -25,6 +26,7 @@ pub struct CanariedImport<F> {
 unsafe impl<F> Send for CanariedImport<F> {}
 unsafe impl<F> Sync for CanariedImport<F> {}
 impl<F> CanariedImport<F> {
+    /// Used in `#[stabby::import(canaries)]`
     pub const fn new(source: F, canary_caller: extern "C" fn()) -> Self {
         Self {
             result: source,
@@ -43,6 +45,7 @@ impl<F> Deref for CanariedImport<F> {
     }
 }
 
+/// Used in `#[stabby::import]`
 #[crate::stabby]
 pub struct CheckedImport<F> {
     result: core::cell::UnsafeCell<core::mem::MaybeUninit<F>>,
@@ -55,10 +58,13 @@ pub struct CheckedImport<F> {
 unsafe impl<F> Send for CheckedImport<F> {}
 unsafe impl<F> Sync for CheckedImport<F> {}
 
+/// When reports mismatch between loader and loadee, both reports are exposed to allow debuging the issue.
 #[crate::stabby]
 #[derive(Debug, Clone, Copy)]
 pub struct ReportMismatch {
+    /// The report on loader side.
     pub local: &'static crate::report::TypeReport,
+    /// The report on loadee side.
     pub loaded: &'static crate::report::TypeReport,
 }
 impl core::fmt::Display for ReportMismatch {
@@ -74,6 +80,7 @@ const VALIDATED: u8 = 1;
 const INVALIDATED: u8 = 2;
 const LOCKED: u8 = 3;
 impl<F> CheckedImport<F> {
+    /// Used by `#[stabby::import]` proc-macro
     #[allow(improper_ctypes_definitions)]
     pub const fn new(
         checker: unsafe extern "C" fn(&crate::report::TypeReport) -> Option<F>,

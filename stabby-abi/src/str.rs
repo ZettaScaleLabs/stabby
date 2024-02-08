@@ -18,18 +18,20 @@ use crate as stabby;
 
 use core::ops::{Deref, DerefMut};
 
-/// An ABI stable equivalent of `&'a T`
+/// An ABI stable equivalent of `&'a str`
 #[stabby::stabby]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Str<'a> {
     pub(crate) inner: crate::slice::Slice<'a, u8>,
 }
 impl<'a> Str<'a> {
+    /// Wraps a standard `str` into its ABI-stable equivalent.
     pub const fn new(s: &'a str) -> Self {
         Self {
             inner: crate::slice::Slice::new(s.as_bytes()),
         }
     }
+    /// Exposes `self` as a `&sr`.
     pub const fn as_str(self) -> &'a str {
         unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
     }

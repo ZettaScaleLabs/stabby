@@ -20,8 +20,11 @@ use core::ops::{Deref, DerefMut};
 /// An ABI stable equivalent of `&'a [T]`
 #[stabby::stabby]
 pub struct Slice<'a, T: 'a> {
+    /// The start of the slice.
     pub start: core::ptr::NonNull<T>,
+    /// The length of the slice.
     pub len: usize,
+    /// Ensures the slice has correct lifetime and variance.
     pub marker: core::marker::PhantomData<&'a ()>,
 }
 unsafe impl<'a, T: 'a + Sync> Send for Slice<'a, T> {}
@@ -34,6 +37,7 @@ impl<'a, T: 'a> Clone for Slice<'a, T> {
 impl<'a, T: 'a> Copy for Slice<'a, T> {}
 
 impl<'a, T: 'a> Slice<'a, T> {
+    /// Convert `&[T]` to its ABI-stable equivalent.
     pub const fn new(value: &'a [T]) -> Self {
         Self {
             start: unsafe { core::ptr::NonNull::new_unchecked(value.as_ptr() as *mut T) },
@@ -41,6 +45,7 @@ impl<'a, T: 'a> Slice<'a, T> {
             marker: core::marker::PhantomData,
         }
     }
+    /// Obtain `&[T]` from its ABI-stable equivalent.
     pub const fn as_slice(self) -> &'a [T] {
         unsafe { core::slice::from_raw_parts(self.start.as_ptr(), self.len) }
     }
@@ -108,8 +113,11 @@ where
 /// An ABI stable equivalent of `&'a mut T`
 #[stabby::stabby]
 pub struct SliceMut<'a, T: 'a> {
+    /// The start of the slice.
     pub start: core::ptr::NonNull<T>,
+    /// The length of the slice.
     pub len: usize,
+    /// Ensures the slice has correct lifetime and variance.
     pub marker: core::marker::PhantomData<&'a mut ()>,
 }
 unsafe impl<'a, T: 'a + Sync> Send for SliceMut<'a, T> {}

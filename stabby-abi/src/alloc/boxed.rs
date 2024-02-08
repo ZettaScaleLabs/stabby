@@ -218,15 +218,19 @@ pub struct BoxedSlice<T, Alloc: IAlloc = super::DefaultAllocator> {
     pub(crate) alloc: Alloc,
 }
 impl<T, Alloc: IAlloc> BoxedSlice<T, Alloc> {
+    /// The number of elements in the boxed slice.
     pub const fn len(&self) -> usize {
         ptr_diff(self.slice.end, self.slice.start.ptr)
     }
+    /// Returns `true` if the slice is empty.
     pub const fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    /// Cast into a standard slice.
     pub fn as_slice(&self) -> &[T] {
         unsafe { core::slice::from_raw_parts(self.slice.start.as_ptr(), self.len()) }
     }
+    /// Cast into a standard mutable slice.
     pub fn as_slice_mut(&mut self) -> &mut [T] {
         unsafe { core::slice::from_raw_parts_mut(self.slice.start.as_ptr(), self.len()) }
     }

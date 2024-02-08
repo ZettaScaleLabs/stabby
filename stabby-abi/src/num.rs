@@ -9,6 +9,7 @@ macro_rules! define_non_max {
             inner: $NonZeroU8,
         }
         impl $NonMaxU8 {
+            /// Constructs `Self`, returning `None` if `n == MAX`
             pub const fn new(n: $u8) -> Option<Self> {
                 match <$NonZeroU8>::new(!n) {
                     Some(n) => Some(Self { inner: n }),
@@ -24,6 +25,7 @@ macro_rules! define_non_max {
                     inner: <$NonZeroU8>::new_unchecked(!n),
                 }
             }
+            /// Returns the inner value.
             pub const fn get(self) -> $u8 {
                 !self.inner.get()
             }
@@ -61,12 +63,12 @@ macro_rules! define_non_max {
             type UnusedBits = <$NonZeroU8 as crate::IStable>::UnusedBits;
             type HasExactlyOneNiche = <$NonZeroU8 as crate::IStable>::HasExactlyOneNiche;
             type ContainsIndirections = <$NonZeroU8 as crate::IStable>::ContainsIndirections;
-            const ID: u64 = $crate::istable::gen_id(Self::REPORT);
+            const ID: u64 = $crate::report::gen_id(Self::REPORT);
             const REPORT: &'static $crate::report::TypeReport = &$crate::report::TypeReport {
                 name: $crate::str::Str::new(stringify!($NonMaxU8)),
                 module: $crate::str::Str::new(core::module_path!()),
                 fields: $crate::StableLike::new(None),
-                last_break: $crate::report::Version::NEVER,
+                version: 0,
                 tyty: $crate::report::TyTy::Struct,
             };
         }
@@ -83,6 +85,7 @@ macro_rules! define_non_x {
             inner: $NonZeroU8,
         }
         impl<const FORBIDDEN: $u8> $NonMaxU8<{ FORBIDDEN }> {
+            /// Construct `Self`, returning `None` if `n` is the `FORBIDDEN` value.
             pub const fn new(n: $u8) -> Option<Self> {
                 match <$NonZeroU8>::new(n.wrapping_sub(FORBIDDEN)) {
                     Some(n) => Some(Self { inner: n }),
@@ -98,6 +101,7 @@ macro_rules! define_non_x {
                     inner: <$NonZeroU8>::new_unchecked(n.wrapping_sub(FORBIDDEN)),
                 }
             }
+            /// Get the inner value.
             pub const fn get(self) -> $u8 {
                 self.inner.get().wrapping_add(FORBIDDEN)
             }
@@ -135,12 +139,12 @@ macro_rules! define_non_x {
             type UnusedBits = <$NonZeroU8 as crate::IStable>::UnusedBits;
             type HasExactlyOneNiche = <$NonZeroU8 as crate::IStable>::HasExactlyOneNiche;
             type ContainsIndirections = <$NonZeroU8 as crate::IStable>::ContainsIndirections;
-            const ID: u64 = $crate::istable::gen_id(Self::REPORT);
+            const ID: u64 = $crate::report::gen_id(Self::REPORT);
             const REPORT: &'static $crate::report::TypeReport = &$crate::report::TypeReport {
                 name: $crate::str::Str::new(stringify!($NonMaxU8)),
                 module: $crate::str::Str::new(core::module_path!()),
                 fields: $crate::StableLike::new(None),
-                last_break: $crate::report::Version::NEVER,
+                version: 0,
                 tyty: $crate::report::TyTy::Struct,
             };
         }

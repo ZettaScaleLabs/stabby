@@ -2,11 +2,19 @@ use super::vec::Vec;
 use crate::alloc::{AllocationError, DefaultAllocator, IAlloc};
 use crate::num::NonMaxUsize;
 use crate::{IDiscriminantProvider, IStable};
-#[crate::stabby]
-pub struct Single<T, Alloc> {
-    value: T,
-    alloc: Alloc,
+mod seal {
+    #[crate::stabby]
+    pub struct Single<T, Alloc> {
+        pub value: T,
+        pub alloc: Alloc,
+    }
 }
+pub(crate) use seal::*;
+/// A vector that doesn't need to allocate for its first value.
+///
+/// Once a second value is pushed, or if greater capacity is reserved,
+/// the allocated vector will be used regardless of how the vector's
+/// number of elements evolves.
 #[crate::stabby]
 pub struct SingleOrVec<T: IStable, Alloc: IAlloc + IStable = DefaultAllocator>
 where
@@ -82,11 +90,13 @@ where
     {
         Self::try_with_capacity_in(capacity, Alloc::default())
     }
+    /// Returns the number of elements in the vector.
     pub fn len(&self) -> usize {
         self.inner.match_ref(|_| 1, |vec| vec.len())
     }
+    /// Returns `true` if the vector is empty.
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.inner.match_ref(|_| false, |vec| vec.is_empty())
     }
     /// Adds `value` at the end of `self`.
     /// # Panics
@@ -222,12 +232,14 @@ where
             |vec| vec.truncate(len),
         )
     }
+    /// Returns a slice of the elements in the vector.
     pub fn as_slice(&self) -> &[T] {
         self.inner.match_ref(
             |value| core::slice::from_ref(&value.value),
             |vec| vec.as_slice(),
         )
     }
+    /// Returns a mutable slice of the elements in the vector.
     pub fn as_slice_mut(&mut self) -> &mut [T] {
         self.inner.match_mut(
             |value| core::slice::from_mut(&mut value.value),

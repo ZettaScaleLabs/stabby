@@ -17,8 +17,10 @@ use core::{marker::PhantomData, ptr::NonNull, sync::atomic::AtomicUsize};
 use self::vec::ptr_diff;
 
 #[cfg(feature = "libc")]
+/// A libc malloc based implementation of the [`IAlloc`] API
 pub mod libc_alloc;
 
+/// A generic allocation error.
 #[crate::stabby]
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct AllocationError();
@@ -30,22 +32,30 @@ impl core::fmt::Display for AllocationError {
 #[cfg(feature = "std")]
 impl std::error::Error for AllocationError {}
 
+/// [`alloc::boxed`], but ABI-stable.
 pub mod boxed;
+/// A vector that stores a single element on the stack until allocation is necessary.
 pub mod single_or_vec;
+/// [`alloc::string`], but ABI-stable
 pub mod string;
+/// [`alloc::sync`], but ABI-stable
 pub mod sync;
+/// [`alloc::vec`], but ABI-stable
 pub mod vec;
 
+/// The default allocator: libc malloc based if the libc feature is enabled, or unavailable otherwise.
 #[cfg(feature = "libc")]
 pub type DefaultAllocator = libc_alloc::LibcAlloc;
 #[cfg(not(feature = "libc"))]
-pub type DefaultAllocator = core::convert::Intry;
+pub type DefaultAllocator = core::convert::Infallible;
 
 #[crate::stabby]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// ABI-stable equivalent of std::mem::Layout
 pub struct Layout {
+    /// The expected size of the allocation.
     pub size: usize,
+    /// The expected alignment of the allocation.
     pub align: usize,
 }
 impl Layout {
@@ -78,8 +88,12 @@ impl Layout {
             self.size -= sizemodalign;
         }
         self.size += other.size;
+        if other.align > self.align {
+            self.align = other.align;
+        }
         self
     }
+    /// Returns the first pointer where `output >= ptr` such that `output % self.align == 0`.
     #[inline]
     pub fn next_matching<T>(self, ptr: *mut T) -> *mut T {
         fn next_matching(align: usize, ptr: *mut u8) -> *mut u8 {
@@ -190,12 +204,17 @@ impl IAlloc for core::convert::Infallible {
 /// This allows reuse of allocations when converting between container types.
 #[crate::stabby]
 pub struct AllocPrefix<Alloc> {
+    /// The strong count for reference counted types.
     pub strong: core::sync::atomic::AtomicUsize,
+    /// The weak count for reference counted types.
     pub weak: core::sync::atomic::AtomicUsize,
+    /// A slot to store a vector's capacity when it's turned into a boxed/arced slice.
     pub capacity: core::sync::atomic::AtomicUsize,
+    /// A slot for the allocator.
     pub alloc: Alloc,
 }
 impl<Alloc> AllocPrefix<Alloc> {
+    /// The offset between the prefix and a field of type `T`.
     pub const fn skip_to<T>() -> usize {
         let mut size = core::mem::size_of::<Self>();
         let align = core::mem::align_of::<T>();
@@ -213,7 +232,9 @@ impl<Alloc> AllocPrefix<Alloc> {
 #[crate::stabby]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AllocPtr<T, Alloc> {
+    /// The pointer to the data.
     pub ptr: NonNull<T>,
+    /// Remember the allocator's type.
     pub marker: PhantomData<Alloc>,
 }
 impl<T, Alloc> Copy for AllocPtr<T, Alloc> {}
@@ -337,13 +358,17 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
 #[crate::stabby]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AllocSlice<T, Alloc> {
+    /// The start of the slice.
     pub start: AllocPtr<T, Alloc>,
+    /// The end of the slice (exclusive).
     pub end: NonNull<T>,
 }
 impl<T, Alloc> AllocSlice<T, Alloc> {
+    /// Returns the number of elements in the slice.
     pub const fn len(&self) -> usize {
         ptr_diff(self.end, self.start.ptr)
     }
+    /// Returns `true` if the slice is empty.
     pub const fn is_empty(&self) -> bool {
         self.len() == 0
     }

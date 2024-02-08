@@ -1,9 +1,13 @@
 use crate::{vtable::HasDropVt, IDiscriminantProvider, IPtrMut, IPtrOwned};
 
+/// [`core::iter::Iterator`], but ABI-stable.
 #[crate::stabby]
 pub trait Iterator {
+    /// The type of the elements of the iterator.
     type Item: IDiscriminantProvider<()>;
+    /// Returns the next element in the iterator if it exists.
     extern "C" fn next(&mut self) -> crate::Option<Self::Item>;
+    /// See [`core::iter::Iterator::size_hint`]
     extern "C" fn size_hint(&self) -> crate::Tuple<usize, crate::Option<usize>>;
 }
 

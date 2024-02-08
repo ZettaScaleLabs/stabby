@@ -59,10 +59,10 @@ unsafe impl<Layout: IStable> IStable for CompilerVersion_{snake_version}<Layout>
 			ty: <Layout as crate::abi::IStable>::REPORT,
 			next_field: crate::abi::StableLike::new(None),
 		}})),
-		last_break: crate::abi::report::Version::NEVER,
+		version: 0,
 		tyty: crate::abi::report::TyTy::Struct,
 	}};
-	const ID: u64 = crate::abi::istable::gen_id(Self::REPORT);
+	const ID: u64 = crate::abi::report::gen_id(Self::REPORT);
 }}
 "#
         )

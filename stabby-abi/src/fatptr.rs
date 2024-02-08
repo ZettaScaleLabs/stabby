@@ -47,6 +47,7 @@ pub trait IPtrOwned: IPtr {
 }
 /// Provides Clone support for smart pointers that allow it.
 pub trait IPtrClone: IPtrOwned {
+    /// Clone the pointer.
     fn clone(this: &Self) -> Self;
 }
 impl<'a, T> IPtr for &'a T {
@@ -68,9 +69,13 @@ impl<T> IPtrOwned for &mut T {
     fn drop(_: &mut core::mem::ManuallyDrop<Self>, _: unsafe extern "C" fn(&mut ())) {}
 }
 
+/// Used to turn a pointer into a dynamic pointer.
 pub trait IntoDyn {
+    /// A pointer type with type information discarded.
     type Anonymized;
+    /// The original pointee.
     type Target;
+    /// Drop the type information from the pointer.
     fn anonimize(self) -> Self::Anonymized;
 }
 impl<'a, T> IntoDyn for &'a T {
@@ -98,9 +103,11 @@ pub struct DynRef<'a, Vt: 'static> {
 }
 
 impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
+    /// Access the data pointer.
     pub const fn ptr(&self) -> &() {
         self.ptr
     }
+    /// Access the vtable.
     pub const fn vtable(&self) -> &Vt {
         self.vtable
     }
@@ -153,6 +160,7 @@ pub struct Dyn<'a, P: IPtrOwned + 'a, Vt: HasDropVt + 'static> {
 
 /// Allows casting a `dyn A + B` into `dyn A`.
 pub trait IntoSuperTrait<Super> {
+    /// Cast `dyn A + B` into `dyn A`.
     fn into_super(this: Self) -> Super;
 }
 macro_rules! impl_super {
@@ -200,15 +208,19 @@ impl<'a, P: IPtrOwned + IPtrClone, Vt: HasDropVt + 'a> Clone for Dyn<'a, P, Vt> 
     }
 }
 impl<'a, P: IPtrOwned, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
+    /// Access the data pointer immutably.
     pub fn ptr(&self) -> &P {
         &self.ptr
     }
+    /// Access the data pointer mutably.
     pub fn ptr_mut(&mut self) -> &mut P {
         &mut self.ptr
     }
+    /// Access the vtable.
     pub const fn vtable(&self) -> &'a Vt {
         self.vtable
     }
+    /// Borrow into an ABI-stable `&dyn Traits`
     pub fn as_ref(&self) -> DynRef<'_, Vt> {
         DynRef {
             ptr: unsafe { self.ptr.as_ref() },
@@ -216,6 +228,7 @@ impl<'a, P: IPtrOwned, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
             unsend: core::marker::PhantomData,
         }
     }
+    /// Borrow into an ABI-stable `&mut dyn Traits`
     pub fn as_mut(&mut self) -> Dyn<&mut (), Vt>
     where
         P: IPtrMut,
@@ -226,6 +239,7 @@ impl<'a, P: IPtrOwned, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
             unsend: core::marker::PhantomData,
         }
     }
+    /// Attempt to borrow into an ABI-stable `&mut dyn Traits`
     pub fn try_as_mut(&mut self) -> Option<Dyn<&mut (), Vt>>
     where
         P: IPtrTryAsMut,

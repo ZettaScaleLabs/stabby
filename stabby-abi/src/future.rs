@@ -20,14 +20,23 @@ use crate::vtable::HasDropVt;
 use crate::{IPtrMut, IPtrOwned, IStable};
 
 pub use stable_waker::StableWaker;
-#[cfg(feature = "unsafe_wakers")]
+#[cfg(unsafe_wakers = "true")]
 mod stable_waker {
     use core::task::Waker;
 
     use crate::StableLike;
+    /// A waker that promises to be ABI stable.
+    ///
+    /// With the `unsafe_wakers` feature enabled, this is actually a lie: the waker is not guaranteed to
+    /// be ABI-stable! However, since building ABI-stable wakers that are compatible with Rust's wakers is
+    /// costly in terms of runtime, you might want to experiment with unsafe wakers, to bench the cost of
+    /// stable wakers if nothing else.
     #[crate::stabby]
     pub struct StableWaker<'a>(StableLike<&'a Waker, &'a ()>);
     impl StableWaker<'_> {
+        /// Exposes `self` as a [`core::task::Waker`], letting you use it to run standard futures.
+        ///
+        /// You generally shouldn't need to do this manually.
         pub fn with_waker<'a, F: FnOnce(&'a Waker) -> U, U>(&'a self, f: F) -> U {
             f(unsafe { self.0.as_ref_unchecked() })
         }
@@ -38,7 +47,7 @@ mod stable_waker {
         }
     }
 }
-#[cfg(not(feature = "unsafe_wakers"))]
+#[cfg(any(not(unsafe_wakers), unsafe_wakers = "false"))]
 mod stable_waker {
     use core::{
         mem::ManuallyDrop,
@@ -47,55 +56,65 @@ mod stable_waker {
     };
 
     use crate::alloc::{sync::Arc, AllocPtr, IAlloc};
-
     use crate::StableLike;
-    #[crate::stabby]
-    pub struct Tuple2<A, B>(A, B);
-    #[crate::stabby]
-    pub struct StableWakerInner {
-        waker: StableLike<ManuallyDrop<Waker>, Tuple2<*const (), &'static ()>>,
-        wake_by_ref: StableLike<for<'b> unsafe extern "C" fn(&'b Waker), &'static ()>,
-        drop: StableLike<unsafe extern "C" fn(&mut ManuallyDrop<Waker>), &'static ()>,
-    }
-    unsafe impl Send for StableWakerInner {}
-    unsafe impl Sync for StableWakerInner {}
-    impl Drop for StableWakerInner {
-        fn drop(&mut self) {
-            unsafe { (self.drop.as_mut_unchecked())(self.waker.as_mut_unchecked()) }
+
+    mod seal {
+        use super::*;
+        use crate::Tuple as Tuple2;
+        #[crate::stabby]
+        pub struct StableWakerInner {
+            pub waker: StableLike<ManuallyDrop<Waker>, Tuple2<*const (), &'static ()>>,
+            pub wake_by_ref: StableLike<for<'b> unsafe extern "C" fn(&'b Waker), &'static ()>,
+            pub drop: StableLike<unsafe extern "C" fn(&mut ManuallyDrop<Waker>), &'static ()>,
+        }
+        unsafe impl Send for StableWakerInner {}
+        unsafe impl Sync for StableWakerInner {}
+        impl Drop for StableWakerInner {
+            fn drop(&mut self) {
+                unsafe { (self.drop.as_mut_unchecked())(self.waker.as_mut_unchecked()) }
+            }
+        }
+        #[crate::stabby]
+        pub struct SharedStableWaker<Alloc: IAlloc>(pub Arc<StableWakerInner, Alloc>);
+        impl<Alloc: IAlloc> SharedStableWaker<Alloc> {
+            unsafe fn clone(this: *const ()) -> RawWaker {
+                Arc::<_, Alloc>::increment_strong_count(this);
+                RawWaker::new(this, &Self::VTABLE)
+            }
+            unsafe fn drop(this: *const ()) {
+                let this = AllocPtr {
+                    ptr: NonNull::new(this as *mut _).unwrap(),
+                    marker: core::marker::PhantomData,
+                };
+                let this = Arc::from_raw(this);
+                Self(this);
+            }
+            unsafe fn wake(this: *const ()) {
+                Self::wake_by_ref(this);
+                Self::drop(this);
+            }
+            unsafe fn wake_by_ref(this: *const ()) {
+                let this = unsafe { &*(this as *const StableWakerInner) };
+                (this.wake_by_ref.as_ref_unchecked())(this.waker.as_ref_unchecked())
+            }
+            const VTABLE: RawWakerVTable =
+                RawWakerVTable::new(Self::clone, Self::wake, Self::wake_by_ref, Self::drop);
+            pub fn into_raw_waker(self) -> RawWaker {
+                RawWaker::new(
+                    Arc::into_raw(self.0).ptr.as_ptr() as *const _,
+                    &Self::VTABLE,
+                )
+            }
         }
     }
-    #[crate::stabby]
-    pub struct SharedStableWaker<Alloc: IAlloc>(Arc<StableWakerInner, Alloc>);
-    impl<Alloc: IAlloc> SharedStableWaker<Alloc> {
-        unsafe fn clone(this: *const ()) -> RawWaker {
-            Arc::<_, Alloc>::increment_strong_count(this);
-            RawWaker::new(this, &Self::VTABLE)
-        }
-        unsafe fn drop(this: *const ()) {
-            let this = AllocPtr {
-                ptr: NonNull::new(this as *mut _).unwrap(),
-                marker: core::marker::PhantomData,
-            };
-            let this = Arc::from_raw(this);
-            Self(this);
-        }
-        unsafe fn wake(this: *const ()) {
-            Self::wake_by_ref(this);
-            Self::drop(this);
-        }
-        unsafe fn wake_by_ref(this: *const ()) {
-            let this = unsafe { &*(this as *const StableWakerInner) };
-            (this.wake_by_ref.as_ref_unchecked())(this.waker.as_ref_unchecked())
-        }
-        const VTABLE: RawWakerVTable =
-            RawWakerVTable::new(Self::clone, Self::wake, Self::wake_by_ref, Self::drop);
-        fn into_raw_waker(self) -> RawWaker {
-            RawWaker::new(
-                Arc::into_raw(self.0).ptr.as_ptr() as *const _,
-                &Self::VTABLE,
-            )
-        }
-    }
+    use seal::*;
+    /// An ABI-stable waker.
+    ///
+    /// This is done by wrapping a provided [`core::task::Waker`] with calling convention-shims.
+    ///
+    /// While this is the only way to guarantee ABI-stability when interacting with futures, this does add
+    /// a layer of indirection, and cloning this waker will cause an allocation. To bench the performance cost
+    /// of this wrapper and decide if you want to risk ABI-unstability on wakers, you may use `RUST_FLAGS='--cfg unsafe_wakers="true"'`, which will turn [`StableWaker`] into a newtype of [`core::task::Waker`].
     #[crate::stabby]
     pub struct StableWaker<'a, Alloc: IAlloc = crate::alloc::DefaultAllocator> {
         waker: StableLike<&'a Waker, &'a ()>,
@@ -152,9 +171,12 @@ mod stable_waker {
     }
 }
 
+/// [`core::future::Future`], but ABI-stable.
 #[crate::stabby]
 pub trait Future {
+    /// The output type of the future.
     type Output: IDiscriminantProvider<()>;
+    /// Equivalent to [`core::fututre::Future::poll`].
     extern "C" fn poll<'a>(&'a mut self, waker: StableWaker<'a>) -> Option<Self::Output>;
 }
 impl<T: core::future::Future> Future for T
@@ -300,13 +322,17 @@ where
     type Vt<T> = <dyn Future<Output = Output> as crate::vtable::CompoundVt>::Vt<T>;
 }
 
+/// A future that may have already been resolved from the moment it was constructed.
 #[crate::stabby]
 pub enum MaybeResolved<T, F>
 where
     F: core::future::Future<Output = T>,
 {
+    /// The future was resolved from its construction.
     Resolved(T),
+    /// The future has been consumed already.
     Empty,
+    /// The future is yet to be resolved.
     Pending(F),
 }
 impl<T: IStable + Unpin, F: IStable + core::future::Future<Output = T> + Unpin> core::future::Future

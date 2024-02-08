@@ -29,20 +29,27 @@ impl<Source> super::AccessAs for Source {
     }
 }
 
+/// Allows exposing an immutable reference to a temporary conversion.
 pub trait IGuardRef<T: ?Sized> {
+    /// The type of the guard which will clean up the temporary.
     type Guard<'a>: Deref<Target = T>
     where
         Self: 'a;
+    /// Construct the temporary and guard it through an immutable reference.
     fn guard_ref_inner(&self) -> Self::Guard<'_>;
 }
 
+/// Allows exposing an mutable reference to a temporary conversion.
 pub trait IGuardMut<T: ?Sized>: IGuardRef<T> {
+    /// The type of the guard which will clean up the temporary after applying its changes to the original.
     type GuardMut<'a>: DerefMut<Target = T>
     where
         Self: 'a;
+    /// Construct the temporary and guard it through a mutable reference.
     fn guard_mut_inner(&mut self) -> Self::GuardMut<'_>;
 }
 
+/// A guard exposing an immutable reference to `T` as an immutable reference to `As`
 pub struct RefAs<'a, T, As> {
     source: core::marker::PhantomData<&'a T>,
     target: core::mem::ManuallyDrop<As>,
@@ -64,6 +71,9 @@ impl<T: Into<As>, As: Into<T>> IGuardRef<As> for T {
     }
 }
 
+/// A guard exposing an mutable reference to `T` as an mutable reference to `As`
+///
+/// Failing to destroy this guard will cause `T` not to receive any of the changes applied to the guard.
 pub struct MutAs<'a, T, As: Into<T>> {
     source: &'a mut T,
     target: core::mem::ManuallyDrop<As>,

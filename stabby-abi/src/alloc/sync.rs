@@ -26,6 +26,7 @@ use super::{
     AllocPtr, AllocSlice, IAlloc, Layout,
 };
 
+/// [`alloc::sync::Arc`], but ABI-stable.
 #[crate::stabby]
 pub struct Arc<T, Alloc: IAlloc = super::DefaultAllocator> {
     ptr: AllocPtr<T, Alloc>,
@@ -196,6 +197,7 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     pub fn weak_count(this: &Self) -> usize {
         unsafe { this.ptr.prefix() }.weak.load(Ordering::Relaxed)
     }
+    /// Increments the weak count, returning its previous value.
     pub fn increment_weak_count(this: &Self) -> usize {
         unsafe { this.ptr.prefix() }
             .weak
@@ -261,6 +263,7 @@ impl<T, Alloc: IAlloc> core::ops::Deref for Arc<T, Alloc> {
     }
 }
 
+/// [`alloc::sync::Weak`], but ABI-stable.
 #[crate::stabby]
 pub struct Weak<T, Alloc: IAlloc = super::DefaultAllocator> {
     ptr: AllocPtr<T, Alloc>,
@@ -331,41 +334,51 @@ impl<T, Alloc: IAlloc> Drop for Weak<T, Alloc> {
     }
 }
 
+/// A strong reference to a fixed size slice of elements.
+///
+/// Equivalent to `alloc::sync::Arc<[T]>`
 #[crate::stabby]
 pub struct ArcSlice<T, Alloc: IAlloc = super::DefaultAllocator> {
     pub(crate) inner: AllocSlice<T, Alloc>,
 }
 
 impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
+    /// Returns the number of elements in the slice.
     pub const fn len(&self) -> usize {
         ptr_diff(self.inner.end, self.inner.start.ptr)
     }
+    /// Returns true if the slice is empty.
     pub const fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    /// Returns a borrow to the slice.
     pub fn as_slice(&self) -> &[T] {
         let start = self.inner.start;
         unsafe { core::slice::from_raw_parts(start.as_ptr(), self.len()) }
     }
+    /// Returns a mutable borrow to the slice if no other references to it may exist.
+    pub fn as_slice_mut(&mut self) -> Option<&mut [T]> {
+        (ArcSlice::strong_count(self) == 1 && ArcSlice::weak_count(self) == 1)
+            .then(|| unsafe { self.as_slice_mut_unchecked() })
+    }
+    /// Returns a mutable borrow to the slice.
     /// # Safety
     /// This can easily create aliased mutable references, which would be undefined behaviour.
     pub unsafe fn as_slice_mut_unchecked(&mut self) -> &mut [T] {
         let start = self.inner.start;
         unsafe { core::slice::from_raw_parts_mut(start.as_ptr(), self.len()) }
     }
+    /// Returns the strong count to the slice.
     pub fn strong_count(this: &Self) -> usize {
         unsafe { this.inner.start.prefix().strong.load(Ordering::Relaxed) }
     }
+    /// Returns the weak count to the slice.
     pub fn weak_count(this: &Self) -> usize {
         unsafe { this.inner.start.prefix().weak.load(Ordering::Relaxed) }
     }
     /// Whether or not `this` is the sole owner of its data, including weak owners.
     pub fn is_unique(this: &Self) -> bool {
         Self::strong_count(this) == 1 && Self::weak_count(this) == 1
-    }
-    pub fn as_slice_mut(&mut self) -> Option<&mut [T]> {
-        (ArcSlice::strong_count(self) == 1 && ArcSlice::weak_count(self) == 1)
-            .then(|| unsafe { self.as_slice_mut_unchecked() })
     }
 }
 impl<T, Alloc: IAlloc> Clone for ArcSlice<T, Alloc> {
@@ -523,12 +536,15 @@ impl<'a, T, Alloc: IAlloc> IntoIterator for &'a ArcSlice<T, Alloc> {
         self.as_slice().iter()
     }
 }
+
+/// A weak reference counted slice.
 #[crate::stabby]
 pub struct WeakSlice<T, Alloc: IAlloc = super::DefaultAllocator> {
     pub(crate) inner: AllocSlice<T, Alloc>,
 }
 
 impl<T, Alloc: IAlloc> WeakSlice<T, Alloc> {
+    /// Return a strong reference to the slice if it hasn't been destroyed yet.
     pub fn upgrade(&self) -> Option<ArcSlice<T, Alloc>> {
         let strong = &unsafe { self.inner.start.prefix() }.strong;
         let count = strong.fetch_or(USIZE_TOP_BIT, Ordering::Acquire);
@@ -543,6 +559,25 @@ impl<T, Alloc: IAlloc> WeakSlice<T, Alloc> {
                 Some(ArcSlice { inner: self.inner })
             }
         }
+    }
+    /// For types that are [`Copy`], the slice actually remains valid even after all strong references
+    /// have been dropped as long as at least a weak reference lives on.
+    ///
+    /// If you're using this, there are probably design issues in your program...
+    pub fn force_upgrade(&self) -> ArcSlice<T, Alloc>
+    where
+        T: Copy,
+    {
+        let strong = &unsafe { self.inner.start.prefix() }.strong;
+        match strong.fetch_add(1, Ordering::Release) {
+            0 | USIZE_TOP_BIT => {
+                unsafe { self.inner.start.prefix() }
+                    .weak
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+            _ => {}
+        }
+        ArcSlice { inner: self.inner }
     }
 }
 impl<T, Alloc: IAlloc> Clone for WeakSlice<T, Alloc> {

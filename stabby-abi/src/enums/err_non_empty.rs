@@ -163,7 +163,7 @@ impl<
     type ErrShift = ErrOffset;
     type Discriminant = Not<<Array<Offset, V, Tail> as IntoValueIsErr>::ValueIsErr>;
     type NicheExporter = NicheExporter<End, UbIntersect, Saturator>;
-    type Debug = Self;
+    // type Debug = Self;
 }
 
 /// None of Err's forbidden values fit into Ok's unused bits, so branch on wherther
@@ -196,7 +196,7 @@ impl<
     type ErrShift = ErrOffset;
     type Discriminant = <Array<Offset, V, Tail> as IntoValueIsErr>::ValueIsErr;
     type NicheExporter = NicheExporter<End, UbIntersect, Saturator>;
-    type Debug = Self;
+    // type Debug = Self;
 }
 
 /// If neither Err nor Ok's unused bits can fit any of the other's forbidden value,
@@ -231,7 +231,7 @@ impl<
     >;
     type NicheExporter =
         NicheExporter<End, <Array<Offset, V, Tail> as IBitMask>::ExtractBit, Saturator>;
-    type Debug = Self;
+    // type Debug = Self;
 }
 /// If no niche was found, check if Err can still be shifted to the right by its alignment.
 impl<

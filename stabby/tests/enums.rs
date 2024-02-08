@@ -43,7 +43,7 @@ fn enums() {
             core::any::type_name::<<A as IDiscriminantProvider<B>>::Discriminant>(),
             <<A as IDiscriminantProvider<B>>::OkShift as typenum2::Unsigned>::USIZE,
             <<A as IDiscriminantProvider<B>>::ErrShift as typenum2::Unsigned>::USIZE,
-            core::any::type_name::<<A as IDiscriminantProvider<B>>::Debug>(),
+            0 // core::any::type_name::<<A as IDiscriminantProvider<B>>::Debug>(),
         );
         assert!(a.is_ok());
         let b: Result<_, _> = b.into();

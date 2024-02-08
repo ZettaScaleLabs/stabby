@@ -17,6 +17,7 @@
 use crate::enums::IDiscriminantProvider;
 use crate::IStable;
 
+/// A niche optimizing equivalent of [`core::option::Option`] that's ABI-stable regardless of the inner type's niches.
 #[crate::stabby]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Option<T: IStable + IDiscriminantProvider<()>> {
@@ -66,24 +67,30 @@ impl<T: IStable> Option<T>
 where
     T: IDiscriminantProvider<()>,
 {
+    /// Construct the `Some` variant.
     #[allow(non_snake_case)]
     pub fn Some(value: T) -> Self {
         Self {
             inner: crate::result::Result::Ok(value),
         }
     }
+    /// Construct the `None` variant.
     #[allow(non_snake_case)]
     pub fn None() -> Self {
         Self {
             inner: crate::result::Result::Err(()),
         }
     }
+    /// Returns a reference to the option's contents if they exist.
     pub fn as_ref(&self) -> core::option::Option<&T> {
         self.match_ref(Some, || None)
     }
+    /// Returns a mutable reference to the option's contents if they exist.
     pub fn as_mut(&mut self) -> core::option::Option<&mut T> {
         self.match_mut(Some, || None)
     }
+    /// Equivalent to `match &self`. If you need multiple branches to obtain mutable access or ownership
+    /// of a local, use [`Self::match_ref_ctx`] instead.
     pub fn match_ref<'a, U, FnSome: FnOnce(&'a T) -> U, FnNone: FnOnce() -> U>(
         &'a self,
         some: FnSome,
@@ -91,6 +98,7 @@ where
     ) -> U {
         self.inner.match_ref(some, |_| none())
     }
+    /// Equivalent to `match &self`.
     pub fn match_ref_ctx<'a, I, U, FnSome: FnOnce(I, &'a T) -> U, FnNone: FnOnce(I) -> U>(
         &'a self,
         ctx: I,
@@ -99,6 +107,8 @@ where
     ) -> U {
         self.inner.match_ref_ctx(ctx, some, move |ctx, _| none(ctx))
     }
+    /// Equivalent to `match &mut self`. If you need multiple branches to obtain mutable access or ownership
+    /// of a local, use [`Self::match_mut_ctx`] instead.
     pub fn match_mut<'a, U, FnSome: FnOnce(&'a mut T) -> U, FnNone: FnOnce() -> U>(
         &'a mut self,
         some: FnSome,
@@ -106,6 +116,7 @@ where
     ) -> U {
         self.inner.match_mut(some, |_| none())
     }
+    /// Equivalent to `match &mut self`.
     pub fn match_mut_ctx<'a, I, U, FnSome: FnOnce(I, &'a mut T) -> U, FnNone: FnOnce(I) -> U>(
         &'a mut self,
         ctx: I,
@@ -114,6 +125,8 @@ where
     ) -> U {
         self.inner.match_mut_ctx(ctx, some, move |ctx, _| none(ctx))
     }
+    /// Equivalent to `match self`. If you need multiple branches to obtain mutable access or ownership
+    /// of a local, use [`Self::match_owned_ctx`] instead.
     pub fn match_owned<U, FnSome: FnOnce(T) -> U, FnNone: FnOnce() -> U>(
         self,
         some: FnSome,
@@ -121,6 +134,7 @@ where
     ) -> U {
         self.inner.match_owned(some, |_| none())
     }
+    /// Equivalent to `match self`.
     pub fn match_owned_ctx<I, U, FnSome: FnOnce(I, T) -> U, FnNone: FnOnce(I) -> U>(
         self,
         ctx: I,
@@ -130,17 +144,20 @@ where
         self.inner
             .match_owned_ctx(ctx, some, move |ctx, _| none(ctx))
     }
+    /// Returns `true` if `self` contains a value.
     pub fn is_some(&self) -> bool {
         self.inner.is_ok()
     }
+    /// Returns `true` if `self` doesn't contain a value.
     pub fn is_none(&self) -> bool {
         !self.is_some()
     }
+    /// Unwraps the option, or runs `f` if no value was in it.
     pub fn unwrap_or_else<F: FnOnce() -> T>(self, f: F) -> T {
         self.match_owned(|x| x, f)
     }
     /// # Safety
-    /// May trigger Undefined Behaviour if called on an Err variant.
+    /// Calling this on `Self::None()` is UB.
     pub unsafe fn unwrap_unchecked(self) -> T {
         self.unwrap_or_else(|| core::hint::unreachable_unchecked())
     }

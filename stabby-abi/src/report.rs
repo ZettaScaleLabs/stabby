@@ -15,47 +15,23 @@
 use crate::{str::Str, StableLike};
 use sha2_const_stable::Sha256;
 
-#[crate::stabby]
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-pub struct Version {
-    pub major: u16,
-    pub minor: u16,
-    pub patch: u16,
-    pub dirty: bool,
-}
-impl Version {
-    pub const NEVER: Self = Self {
-        major: 0,
-        minor: 0,
-        patch: 0,
-        dirty: false,
-    };
-}
-impl core::fmt::Display for Version {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self {
-            major,
-            minor,
-            patch,
-            dirty,
-        } = self;
-        if *dirty {
-            write!(f, "*")?;
-        }
-        write!(f, "{major}.{minor}.{patch}")
-    }
-}
-
+/// A type
 type NextField = StableLike<Option<&'static FieldReport>, usize>;
 
+/// A report of a type's layout.
 #[crate::stabby]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct TypeReport {
+    /// The type's name.
     pub name: Str<'static>,
+    /// The type's parent module's path.
     pub module: Str<'static>,
+    /// The fields of this type.
     pub fields: NextField,
-    pub last_break: Version,
+    /// How the type was declared
     pub tyty: TyTy,
+    /// The version of the type's invariants.
+    pub version: u32,
 }
 
 impl core::fmt::Display for TypeReport {
@@ -63,11 +39,11 @@ impl core::fmt::Display for TypeReport {
         let Self {
             name,
             module,
-            last_break,
+            version,
             tyty,
             ..
         } = self;
-        write!(f, "{tyty:?} {module} :: {name} (last_break{last_break}) {{")?;
+        write!(f, "{tyty:?} {module} :: {name} (version{version}) {{")?;
         for FieldReport { name, ty, .. } in self.fields() {
             write!(f, "{name}: {ty}, ")?
         }
@@ -81,16 +57,17 @@ impl core::hash::Hash for TypeReport {
         for field in self.fields() {
             field.hash(state);
         }
-        self.last_break.hash(state);
+        self.version.hash(state);
         self.tyty.hash(state);
     }
 }
 
 impl TypeReport {
+    /// Whether or not two reports correspond to the same type, with the same layout and invariants.
     pub fn is_compatible(&self, other: &Self) -> bool {
         self.name == other.name
             && self.module == other.module
-            && self.last_break == other.last_break
+            && self.version == other.version
             && self.tyty == other.tyty
             && self
                 .fields()
@@ -99,20 +76,28 @@ impl TypeReport {
     }
 }
 
+/// How a type was declared.
 #[crate::stabby]
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum TyTy {
+    /// As a struct
     Struct,
+    /// As an enum (with which calling convention)
     Enum(Str<'static>),
+    /// As a union.
     Union,
 }
 
+/// A type's field.
 #[crate::stabby]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct FieldReport {
+    /// The field's name.
     pub name: Str<'static>,
+    /// The field;s type.
     pub ty: &'static TypeReport,
+    /// The next field in the [`TypeReport`]
     pub next_field: NextField,
 }
 impl core::hash::Hash for FieldReport {
@@ -123,13 +108,16 @@ impl core::hash::Hash for FieldReport {
 }
 
 impl TypeReport {
+    /// Returns an iterator over the type's fields.
     pub const fn fields(&self) -> Fields {
         Fields(self.fields.value)
     }
 }
+/// An iterator over a type's fields.
 #[crate::stabby]
 pub struct Fields(Option<&'static FieldReport>);
 impl Fields {
+    /// A `const` compatible alternative to [`Iterator::next`]
     pub const fn next_const(self) -> (Self, Option<&'static FieldReport>) {
         match self.0 {
             Some(field) => (Self(*field.next_field.as_ref()), Some(field)),

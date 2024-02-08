@@ -35,15 +35,19 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 					vtable::{HasDropVt, TransitiveDeref},
 					StableIf, StableLike,
 				};
+				/// [`core::ops::FnOnce`], but ABI-stable
 				pub trait #co<O #(, #argtys)* > {
+					/// Call the function
 					extern "C" fn call_once(self: #st::boxed::Box<Self> #(, #args: #argtys)*) -> O;
 				}
 				impl<O #(, #argtys)* , F: FnOnce(#(#argtys,)*) -> O> #co<O #(, #argtys)*> for F {
+					/// Call the function
 					extern "C" fn call_once(self: #st::boxed::Box<Self> #(, #args: #argtys)*) -> O {
 						self(#(#args,)*)
 					}
 				}
 
+				/// The v-table for [`core::ops::FnOnce`]
 				#[crate::stabby]
 				pub struct #covt<O #(, #argtys)* > {
 					call_once: StableIf<StableLike<unsafe extern "C" fn(#st::boxed::Box<()>  #(, #argtys)* ) -> O, &'static ()>, O>,
@@ -54,7 +58,9 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 						*self
 					}
 				}
+				/// The trait for calling [`core::ops::FnOnce`].
 				pub trait #cod<O #(, #argtys)* , N> {
+					/// Call the function
 					fn call_once(self #(, _: #argtys)* ) -> O;
 				}
 				impl<'a, O #(, #argtys)* , Vt: TransitiveDeref<#covt<O #(, #argtys)* >, N> + HasDropVt, N> #cod<O #(, #argtys)* , N>
@@ -82,15 +88,18 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 				}
 			}
 
-
 			#[cfg(feature = "alloc")]
 			#[crate::stabby]
+			/// [`core::ops::FnMut`], but ABI-stable
 			pub trait #cm<O #(, #argtys)* >: #co<O #(, #argtys)* > {
+				/// Call the function
 				extern "C" fn call_mut(&mut self #(, #args: #argtys)*) -> O;
 			}
 			#[cfg(not(feature = "alloc"))]
 			#[crate::stabby]
+			/// [`core::ops::FnMut`], but ABI-stable
 			pub trait #cm<O #(, #argtys)* > {
+				/// Call the function
 				extern "C" fn call_mut(&mut self #(, #args: #argtys)*) -> O;
 			}
 			impl<O #(, #argtys)* , F: FnMut(#(#argtys,)*) -> O> #cm<O #(, #argtys)*> for F {
@@ -101,8 +110,10 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 			impl<O #(, #argtys)* > crate::vtable::CompoundVt for dyn FnMut(#(#argtys, )*) -> O {
 				type Vt<T> = crate::vtable::VTable<#cmvt<O #(, #argtys)* >, T>;
 			}
+			/// [`core::ops::Fn`], but ABI-stable
 			#[crate::stabby]
 			pub trait #c<O #(, #argtys)* >: #cm<O #(, #argtys)* > {
+				/// Call the function
 				extern "C" fn call(&self #(, #args: #argtys)*) -> O;
 			}
 			impl<O #(, #argtys)* , F: Fn(#(#argtys,)*) -> O> #c<O #(, #argtys)*> for F {

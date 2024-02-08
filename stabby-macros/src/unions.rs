@@ -55,10 +55,10 @@ pub fn stabby(
                 name: #st::str::Str::new(#sident),
                 module: #st::str::Str::new(core::module_path!()),
                 fields: unsafe{#st::StableLike::new(#report)},
-                last_break: #st::report::Version::NEVER,
+                version: 0,
                 tyty: #st::report::TyTy::Struct,
             };
-            const ID: u64 = #st::istable::gen_id(Self::REPORT);
+            const ID: u64 = #st::report::gen_id(Self::REPORT);
         }
     }
 }

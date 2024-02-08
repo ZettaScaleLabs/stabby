@@ -17,7 +17,6 @@ use crate::report::TypeReport;
 use super::typenum2::*;
 use super::unsigned::{IBitBase, NonZero};
 use super::{FieldPair, Struct, Union};
-use sha2_const_stable::Sha256;
 use stabby_macros::tyeval;
 macro_rules! same_as {
     ($t: ty) => {
@@ -56,38 +55,18 @@ pub unsafe trait IStable: Sized {
     type ContainsIndirections: Bit;
     /// A compile-time generated report of the fields of the type, allowing for compatibility inspection.
     const REPORT: &'static TypeReport;
+    /// A stable (and ideally unique) identifier for the type. Often generated using [`crate::report::gen_id`], but can be manually set.
     const ID: u64;
+    /// Returns the size of the type.
     fn size() -> usize {
         let size = Self::Size::USIZE;
         let align = Self::Align::USIZE;
         size + ((align - (size % align)) % align)
     }
+    /// Returns the alignment of the type.
     fn align() -> usize {
         Self::Align::USIZE
     }
-}
-const fn hash_report(report: &TypeReport) -> Sha256 {
-    let mut hash = Sha256::new()
-        .update(report.module.as_str().as_bytes())
-        .update(report.name.as_str().as_bytes());
-    hash = match report.tyty {
-        crate::report::TyTy::Struct => hash.update(&[0]),
-        crate::report::TyTy::Union => hash.update(&[1]),
-        crate::report::TyTy::Enum(s) => hash.update(s.as_str().as_bytes()),
-    };
-    let mut fields = report.fields();
-    while let (new, Some(next)) = fields.next_const() {
-        fields = new;
-        hash = hash
-            .update(next.name.as_str().as_bytes())
-            .update(&hash_report(next.ty).finalize())
-    }
-    hash
-}
-pub const fn gen_id(report: &TypeReport) -> u64 {
-    let [hash @ .., _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _] =
-        hash_report(report).finalize();
-    u64::from_le_bytes(hash)
 }
 
 /// A static proof that a type is "Plain Old Data".
@@ -207,9 +186,11 @@ unsafe impl<
     primitive_report!("NicheExporter");
 }
 
+/// The terminator for type-fu lists.
 #[crate::stabby]
 #[derive(Default, Debug, Clone, Copy)]
 pub struct End;
+/// A type-fu linked list.
 pub struct Array<Offset: Unsigned, T, Rest>(core::marker::PhantomData<(Offset, T, Rest)>);
 impl<Offset: Unsigned, T, Rest> Default for Array<Offset, T, Rest> {
     fn default() -> Self {
@@ -217,16 +198,27 @@ impl<Offset: Unsigned, T, Rest> Default for Array<Offset, T, Rest> {
     }
 }
 
+/// A multi-byte bitmask.
 pub trait IBitMask {
+    /// Expose the bitmask at runtime.
     const TUPLE: Self::Tuple;
+    /// The type of the runtime-exposed mask.
     type Tuple: core::fmt::Debug;
+    /// `Self[O]`
     type ByteAt<O: Unsigned>: Unsigned;
+    /// `Self | T`
     type BitOr<T: IBitMask>: IBitMask;
+    /// Shift the bitmask by `O` bytes.
     type Shift<O: Unsigned>: IBitMask;
+    /// `Self & T`
     type BitAnd<T: IBitMask>: IBitMask;
+    /// Checks whether the mask is `FF` at index `O`
     type HasFreeByteAt<O: Unsigned>: Bit;
+    /// Remove the next bit that will be used as a determinant in enums.
     type ExtractBit: IBitMask;
+    /// Obtain the determinant's offset in bytes.
     type ExtractedBitByteOffset: Unsigned;
+    /// Obtain the determinant's mask.
     type ExtractedBitMask: Unsigned;
 }
 impl IBitMask for End {
@@ -266,17 +258,27 @@ impl<Offset: Unsigned, T: NonZero, Rest: IBitMask> IBitMask for Array<Offset, T,
     type ExtractedBitByteOffset = Offset;
     type ExtractedBitMask = T::TruncateAtRightmostOne;
 }
+/// A set of possibly multi-byte forbidden values.
 pub trait IForbiddenValues {
+    /// Shift all values in the set by `O` bytes
     type Shift<O: Unsigned>: IForbiddenValues;
+    /// `union(Self, T)`
     type Or<T: IForbiddenValues>: IForbiddenValues;
+    /// Extract a single forbidden value that fits within `Mask`
     type SelectFrom<Mask: IBitMask>: ISingleForbiddenValue;
+    /// Extract the first available forbidden value.
     type SelectOne: ISingleForbiddenValue;
 }
+/// A single multi-byte forbidden value.
 pub trait ISingleForbiddenValue {
+    /// Add a byte to the forbidden value.
     type Push<O: Unsigned, T>: ISingleForbiddenValue;
+    /// `Self == End ? T : Self`
     type Or<T: ISingleForbiddenValue>: ISingleForbiddenValue;
-    type Resolve: ISingleForbiddenValue;
+    /// `T == End ? Self : T`
     type And<T: ISingleForbiddenValue>: ISingleForbiddenValue;
+    /// Turns Saturators into End.
+    type Resolve: ISingleForbiddenValue;
 }
 impl IForbiddenValues for End {
     type Shift<O: Unsigned> = End;
@@ -320,9 +322,12 @@ impl<A: IForbiddenValues, B: IForbiddenValues> IForbiddenValues for Or<A, B> {
         <A::SelectFrom<Mask> as ISingleForbiddenValue>::Or<B::SelectFrom<Mask>>;
     type SelectOne = A::SelectOne;
 }
+/// The union of 2 sets.
 pub struct Or<A, B>(core::marker::PhantomData<(A, B)>);
+/// Whether or not the type is the end of a list.
 pub trait IsEnd {
-    type Output;
+    ///
+    type Output: Bit;
 }
 impl IsEnd for End {
     type Output = B1;
@@ -347,14 +352,22 @@ where
     type ContainsIndirections = <A::ContainsIndirections as Bit>::Or<B::ContainsIndirections>;
     primitive_report!("FP");
 }
+/// Runtime values for [`ISaturatingAdd`]
 pub enum SaturatingAddValue {
+    ///
     B0,
+    ///
     B1,
+    ///
     Saturator,
 }
+/// An addition that saturates at 2.
 pub trait ISaturatingAdd {
+    /// Runtime value.
     const VALUE: SaturatingAddValue;
+    /// sat_add(Self, 1)
     type SaturatingAddB1: ISaturatingAdd;
+    /// sat_add(Self, B)
     type SaturatingAdd<B: ISaturatingAdd>: ISaturatingAdd;
 }
 impl ISaturatingAdd for B0 {
@@ -372,9 +385,12 @@ impl ISaturatingAdd for Saturator {
     type SaturatingAddB1 = Saturator;
     type SaturatingAdd<B: ISaturatingAdd> = Saturator;
 }
+/// An Exception-like value that indicates a computation can never succeed.
 pub struct Saturator;
 
+/// Whether or not a value is included in a set.
 pub trait Includes<SubSet> {
+    ///
     type Output;
 }
 impl<T> Includes<End> for T {
@@ -415,10 +431,14 @@ impl<O1: Unsigned, T1, Tail: IBitMask> Arrayify for ((O1, T1), Tail, B0, B0) {
 impl<Tail, T, U> Arrayify for (End, Tail, T, U) {
     type Output = End;
 }
+///
 pub trait Arrayify {
+    ///
     type Output;
 }
+///
 pub trait IncludesComputer<SubSet> {
+    ///
     type Output;
 }
 impl<O1: Unsigned, T1, O2: Unsigned, T2, R2: IBitMask> IncludesComputer<(O1, T1)>
@@ -475,6 +495,7 @@ where
     same_as!(Struct<(Union<A, B>, B1)>);
 }
 
+///
 pub struct AlignedAfter<T, Start: Unsigned>(core::marker::PhantomData<(T, Start)>);
 
 // AlignedAfter a ZST

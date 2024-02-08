@@ -158,10 +158,10 @@ macro_rules! check {
 
 macro_rules! nz_holes {
     ($t: ty) => {
-        Array<$t, NonZeroHole, End>
+        Array<$t, U0, End>
     };
     ($t: ty, $($tt: tt)*) => {
-        Array<$t, NonZeroHole, nz_holes!($($tt)*)>
+        Array<$t, U0, nz_holes!($($tt)*)>
     };
 }
 unsafe impl IStable for () {
@@ -584,7 +584,7 @@ where
     type ContainsIndirections = T::ContainsIndirections;
     const REPORT: &'static report::TypeReport =
         <HasExactlyOneNiche<core::option::Option<T>, T::HasExactlyOneNiche> as IStable>::REPORT;
-    const ID: u64 = crate::istable::gen_id(Self::REPORT);
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 unsafe impl<T: IStable> IStable for HasExactlyOneNiche<core::option::Option<T>, B1> {
     type Size = T::Size;
@@ -601,10 +601,10 @@ unsafe impl<T: IStable> IStable for HasExactlyOneNiche<core::option::Option<T>, 
             ty: T::REPORT,
             next_field: StableLike::new(None),
         })),
-        last_break: report::Version::NEVER,
+        version: 0,
         tyty: report::TyTy::Enum(Str::new("rust")),
     };
-    const ID: u64 = crate::istable::gen_id(Self::REPORT);
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 unsafe impl<Ok: IStable, Err: IStable> IStable for core::result::Result<Ok, Err>
 where
@@ -614,7 +614,7 @@ where
     same_as!(HasExactlyOneNiche<Self, (Ok::HasExactlyOneNiche, Err::Size)>);
     const REPORT: &'static report::TypeReport =
         <HasExactlyOneNiche<Self, (Ok::HasExactlyOneNiche, Err::Size)> as IStable>::REPORT;
-    const ID: u64 = crate::istable::gen_id(Self::REPORT);
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 unsafe impl<Ok: IStable, Err: IStable> IStable
     for HasExactlyOneNiche<core::result::Result<Ok, Err>, (B1, U0)>
@@ -633,10 +633,10 @@ unsafe impl<Ok: IStable, Err: IStable> IStable
             ty: Ok::REPORT,
             next_field: StableLike::new(None),
         })),
-        last_break: report::Version::NEVER,
+        version: 0,
         tyty: report::TyTy::Enum(Str::new("rust")),
     };
-    const ID: u64 = crate::istable::gen_id(Self::REPORT);
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 unsafe impl<Ok: IStable, Err: IStable, BO, B: Bit, I: Unsigned> IStable
     for HasExactlyOneNiche<core::result::Result<Ok, Err>, (BO, UInt<I, B>)>
@@ -647,7 +647,7 @@ where
     type ContainsIndirections = <Ok::ContainsIndirections as Bit>::Or<Err::ContainsIndirections>;
     const REPORT: &'static report::TypeReport =
         <HasExactlyOneNiche<Self, (Err::HasExactlyOneNiche, Ok::Size)> as IStable>::REPORT;
-    const ID: u64 = crate::istable::gen_id(Self::REPORT);
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 unsafe impl<Ok: IStable, Err: IStable, T> IStable
     for HasExactlyOneNiche<HasExactlyOneNiche<core::result::Result<Ok, Err>, T>, (B1, U0)>
@@ -666,10 +666,10 @@ unsafe impl<Ok: IStable, Err: IStable, T> IStable
             ty: Err::REPORT,
             next_field: StableLike::new(None),
         })),
-        last_break: report::Version::NEVER,
+        version: 0,
         tyty: report::TyTy::Enum(Str::new("rust")),
     };
-    const ID: u64 = crate::istable::gen_id(Self::REPORT);
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 
 struct NameAggregator<L: IStable, R: IStable>(core::marker::PhantomData<(L, R)>);
@@ -692,10 +692,10 @@ unsafe impl<L: IStable, R: IStable> IStable for NameAggregator<L, R> {
                 next_field: StableLike::new(None),
             })),
         })),
-        last_break: report::Version::NEVER,
+        version: 0,
         tyty: report::TyTy::Struct,
     };
-    const ID: u64 = crate::istable::gen_id(Self::REPORT);
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 macro_rules! union {
     ($head: ident,) => {
