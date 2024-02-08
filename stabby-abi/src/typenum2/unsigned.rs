@@ -352,7 +352,10 @@ impl IUnsignedBase for UTerm {
     type _Mul<T: IUnsigned> = UTerm;
 }
 impl IUnsignedBase for Saturator {
+    #[cfg(not(doc))]
     const _U128: u128 = { panic!("Attempted to convert Saturator into u128") };
+    #[cfg(doc)]
+    const _U128: u128 = u128::MAX;
     type Bit = B0;
     type Msb = Saturator;
     type _IsUTerm = B1;

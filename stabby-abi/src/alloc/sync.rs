@@ -23,7 +23,7 @@ use crate::IntoDyn;
 
 use super::{
     vec::{ptr_add, ptr_diff, Vec, VecInner},
-    AllocPtr, AllocSlice, IAlloc, Layout,
+    AllocPtr, AllocSlice, DefaultAllocator, IAlloc, Layout,
 };
 
 /// [`alloc::sync::Arc`], but ABI-stable.
@@ -34,6 +34,25 @@ pub struct Arc<T, Alloc: IAlloc = super::DefaultAllocator> {
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Send for Arc<T, Alloc> {}
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Sync for Arc<T, Alloc> {}
 const USIZE_TOP_BIT: usize = 1 << (core::mem::size_of::<usize>() as i32 * 8 - 1);
+
+impl<T> Arc<T> {
+    /// Attempts to allocate [`Self`], initializing it with `constructor`.
+    ///
+    /// Note that the allocation may or may not be zeroed.
+    ///
+    /// # Panics
+    /// If the allocator fails to provide an appropriate allocation.
+    pub fn make<F: FnOnce(&mut core::mem::MaybeUninit<T>)>(constructor: F) -> Self {
+        Self::make_in(constructor, DefaultAllocator::new())
+    }
+    /// Attempts to allocate [`Self`] and store `value` in it.
+    ///
+    /// # Panics
+    /// If the allocator fails to provide an appropriate allocation.
+    pub fn new(value: T) -> Self {
+        Self::new_in(value, DefaultAllocator::new())
+    }
+}
 
 impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     /// Attempts to allocate [`Self`], initializing it with `constructor`.
@@ -70,12 +89,13 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     /// # Errors
     /// Returns `value` and the allocator in case of failure.
     pub fn try_new_in(value: T, alloc: Alloc) -> Result<Self, (T, Alloc)> {
-        match Self::try_make_in(
+        let this = Self::try_make_in(
             |slot| unsafe {
                 slot.write(core::ptr::read(&value));
             },
             alloc,
-        ) {
+        );
+        match this {
             Ok(this) => Ok(this),
             Err((_, a)) => Err((value, a)),
         }
@@ -120,29 +140,6 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
             },
             alloc,
         )
-    }
-
-    /// Attempts to allocate [`Self`], initializing it with `constructor`.
-    ///
-    /// Note that the allocation may or may not be zeroed.
-    ///
-    /// # Panics
-    /// If the allocator fails to provide an appropriate allocation.
-    pub fn make<F: FnOnce(&mut core::mem::MaybeUninit<T>)>(constructor: F) -> Self
-    where
-        Alloc: Default,
-    {
-        Self::make_in(constructor, Alloc::default())
-    }
-    /// Attempts to allocate [`Self`] and store `value` in it.
-    ///
-    /// # Panics
-    /// If the allocator fails to provide an appropriate allocation.
-    pub fn new(value: T) -> Self
-    where
-        Alloc: Default,
-    {
-        Self::new_in(value, Alloc::default())
     }
 
     /// Returns the pointer to the inner raw allocation, leaking `this`.

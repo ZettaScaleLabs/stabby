@@ -156,7 +156,7 @@ mod stable_waker {
                 wake_by_ref: StableLike::new(Self::waker_wake_by_ref),
                 drop: StableLike::new(Self::waker_drop),
             };
-            let shared = Arc::new(waker);
+            let shared = Arc::new_in(waker, Default::default());
             SharedStableWaker(shared)
         }
     }

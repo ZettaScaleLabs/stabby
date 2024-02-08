@@ -24,6 +24,20 @@ where
 {
     inner: crate::Result<Single<T, Alloc>, Vec<T, Alloc>>,
 }
+
+#[cfg(feature = "libc")]
+impl<T: IStable> SingleOrVec<T>
+where
+    Single<T, DefaultAllocator>: IDiscriminantProvider<Vec<T, DefaultAllocator>>,
+    Vec<T, DefaultAllocator>: IStable,
+    crate::Result<Single<T, DefaultAllocator>, Vec<T, DefaultAllocator>>: IStable,
+{
+    /// Constructs a new vector. This doesn't actually allocate.
+    pub fn new() -> Self {
+        Self::new_in(DefaultAllocator::new())
+    }
+}
+
 impl<T: IStable, Alloc: IAlloc + IStable + Default> Default for SingleOrVec<T, Alloc>
 where
     Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
@@ -31,7 +45,7 @@ where
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
     fn default() -> Self {
-        Self::new()
+        Self::new_in(Alloc::default())
     }
 }
 impl<T: IStable, Alloc: IAlloc + IStable> SingleOrVec<T, Alloc>
@@ -45,13 +59,6 @@ where
         Self {
             inner: crate::Result::Err(Vec::new_in(alloc)),
         }
-    }
-    /// Constructs a new vector. This doesn't actually allocate.
-    pub fn new() -> Self
-    where
-        Alloc: Default,
-    {
-        Self::new_in(Alloc::default())
     }
     /// Constructs a new vector in `alloc`, allocating sufficient space for `capacity` elements.
     ///

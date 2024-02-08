@@ -1,3 +1,12 @@
+# 3.0.0
+- BREAKING CHANGE:
+	- From now on, unless `#[repr(stabby)]` is specified, stabbied `enum`s will throw a compile error if using `#[repr(u8)]` would yield a better or equal layout size. The default layout remains that produced when selecting `#[repr(stabby)]`, so any crate that didn't use either annotation and wishes to keep the same ABI should annotate types that now throw that error with `#[repr(stabby)]`.
+	- Some internal systems that were previously exposed because they needed to be public to appear in trait bounds have been sealed to avoid over-exposing the ABI.
+	- `stabby::report::TypeReport` now uses a single `u32` to describe versions, as this is by far sufficient, and avoids clashes when ABI changes (such as invariants) appear between release versions.
+	- For all allocated containers, the `new` and `make` methods are now specific to the default allocator. Alternative allocators will have to use `new_in(Default::default())` instead, but this makes using these constructors without type hints possible.
+- DOCUMENT ALL THE THINGS: `stabby` and `stabby-abi` will now both fail to compile if some of their elements are undocumented.
+- Introduce the `IPod` trait to help prove that a type is "Plain Old Data" and safe to transfer between processes that don't share memory or even file-system. This is notably meant to be used in [`zenoh`](https://crates.io/crates/zenoh)'s shared-memory API.
+
 # 2.0.1
 - Update constness to fit 1.72
 - Ensure that 1.66 MSRV is respected

@@ -14,7 +14,7 @@
 
 [package]
 name = "stabby-abi"
-version = "2.0.1"
+version = "3.0.0"
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }
@@ -36,7 +36,7 @@ abi_stable = ["dep:abi_stable"]
 abi_stable-channels = ["abi_stable", "abi_stable/channels"]
 
 [dependencies]
-stabby-macros = { path = "../stabby-macros/", version = "2.0.1" }
+stabby-macros = { path = "../stabby-macros/", version = "3.0.0" }
 abi_stable = { version = "0.11.2", optional = true }
 libc = { version = "0.2", optional = true }
 rustversion = "1.0"
