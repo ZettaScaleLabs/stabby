@@ -1,3 +1,6 @@
+# 3.0.1
+- Change the symbol mangling of stabbied functions to ensure an ABI-incompatible reports are never mixed.
+
 # 3.0.0
 - BREAKING CHANGE:
 	- From now on, unless `#[repr(stabby)]` is specified, stabbied `enum`s will throw a compile error if using `#[repr(u8)]` would yield a better or equal layout size. The default layout remains that produced when selecting `#[repr(stabby)]`, so any crate that didn't use either annotation and wishes to keep the same ABI should annotate types that now throw that error with `#[repr(stabby)]`.
