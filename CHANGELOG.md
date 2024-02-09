@@ -1,3 +1,9 @@
+# 3.0.2
+- Add support for `AtomicDuration` and `AtomicInstant`: these allow storing `Duration`s and `Instant`s in an atomic manner, at the cost of their resolution being limited to 1μs and their range limited to ~270000 years.
+- Add many convenience methods to `stabby::time::Duration`.
+- Fix typo in symbol mangling of report fetchers in `libloading` integration: this typo meant that if a symbol was loaded, but the reports mismatched, the loader would be unable to extract the full report. While this wouldn't panic or cause UB, it would make the experience worse than expected.
+- Improve reliability by ensuring that the CI tests both load-time and runtime linkage with `stabby::import` and `libloading::Library::get_stabbied`.
+
 # 3.0.1
 - Change the symbol mangling of stabbied functions to ensure an ABI-incompatible reports are never mixed.
 
