@@ -15,7 +15,21 @@
 fn main() {
     use stabby::libloading::StabbyLibrary;
     unsafe {
-        let lib = libloading::Library::new("./target/debug/liblibrary.so").unwrap();
+        let path = if cfg!(target_os = "linux") {
+            "./target/debug/liblibrary.so"
+        } else if cfg!(target_os = "windows") {
+            "./target/debug/library.dll"
+        } else if cfg!(target_os = "macos") {
+            "./target/debug/library.dylib"
+        } else {
+            ""
+        };
+        let lib = libloading::Library::new(path).unwrap_or_else(|e| {
+            panic!(
+                "{e}\n\nreaddir(./target/debug)={:?}",
+                std::fs::read_dir("./target/debug")
+            )
+        });
         let stable_fn = lib.get_stabbied::<extern "C" fn(u8)>(b"stable_fn").unwrap();
         let unstable_fn = lib
             .get_canaried::<extern "C" fn(&[u8])>(b"unstable_fn")
