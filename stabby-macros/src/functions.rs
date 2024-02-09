@@ -311,7 +311,7 @@ fn export_with_report(fn_spec: syn::ItemFn) -> proc_macro2::TokenStream {
         ..
     } = fn_spec.sig.clone();
     let st = crate::tl_mod();
-    let stabbied = quote::format_ident!("{ident}_stabbied");
+    let stabbied = quote::format_ident!("{ident}_stabbied_v3");
     let report = quote::format_ident!("{stabbied}_report");
     let def = stabby(Attrs::default(), fn_spec);
     let signature = quote!(#asyncness #unsafety #abi fn(#inputs) #output);
@@ -464,7 +464,7 @@ pub fn import(
                 match item {
                     syn::ForeignItem::Fn(syn::ForeignItemFn { sig: syn::Signature { ident,  inputs, output, asyncness, unsafety, generics, .. }, vis, ..}) => {
                         assert!(asyncness.is_none(), "the async keyword is not supported in non-canaried extern blocks");
-                        let stabbied = quote::format_ident!("{ident}_stabbied");
+                        let stabbied = quote::format_ident!("{ident}_stabbied_v3");
                         let report = quote::format_ident!("{stabbied}_report");
                         let signature = quote!(#unsafety #abi fn #generics(#inputs)#output);
                         externs.push(quote!{

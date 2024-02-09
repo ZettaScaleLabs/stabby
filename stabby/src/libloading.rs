@@ -58,8 +58,8 @@ impl<'a, T> core::ops::Deref for Symbol<'a, T> {
 mod canaries {
     stabby_abi::canary_suffixes!();
 }
-const STABBIED_SUFFIX: &[u8] = b"_stabbied";
-const REPORT_SUFFIX: &[u8] = b"_stabbied_report";
+const STABBIED_SUFFIX: &[u8] = b"_stabbied_v3";
+const REPORT_SUFFIX: &[u8] = b"_stabbied_report_v3";
 impl StabbyLibrary for libloading::Library {
     /// Gets `symbol` from the library, using stabby's reports to check for compatibility.
     ///
