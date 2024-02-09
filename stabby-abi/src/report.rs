@@ -134,8 +134,8 @@ impl Iterator for Fields {
     }
 }
 
-const fn hash_report(report: &TypeReport) -> Sha256 {
-    let mut hash = Sha256::new()
+const fn hash_report(mut hash: Sha256, report: &TypeReport) -> Sha256 {
+    hash = hash
         .update(report.module.as_str().as_bytes())
         .update(report.name.as_str().as_bytes());
     hash = match report.tyty {
@@ -146,15 +146,27 @@ const fn hash_report(report: &TypeReport) -> Sha256 {
     let mut fields = report.fields();
     while let (new, Some(next)) = fields.next_const() {
         fields = new;
-        hash = hash
-            .update(next.name.as_str().as_bytes())
-            .update(&hash_report(next.ty).finalize())
+        hash = hash_report(hash.update(next.name.as_str().as_bytes()), next.ty)
     }
     hash
 }
-/// Generates an ID based on a [`TypeReport`] using [`Sha256`]
+const ARCH_INFO: [u8; 8] = [
+    0,
+    core::mem::size_of::<usize>() as u8,
+    core::mem::align_of::<usize>() as u8,
+    core::mem::size_of::<&()>() as u8,
+    core::mem::align_of::<&()>() as u8,
+    core::mem::align_of::<u128>() as u8,
+    unsafe { core::mem::transmute::<[u8; 2], u16>([0, 1]) } as u8,
+    0,
+];
+
+/// Generates an ID based on a [`TypeReport`] using [`Sha256`].
+///
+/// The hash also contains information about the architecture, allowing to consider a same struct distinct depending
+/// on the architecture's pointer size, alignment of u128, or endianness.
 pub const fn gen_id(report: &TypeReport) -> u64 {
     let [hash @ .., _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _] =
-        hash_report(report).finalize();
-    u64::from_le_bytes(hash)
+        hash_report(Sha256::new(), report).finalize();
+    u64::from_le_bytes(hash) ^ u64::from_le_bytes(ARCH_INFO)
 }
