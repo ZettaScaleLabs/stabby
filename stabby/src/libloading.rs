@@ -59,7 +59,7 @@ mod canaries {
     stabby_abi::canary_suffixes!();
 }
 const STABBIED_SUFFIX: &[u8] = b"_stabbied_v3";
-const REPORT_SUFFIX: &[u8] = b"_stabbied_report_v3";
+const REPORT_SUFFIX: &[u8] = b"_stabbied_v3_report";
 impl StabbyLibrary for libloading::Library {
     /// Gets `symbol` from the library, using stabby's reports to check for compatibility.
     ///
