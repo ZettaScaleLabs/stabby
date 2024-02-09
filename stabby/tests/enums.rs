@@ -16,7 +16,7 @@
 fn enums() {
     use core::num::{NonZeroU16, NonZeroU8};
     use stabby::{
-        abi::{typenum2, IDiscriminantProvider, IStable},
+        abi::{typenum2, IDeterminantProvider, IStable},
         result::Result,
         tuple::{Tuple2, Tuple3},
     };
@@ -24,8 +24,8 @@ fn enums() {
     where
         A: Clone + PartialEq + core::fmt::Debug + IStable,
         B: Clone + PartialEq + core::fmt::Debug + IStable,
-        A: IDiscriminantProvider<B>,
-        <A as IDiscriminantProvider<B>>::Discriminant: core::fmt::Debug,
+        A: IDeterminantProvider<B>,
+        <A as IDeterminantProvider<B>>::Determinant: core::fmt::Debug,
         Result<A, B>: IStable,
     {
         println!(
@@ -40,10 +40,10 @@ fn enums() {
         let a: Result<_, _> = a.into();
         println!(
             "discriminant: {}, OkShift: {}, ErrShift: {}, Debug: {}",
-            core::any::type_name::<<A as IDiscriminantProvider<B>>::Discriminant>(),
-            <<A as IDiscriminantProvider<B>>::OkShift as typenum2::Unsigned>::USIZE,
-            <<A as IDiscriminantProvider<B>>::ErrShift as typenum2::Unsigned>::USIZE,
-            core::any::type_name::<<A as IDiscriminantProvider<B>>::Debug>(),
+            core::any::type_name::<<A as IDeterminantProvider<B>>::Determinant>(),
+            <<A as IDeterminantProvider<B>>::OkShift as typenum2::Unsigned>::USIZE,
+            <<A as IDeterminantProvider<B>>::ErrShift as typenum2::Unsigned>::USIZE,
+            0 // core::any::type_name::<<A as IDeterminantProvider<B>>::Debug>(),
         );
         assert!(a.is_ok());
         let b: Result<_, _> = b.into();

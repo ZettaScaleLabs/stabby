@@ -158,10 +158,10 @@ macro_rules! check {
 
 macro_rules! nz_holes {
     ($t: ty) => {
-        Array<$t, NonZeroHole, End>
+        Array<$t, U0, End>
     };
     ($t: ty, $($tt: tt)*) => {
-        Array<$t, NonZeroHole, nz_holes!($($tt)*)>
+        Array<$t, U0, nz_holes!($($tt)*)>
     };
 }
 unsafe impl IStable for () {
@@ -170,6 +170,7 @@ unsafe impl IStable for () {
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = B0;
     primitive_report!("()");
 }
 unsafe impl<T> IStable for core::marker::PhantomData<T> {
@@ -178,6 +179,7 @@ unsafe impl<T> IStable for core::marker::PhantomData<T> {
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = B0;
     primitive_report!("core::marker::PhantomData");
 }
 unsafe impl IStable for core::marker::PhantomPinned {
@@ -186,6 +188,7 @@ unsafe impl IStable for core::marker::PhantomPinned {
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = B0;
     primitive_report!("core::marker::PhantomPinned");
 }
 macro_rules! illegal_values {
@@ -298,6 +301,7 @@ unsafe impl IStable for bool {
     );
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = B0;
     primitive_report!("bool");
 }
 
@@ -307,6 +311,7 @@ unsafe impl IStable for u8 {
     type Align = U1;
     type Size = U1;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = B0;
     primitive_report!("u8");
 }
 check!(u8);
@@ -316,6 +321,7 @@ unsafe impl IStable for core::num::NonZeroU8 {
     type UnusedBits = End;
     type ForbiddenValues = nz_holes!(U0);
     type HasExactlyOneNiche = B1;
+    type ContainsIndirections = B0;
     primitive_report!("core::num::NonZeroU8");
 }
 unsafe impl IStable for u16 {
@@ -324,6 +330,7 @@ unsafe impl IStable for u16 {
     type Align = U2;
     type Size = U2;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = B0;
     primitive_report!("u16");
 }
 check!(u16);
@@ -333,6 +340,7 @@ unsafe impl IStable for core::num::NonZeroU16 {
     type Align = U2;
     type Size = U2;
     type HasExactlyOneNiche = B1;
+    type ContainsIndirections = B0;
     primitive_report!("core::num::NonZeroU16");
 }
 unsafe impl IStable for u32 {
@@ -341,6 +349,7 @@ unsafe impl IStable for u32 {
     type Align = U4;
     type Size = U4;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = B0;
     primitive_report!("u32");
 }
 check!(u32);
@@ -350,6 +359,7 @@ unsafe impl IStable for core::num::NonZeroU32 {
     type Align = U4;
     type Size = U4;
     type HasExactlyOneNiche = B1;
+    type ContainsIndirections = B0;
     primitive_report!("core::num::NonZeroU32");
 }
 unsafe impl IStable for u64 {
@@ -358,6 +368,7 @@ unsafe impl IStable for u64 {
     type Align = U8;
     type Size = U8;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = B0;
     primitive_report!("u64");
 }
 check!(u64);
@@ -367,6 +378,7 @@ unsafe impl IStable for core::num::NonZeroU64 {
     type Align = U8;
     type Size = U8;
     type HasExactlyOneNiche = B1;
+    type ContainsIndirections = B0;
     primitive_report!("core::num::NonZeroU64");
 }
 
@@ -379,6 +391,7 @@ unsafe impl IStable for u128 {
     type Align = U8;
     #[cfg(target_arch = "aarch64")]
     type Align = U16;
+    type ContainsIndirections = B0;
     primitive_report!("u128");
 }
 
@@ -391,6 +404,7 @@ unsafe impl IStable for core::num::NonZeroU128 {
     type Size = U16;
     type HasExactlyOneNiche = B1;
     type Align = <u128 as IStable>::Align;
+    type ContainsIndirections = B0;
     primitive_report!("core::num::NonZeroU128");
 }
 
@@ -403,6 +417,7 @@ unsafe impl IStable for usize {
     same_as!(u16, "usize");
     #[cfg(target_pointer_width = "8")]
     same_as!(u8, "usize");
+    type ContainsIndirections = B0;
 }
 check!(usize);
 unsafe impl IStable for core::num::NonZeroUsize {
@@ -414,114 +429,150 @@ unsafe impl IStable for core::num::NonZeroUsize {
     same_as!(core::num::NonZeroU16, "core::num::NonZeroUsize");
     #[cfg(target_pointer_width = "8")]
     same_as!(core::num::NonZeroU8, "core::num::NonZeroUsize");
+    type ContainsIndirections = B0;
 }
 
 unsafe impl IStable for i8 {
     same_as!(u8, "i8");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::num::NonZeroI8 {
     same_as!(core::num::NonZeroU8, "core::num::NonZeroI8");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for i16 {
     same_as!(u16, "i16");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::num::NonZeroI16 {
     same_as!(core::num::NonZeroU16, "core::num::NonZeroI16");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for i32 {
     same_as!(u32, "i32");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::num::NonZeroI32 {
     same_as!(core::num::NonZeroU32, "core::num::NonZeroI32");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for i64 {
     same_as!(u64, "i64");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::num::NonZeroI64 {
     same_as!(core::num::NonZeroU64, "core::num::NonZeroI64");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for i128 {
     same_as!(u128, "i128");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::num::NonZeroI128 {
     same_as!(core::num::NonZeroU128, "core::num::NonZeroI128");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for isize {
     same_as!(usize, "isize");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::num::NonZeroIsize {
     same_as!(core::num::NonZeroUsize, "core::num::NonZeroIsize");
+    type ContainsIndirections = B0;
 }
 
 unsafe impl<T: IStable> IStable for core::mem::ManuallyDrop<T> {
     same_as!(T, <T as IStable>::REPORT.name.as_str());
+    type ContainsIndirections = T::ContainsIndirections;
 }
 unsafe impl<T: IStable> IStable for core::mem::MaybeUninit<T> {
     same_as!(T, <T as IStable>::REPORT.name.as_str());
+    type ContainsIndirections = T::ContainsIndirections;
 }
 unsafe impl<T: IStable> IStable for core::cell::UnsafeCell<T> {
     same_as!(T, <T as IStable>::REPORT.name.as_str());
+    type ContainsIndirections = T::ContainsIndirections;
 }
 
 unsafe impl<T: IStable> IStable for *const T {
     same_as!(usize, "*const", T);
+    type ContainsIndirections = B1;
 }
 unsafe impl<T: IStable> IStable for *mut T {
     same_as!(usize, "*mut", T);
+    type ContainsIndirections = B1;
 }
 unsafe impl<T: IStable> IStable for core::ptr::NonNull<T> {
     same_as!(core::num::NonZeroUsize, "core::ptr::NonNull", T);
+    type ContainsIndirections = B1;
 }
 unsafe impl<T: IStable> IStable for core::sync::atomic::AtomicPtr<T> {
     same_as!(*mut T, "core::sync::atomic::AtomicPtr", T);
+    type ContainsIndirections = B1;
 }
 unsafe impl IStable for core::sync::atomic::AtomicBool {
     same_as!(bool, "core::sync::atomic::AtomicBool");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::sync::atomic::AtomicI8 {
     same_as!(i8, "core::sync::atomic::AtomicI8");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::sync::atomic::AtomicI16 {
     same_as!(i16, "core::sync::atomic::AtomicI16");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::sync::atomic::AtomicI32 {
     same_as!(i32, "core::sync::atomic::AtomicI32");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::sync::atomic::AtomicI64 {
     same_as!(i64, "core::sync::atomic::AtomicI64");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::sync::atomic::AtomicIsize {
     same_as!(isize, "core::sync::atomic::AtomicIsize");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::sync::atomic::AtomicU8 {
     same_as!(u8, "core::sync::atomic::AtomicU8");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::sync::atomic::AtomicU16 {
     same_as!(u16, "core::sync::atomic::AtomicU16");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::sync::atomic::AtomicU32 {
     same_as!(u32, "core::sync::atomic::AtomicU32");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::sync::atomic::AtomicU64 {
     same_as!(u64, "core::sync::atomic::AtomicU64");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for core::sync::atomic::AtomicUsize {
     same_as!(usize, "core::sync::atomic::AtomicUsize");
+    type ContainsIndirections = B0;
 }
 unsafe impl<T: IStable> IStable for &T {
     same_as!(core::num::NonZeroUsize, "&", T);
+    type ContainsIndirections = B1;
 }
 unsafe impl<T: IStable> IStable for &mut T {
     same_as!(core::num::NonZeroUsize, "&mut", T);
+    type ContainsIndirections = B1;
 }
 unsafe impl<T: IStable> IStable for core::pin::Pin<T> {
     same_as!(T, "core::pin::Pin", T);
+    type ContainsIndirections = T::ContainsIndirections;
 }
 unsafe impl IStable for f32 {
     same_as!(u32, "f32");
+    type ContainsIndirections = B0;
 }
 unsafe impl IStable for f64 {
     same_as!(u64, "f64");
+    type ContainsIndirections = B0;
 }
 
 pub struct HasExactlyOneNiche<A, B>(core::marker::PhantomData<(A, B)>);
@@ -530,8 +581,10 @@ where
     HasExactlyOneNiche<core::option::Option<T>, T::HasExactlyOneNiche>: IStable,
 {
     same_as!(HasExactlyOneNiche<core::option::Option<T>, T::HasExactlyOneNiche>);
+    type ContainsIndirections = T::ContainsIndirections;
     const REPORT: &'static report::TypeReport =
         <HasExactlyOneNiche<core::option::Option<T>, T::HasExactlyOneNiche> as IStable>::REPORT;
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 unsafe impl<T: IStable> IStable for HasExactlyOneNiche<core::option::Option<T>, B1> {
     type Size = T::Size;
@@ -539,6 +592,7 @@ unsafe impl<T: IStable> IStable for HasExactlyOneNiche<core::option::Option<T>, 
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = T::ContainsIndirections;
     const REPORT: &'static report::TypeReport = &report::TypeReport {
         name: Str::new("Option"),
         module: Str::new("core::option"),
@@ -547,17 +601,20 @@ unsafe impl<T: IStable> IStable for HasExactlyOneNiche<core::option::Option<T>, 
             ty: T::REPORT,
             next_field: StableLike::new(None),
         })),
-        last_break: report::Version::NEVER,
+        version: 0,
         tyty: report::TyTy::Enum(Str::new("rust")),
     };
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 unsafe impl<Ok: IStable, Err: IStable> IStable for core::result::Result<Ok, Err>
 where
     HasExactlyOneNiche<Self, (Ok::HasExactlyOneNiche, Err::Size)>: IStable,
 {
+    type ContainsIndirections = <Ok::ContainsIndirections as Bit>::Or<Err::ContainsIndirections>;
     same_as!(HasExactlyOneNiche<Self, (Ok::HasExactlyOneNiche, Err::Size)>);
     const REPORT: &'static report::TypeReport =
         <HasExactlyOneNiche<Self, (Ok::HasExactlyOneNiche, Err::Size)> as IStable>::REPORT;
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 unsafe impl<Ok: IStable, Err: IStable> IStable
     for HasExactlyOneNiche<core::result::Result<Ok, Err>, (B1, U0)>
@@ -567,6 +624,7 @@ unsafe impl<Ok: IStable, Err: IStable> IStable
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = <Ok::ContainsIndirections as Bit>::Or<Err::ContainsIndirections>;
     const REPORT: &'static report::TypeReport = &report::TypeReport {
         name: Str::new("Result"),
         module: Str::new("core::result"),
@@ -575,9 +633,10 @@ unsafe impl<Ok: IStable, Err: IStable> IStable
             ty: Ok::REPORT,
             next_field: StableLike::new(None),
         })),
-        last_break: report::Version::NEVER,
+        version: 0,
         tyty: report::TyTy::Enum(Str::new("rust")),
     };
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 unsafe impl<Ok: IStable, Err: IStable, BO, B: Bit, I: Unsigned> IStable
     for HasExactlyOneNiche<core::result::Result<Ok, Err>, (BO, UInt<I, B>)>
@@ -585,8 +644,10 @@ where
     HasExactlyOneNiche<Self, (Err::HasExactlyOneNiche, Ok::Size)>: IStable,
 {
     same_as!(HasExactlyOneNiche<Self, (Err::HasExactlyOneNiche, Ok::Size)>);
+    type ContainsIndirections = <Ok::ContainsIndirections as Bit>::Or<Err::ContainsIndirections>;
     const REPORT: &'static report::TypeReport =
         <HasExactlyOneNiche<Self, (Err::HasExactlyOneNiche, Ok::Size)> as IStable>::REPORT;
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 unsafe impl<Ok: IStable, Err: IStable, T> IStable
     for HasExactlyOneNiche<HasExactlyOneNiche<core::result::Result<Ok, Err>, T>, (B1, U0)>
@@ -596,6 +657,7 @@ unsafe impl<Ok: IStable, Err: IStable, T> IStable
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = <Ok::ContainsIndirections as Bit>::Or<Err::ContainsIndirections>;
     const REPORT: &'static report::TypeReport = &report::TypeReport {
         name: Str::new("Result"),
         module: Str::new("core::result"),
@@ -604,9 +666,10 @@ unsafe impl<Ok: IStable, Err: IStable, T> IStable
             ty: Err::REPORT,
             next_field: StableLike::new(None),
         })),
-        last_break: report::Version::NEVER,
+        version: 0,
         tyty: report::TyTy::Enum(Str::new("rust")),
     };
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 
 struct NameAggregator<L: IStable, R: IStable>(core::marker::PhantomData<(L, R)>);
@@ -616,6 +679,7 @@ unsafe impl<L: IStable, R: IStable> IStable for NameAggregator<L, R> {
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = B0;
     const REPORT: &'static report::TypeReport = &report::TypeReport {
         name: Str::new("signature"),
         module: Str::new("stabby"),
@@ -628,9 +692,10 @@ unsafe impl<L: IStable, R: IStable> IStable for NameAggregator<L, R> {
                 next_field: StableLike::new(None),
             })),
         })),
-        last_break: report::Version::NEVER,
+        version: 0,
         tyty: report::TyTy::Struct,
     };
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 macro_rules! union {
     ($head: ident,) => {
@@ -645,35 +710,43 @@ macro_rules! fnstable {
     (-> $o: ident) => {
         unsafe impl<$o: IStable > IStable for extern "C" fn() -> $o {
             same_as!(core::num::NonZeroUsize, "extern \"C\" fn", $o);
+            type ContainsIndirections = B1;
         }
         unsafe impl<$o: IStable > IStable for unsafe extern "C" fn() -> $o {
             same_as!(core::num::NonZeroUsize, "unsafe extern \"C\" fn", $o);
+            type ContainsIndirections = B1;
         }
         #[rustversion::since(1.71)]
         unsafe impl<$o: IStable > IStable for extern "C-unwind" fn() -> $o {
             same_as!(core::num::NonZeroUsize, "extern \"C-unwind\" fn", $o);
+            type ContainsIndirections = B1;
         }
         #[rustversion::since(1.71)]
         unsafe impl<$o: IStable > IStable for unsafe extern "C-unwind" fn() -> $o {
             same_as!(core::num::NonZeroUsize, "unsafe extern \"C-unwind\" fn", $o);
+            type ContainsIndirections = B1;
         }
     };
     ($t: ident, $($tt: ident, )* -> $o: ident) => {
         unsafe impl< $o , $t, $($tt,)* > IStable for extern "C" fn($t, $($tt,)*) -> $o
         where $o : IStable, $t: IStable, $($tt: IStable,)* {
             same_as!(core::num::NonZeroUsize, "extern \"C\" fn", union!($o, $t, $($tt,)*));
+            type ContainsIndirections = B1;
         }
         unsafe impl< $o : IStable, $t: IStable, $($tt: IStable,)* > IStable for unsafe extern "C" fn($t, $($tt,)*) -> $o {
             same_as!(core::num::NonZeroUsize, "unsafe extern \"C\" fn", union!($o, $t, $($tt,)*));
+            type ContainsIndirections = B1;
         }
         #[rustversion::since(1.71)]
         unsafe impl< $o , $t, $($tt,)* > IStable for extern "C-unwind" fn($t, $($tt,)*) -> $o
         where $o : IStable, $t: IStable, $($tt: IStable,)* {
             same_as!(core::num::NonZeroUsize, "extern \"C-unwind\" fn", union!($o, $t, $($tt,)*));
+            type ContainsIndirections = B1;
         }
         #[rustversion::since(1.71)]
         unsafe impl< $o : IStable, $t: IStable, $($tt: IStable,)* > IStable for unsafe extern "C-unwind" fn($t, $($tt,)*) -> $o {
             same_as!(core::num::NonZeroUsize, "unsafe extern \"C-unwind\" fn", union!($o, $t, $($tt,)*));
+            type ContainsIndirections = B1;
         }
         fnstable!($($tt,)* -> $o);
     };
@@ -686,11 +759,13 @@ mod abi_stable;
 #[cfg(all(feature = "std", target_family = "unix"))]
 unsafe impl IStable for std::os::fd::OwnedFd {
     same_as!(core::ffi::c_int);
+    type ContainsIndirections = B1;
     primitive_report!("std::os::fd::OwnedFd");
 }
 #[cfg(all(feature = "std", target_family = "unix"))]
 unsafe impl<'a> IStable for std::os::fd::BorrowedFd<'a> {
     same_as!(core::ffi::c_int);
+    type ContainsIndirections = B1;
     primitive_report!("std::os::fd::BorrowedFd");
 }
 
@@ -722,6 +797,7 @@ macro_rules! sliceimpl {
                 B0,
                 <<$size as Unsigned>::Equal<U1> as Bit>::SaddTernary<T::HasExactlyOneNiche, Saturator>,
             >;
+            type ContainsIndirections = T::ContainsIndirections;
             primitive_report!(ARRAY_NAME[<$size as Unsigned>::USIZE], T);
         }
     };

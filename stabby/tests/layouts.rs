@@ -58,6 +58,7 @@ pub enum MultiFieldsC {
 }
 
 #[stabby::stabby]
+#[repr(stabby)]
 pub enum MultiFieldsStabby {
     A(NonZeroU16),
     B,
@@ -236,11 +237,13 @@ unsafe impl stabby::abi::IStable for Align128 {
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
+    type ContainsIndirections = B0;
     const REPORT: &'static stabby::abi::report::TypeReport = &stabby::abi::report::TypeReport {
         name: stabby::abi::str::Str::new("Align128"),
         module: stabby::abi::str::Str::new(core::module_path!()),
         fields: stabby::abi::StableLike::new(None),
-        last_break: stabby::abi::report::Version::NEVER,
+        version: 0,
         tyty: stabby::abi::report::TyTy::Struct,
     };
+    const ID: u64 = stabby::abi::report::gen_id(Self::REPORT);
 }

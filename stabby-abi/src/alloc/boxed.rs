@@ -24,6 +24,25 @@ pub struct Box<T, Alloc: IAlloc = super::DefaultAllocator> {
 }
 unsafe impl<T: Send, Alloc: IAlloc + Send> Send for Box<T, Alloc> {}
 unsafe impl<T: Sync, Alloc: IAlloc> Sync for Box<T, Alloc> {}
+#[cfg(feature = "libc")]
+impl<T> Box<T> {
+    /// Attempts to allocate [`Self`], initializing it with `constructor`.
+    ///
+    /// Note that the allocation may or may not be zeroed.
+    ///
+    /// # Panics
+    /// If the allocator fails to provide an appropriate allocation.
+    pub fn make<F: FnOnce(&mut core::mem::MaybeUninit<T>)>(constructor: F) -> Self {
+        Self::make_in(constructor, super::DefaultAllocator::new())
+    }
+    /// Attempts to allocate [`Self`] and store `value` in it.
+    ///
+    /// # Panics
+    /// If the allocator fails to provide an appropriate allocation.
+    pub fn new(value: T) -> Self {
+        Self::new_in(value, super::DefaultAllocator::new())
+    }
+}
 impl<T, Alloc: IAlloc> Box<T, Alloc> {
     /// Attempts to allocate [`Self`], initializing it with `constructor`.
     ///
@@ -52,12 +71,13 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
     /// # Errors
     /// Returns `value` and the allocator in case of failure.
     pub fn try_new_in(value: T, alloc: Alloc) -> Result<Self, (T, Alloc)> {
-        match Self::try_make_in(
+        let this = Self::try_make_in(
             |slot| unsafe {
                 slot.write(core::ptr::read(&value));
             },
             alloc,
-        ) {
+        );
+        match this {
             Ok(this) => Ok(this),
             Err((_, a)) => Err((value, a)),
         }
@@ -95,29 +115,6 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
             },
             alloc,
         )
-    }
-
-    /// Attempts to allocate [`Self`], initializing it with `constructor`.
-    ///
-    /// Note that the allocation may or may not be zeroed.
-    ///
-    /// # Panics
-    /// If the allocator fails to provide an appropriate allocation.
-    pub fn make<F: FnOnce(&mut core::mem::MaybeUninit<T>)>(constructor: F) -> Self
-    where
-        Alloc: Default,
-    {
-        Self::make_in(constructor, Alloc::default())
-    }
-    /// Attempts to allocate [`Self`] and store `value` in it.
-    ///
-    /// # Panics
-    /// If the allocator fails to provide an appropriate allocation.
-    pub fn new(value: T) -> Self
-    where
-        Alloc: Default,
-    {
-        Self::new_in(value, Alloc::default())
     }
     /// Extracts the value from the allocation, freeing said allocation.
     pub fn into_inner(mut this: Self) -> T {
@@ -218,15 +215,19 @@ pub struct BoxedSlice<T, Alloc: IAlloc = super::DefaultAllocator> {
     pub(crate) alloc: Alloc,
 }
 impl<T, Alloc: IAlloc> BoxedSlice<T, Alloc> {
+    /// The number of elements in the boxed slice.
     pub const fn len(&self) -> usize {
         ptr_diff(self.slice.end, self.slice.start.ptr)
     }
+    /// Returns `true` if the slice is empty.
     pub const fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    /// Cast into a standard slice.
     pub fn as_slice(&self) -> &[T] {
         unsafe { core::slice::from_raw_parts(self.slice.start.as_ptr(), self.len()) }
     }
+    /// Cast into a standard mutable slice.
     pub fn as_slice_mut(&mut self) -> &mut [T] {
         unsafe { core::slice::from_raw_parts_mut(self.slice.start.as_ptr(), self.len()) }
     }

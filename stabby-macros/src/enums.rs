@@ -108,25 +108,32 @@ pub fn stabby(
         }
     }
     let report = crate::report(&report);
-    let repr = repr.unwrap_or(Repr::Stabby);
     let repr = match repr {
-        Repr::Stabby => {
+        None | Some(Repr::Stabby) => {
             if !has_non_empty_fields {
                 panic!("Your enum doesn't have any field with values: use #[repr(C)] or #[repr(u*)] instead")
             }
-            return repr_stabby(&new_attrs, &vis, &ident, &generics, data, report);
+            return repr_stabby(
+                &new_attrs,
+                &vis,
+                &ident,
+                &generics,
+                data,
+                report,
+                repr.is_none(),
+            );
         }
-        Repr::C => "u8",
-        Repr::U8 => "u8",
-        Repr::U16 => "u16",
-        Repr::U32 => "u32",
-        Repr::U64 => "u64",
-        Repr::Usize => "usize",
-        Repr::I8 => "i8",
-        Repr::I16 => "i16",
-        Repr::I32 => "i32",
-        Repr::I64 => "i64",
-        Repr::Isize => "isize",
+        Some(Repr::C) => "u8",
+        Some(Repr::U8) => "u8",
+        Some(Repr::U16) => "u16",
+        Some(Repr::U32) => "u32",
+        Some(Repr::U64) => "u64",
+        Some(Repr::Usize) => "usize",
+        Some(Repr::I8) => "i8",
+        Some(Repr::I16) => "i16",
+        Some(Repr::I32) => "i32",
+        Some(Repr::I64) => "i64",
+        Some(Repr::Isize) => "isize",
     };
     let reprid = quote::format_ident!("{}", repr);
     layout = quote!(#st::Tuple<#reprid, #layout>);
@@ -146,13 +153,15 @@ pub fn stabby(
             type Size = <#layout as #st::IStable>::Size;
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
+            type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
             const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
                 name: #st::str::Str::new(#sident),
                 module: #st::str::Str::new(core::module_path!()),
                 fields: unsafe {#st::StableLike::new(#report)},
-                last_break: #st::report::Version::NEVER,
+                version: 0,
                 tyty: #st::report::TyTy::Enum(#st::str::Str::new(#repr)),
             };
+            const ID: u64 = #st::report::gen_id(Self::REPORT);
         }
     }
 }
@@ -162,15 +171,15 @@ struct Variant {
     field: Option<syn::Field>,
     attrs: Vec<Attribute>,
 }
-impl From<syn::Variant> for Variant {
-    fn from(value: syn::Variant) -> Self {
+impl From<&syn::Variant> for Variant {
+    fn from(value: &syn::Variant) -> Self {
         let syn::Variant {
             ident,
             fields,
             discriminant: None,
             attrs,
             ..
-        } = value
+        } = value.clone()
         else {
             panic!("#[repr(stabby)] enums do not support explicit discriminants")
         };
@@ -199,8 +208,8 @@ impl Deref for Variants {
         &self.variants
     }
 }
-impl FromIterator<syn::Variant> for Variants {
-    fn from_iter<T: IntoIterator<Item = syn::Variant>>(iter: T) -> Self {
+impl<'a> FromIterator<&'a syn::Variant> for Variants {
+    fn from_iter<T: IntoIterator<Item = &'a syn::Variant>>(iter: T) -> Self {
         Self {
             variants: Vec::from_iter(iter.into_iter().map(Into::into)),
         }
@@ -255,14 +264,16 @@ pub fn repr_stabby(
     generics: &Generics,
     data: DataEnum,
     report: (TokenStream, TokenStream),
+    check: bool,
 ) -> TokenStream {
     let st = crate::tl_mod();
     let unbound_generics = crate::utils::unbound_generics(&generics.params);
-    let variants = data.variants;
-    if variants.len() < 2 {
+    let generics_without_defaults = crate::utils::generics_without_defaults(&generics.params);
+    let data_variants = data.variants;
+    if data_variants.len() < 2 {
         panic!("#[repr(stabby)] doesn't support single-member enums");
     }
-    let variants = variants.into_iter().collect::<Variants>();
+    let variants = data_variants.iter().collect::<Variants>();
     let vty = variants
         .iter()
         .map(|v| v.field.as_ref().map(|f| &f.ty))
@@ -289,7 +300,7 @@ pub fn repr_stabby(
         |(aty, abound), (bty, bbound)| {
             (
                 quote!(#st::Result<#aty, #bty>),
-                quote!(#aty: #st::IDiscriminantProvider<#bty>, #bty: #st::IStable, #abound #bbound),
+                quote!(#aty: #st::IDeterminantProvider<#bty>, #bty: #st::IStable, #abound #bbound),
             )
         },
     );
@@ -356,22 +367,71 @@ pub fn repr_stabby(
         #(#attrs)*
         #vis struct #ident #generics (#result) where #report_bounds #bounds;
     };
+    let check = check.then(|| {
+        let opt_id = quote::format_ident!("ReprCLayoutFor{ident}");
+        let optdoc = format!("Returns true if the layout for [`{ident}`] is smaller than what `#[repr(C)]` would have generated for it.");
+        quote! {
+            #[allow(dead_code)]
+            #[repr(u8)]
+            enum #opt_id <#generics_without_defaults> where #bounds {
+                #data_variants
+            }
+            impl<#generics_without_defaults> #ident <#unbound_generics> where #report_bounds #bounds #layout: #st::IStable  {
+                #[doc = #optdoc]
+                pub const fn has_optimal_layout() -> bool {
+                    core::mem::size_of::<Self>() < core::mem::size_of::<#opt_id<#unbound_generics>>()
+                }
+            }
+        }
+    });
+    let assertions= generics.params.is_empty().then(||{
+        let check = check.is_some().then(||{
+            let sub_optimal_message = format!(
+                "{ident}'s layout is sub-optimal, reorder fields or use `#[repr(stabby)]` to silence this error."
+            );
+            quote!(
+                if !<#ident>::has_optimal_layout() {
+                    panic!(#sub_optimal_message)
+                })
+        });
+        let size_bug = format!(
+            "{ident}'s size was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please fill an issue"
+        );
+        let align_bug = format!(
+            "{ident}'s align was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please fill an issue"
+        );
+        quote! {
+            const _: () = {
+                #check
+                if core::mem::size_of::<#ident>() != <<#ident as #st::IStable>::Size as #st::Unsigned>::USIZE {
+                    panic!(#size_bug)
+                }
+                if core::mem::align_of::<#ident>() != <<#ident as #st::IStable>::Align as #st::Unsigned>::USIZE {
+                    panic!(#align_bug)
+                }
+            };
+        }
+    });
     quote! {
         #enum_as_struct
+        #check
+        #assertions
         #[automatically_derived]
-        unsafe impl #generics #st::IStable for #ident < #unbound_generics > where #report_bounds #bounds #layout: #st::IStable {
+        unsafe impl <#generics_without_defaults> #st::IStable for #ident < #unbound_generics > where #report_bounds #bounds #layout: #st::IStable {
             type ForbiddenValues = <#layout as #st::IStable>::ForbiddenValues;
             type UnusedBits =<#layout as #st::IStable>::UnusedBits;
             type Size = <#layout as #st::IStable>::Size;
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
+            type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
             const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
                 name: #st::str::Str::new(#sident),
                 module: #st::str::Str::new(core::module_path!()),
                 fields: unsafe {#st::StableLike::new(#report)},
-                last_break: #st::report::Version::NEVER,
+                version: 0,
                 tyty: #st::report::TyTy::Enum(#st::str::Str::new("stabby")),
             };
+            const ID: u64 = #st::report::gen_id(Self::REPORT);
         }
         #[automatically_derived]
         impl #generics #ident < #unbound_generics > where #report_bounds #bounds {

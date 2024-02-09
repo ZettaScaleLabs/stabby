@@ -1,34 +1,56 @@
 use super::vec::Vec;
 use crate::alloc::{AllocationError, DefaultAllocator, IAlloc};
 use crate::num::NonMaxUsize;
-use crate::{IDiscriminantProvider, IStable};
-#[crate::stabby]
-pub struct Single<T, Alloc> {
-    value: T,
-    alloc: Alloc,
+use crate::{IDeterminantProvider, IStable};
+mod seal {
+    #[crate::stabby]
+    pub struct Single<T, Alloc> {
+        pub value: T,
+        pub alloc: Alloc,
+    }
 }
+pub(crate) use seal::*;
+/// A vector that doesn't need to allocate for its first value.
+///
+/// Once a second value is pushed, or if greater capacity is reserved,
+/// the allocated vector will be used regardless of how the vector's
+/// number of elements evolves.
 #[crate::stabby]
 pub struct SingleOrVec<T: IStable, Alloc: IAlloc + IStable = DefaultAllocator>
 where
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
     inner: crate::Result<Single<T, Alloc>, Vec<T, Alloc>>,
 }
+
+#[cfg(feature = "libc")]
+impl<T: IStable> SingleOrVec<T>
+where
+    Single<T, DefaultAllocator>: IDeterminantProvider<Vec<T, DefaultAllocator>>,
+    Vec<T, DefaultAllocator>: IStable,
+    crate::Result<Single<T, DefaultAllocator>, Vec<T, DefaultAllocator>>: IStable,
+{
+    /// Constructs a new vector. This doesn't actually allocate.
+    pub fn new() -> Self {
+        Self::new_in(DefaultAllocator::new())
+    }
+}
+
 impl<T: IStable, Alloc: IAlloc + IStable + Default> Default for SingleOrVec<T, Alloc>
 where
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
     fn default() -> Self {
-        Self::new()
+        Self::new_in(Alloc::default())
     }
 }
 impl<T: IStable, Alloc: IAlloc + IStable> SingleOrVec<T, Alloc>
 where
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
@@ -37,13 +59,6 @@ where
         Self {
             inner: crate::Result::Err(Vec::new_in(alloc)),
         }
-    }
-    /// Constructs a new vector. This doesn't actually allocate.
-    pub fn new() -> Self
-    where
-        Alloc: Default,
-    {
-        Self::new_in(Alloc::default())
     }
     /// Constructs a new vector in `alloc`, allocating sufficient space for `capacity` elements.
     ///
@@ -78,15 +93,17 @@ where
     pub fn try_with_capacity(capacity: usize) -> Result<Self, Alloc>
     where
         Alloc: Default,
-        Self: IDiscriminantProvider<AllocationError>,
+        Self: IDeterminantProvider<AllocationError>,
     {
         Self::try_with_capacity_in(capacity, Alloc::default())
     }
+    /// Returns the number of elements in the vector.
     pub fn len(&self) -> usize {
         self.inner.match_ref(|_| 1, |vec| vec.len())
     }
+    /// Returns `true` if the vector is empty.
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.inner.match_ref(|_| false, |vec| vec.is_empty())
     }
     /// Adds `value` at the end of `self`.
     /// # Panics
@@ -222,12 +239,14 @@ where
             |vec| vec.truncate(len),
         )
     }
+    /// Returns a slice of the elements in the vector.
     pub fn as_slice(&self) -> &[T] {
         self.inner.match_ref(
             |value| core::slice::from_ref(&value.value),
             |vec| vec.as_slice(),
         )
     }
+    /// Returns a mutable slice of the elements in the vector.
     pub fn as_slice_mut(&mut self) -> &mut [T] {
         self.inner.match_mut(
             |value| core::slice::from_mut(&mut value.value),
@@ -246,7 +265,7 @@ impl<T: Clone, Alloc: IAlloc + Clone> Clone for SingleOrVec<T, Alloc>
 where
     T: IStable,
     Alloc: IStable,
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
@@ -268,7 +287,7 @@ impl<T: PartialEq, Alloc: IAlloc, Rhs: AsRef<[T]>> PartialEq<Rhs> for SingleOrVe
 where
     T: IStable,
     Alloc: IStable,
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
@@ -280,7 +299,7 @@ impl<T: Eq, Alloc: IAlloc> Eq for SingleOrVec<T, Alloc>
 where
     T: IStable,
     Alloc: IStable,
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
@@ -289,7 +308,7 @@ impl<T: PartialOrd, Alloc: IAlloc, Rhs: AsRef<[T]>> PartialOrd<Rhs> for SingleOr
 where
     T: IStable,
     Alloc: IStable,
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
@@ -301,7 +320,7 @@ impl<T: Ord, Alloc: IAlloc> Ord for SingleOrVec<T, Alloc>
 where
     T: IStable,
     Alloc: IStable,
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
@@ -313,7 +332,7 @@ impl<T, Alloc: IAlloc> core::ops::Deref for SingleOrVec<T, Alloc>
 where
     T: IStable,
     Alloc: IStable,
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
@@ -326,7 +345,7 @@ impl<T, Alloc: IAlloc> core::convert::AsRef<[T]> for SingleOrVec<T, Alloc>
 where
     T: IStable,
     Alloc: IStable,
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
@@ -338,7 +357,7 @@ impl<T, Alloc: IAlloc> core::ops::DerefMut for SingleOrVec<T, Alloc>
 where
     T: IStable,
     Alloc: IStable,
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
@@ -350,7 +369,7 @@ impl<T, Alloc: IAlloc> core::convert::AsMut<[T]> for SingleOrVec<T, Alloc>
 where
     T: IStable,
     Alloc: IStable,
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
@@ -362,7 +381,7 @@ impl<T, Alloc: IAlloc> core::iter::Extend<T> for SingleOrVec<T, Alloc>
 where
     T: IStable,
     Alloc: IStable,
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
@@ -380,7 +399,7 @@ impl<'a, T, Alloc: IAlloc> IntoIterator for &'a SingleOrVec<T, Alloc>
 where
     T: IStable + 'a,
     Alloc: IStable,
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
@@ -394,7 +413,7 @@ impl<'a, T, Alloc: IAlloc> IntoIterator for &'a mut SingleOrVec<T, Alloc>
 where
     T: IStable + 'a,
     Alloc: IStable,
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
@@ -408,7 +427,7 @@ impl<T, Alloc: IAlloc> From<Vec<T, Alloc>> for SingleOrVec<T, Alloc>
 where
     T: IStable,
     Alloc: IStable,
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
@@ -423,7 +442,7 @@ impl<T, Alloc: IAlloc> From<SingleOrVec<T, Alloc>> for Vec<T, Alloc>
 where
     T: IStable,
     Alloc: IStable,
-    Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {

@@ -1,15 +1,19 @@
-use crate::{vtable::HasDropVt, IDiscriminantProvider, IPtrMut, IPtrOwned};
+use crate::{vtable::HasDropVt, IDeterminantProvider, IPtrMut, IPtrOwned};
 
+/// [`core::iter::Iterator`], but ABI-stable.
 #[crate::stabby]
 pub trait Iterator {
-    type Item: IDiscriminantProvider<()>;
+    /// The type of the elements of the iterator.
+    type Item: IDeterminantProvider<()>;
+    /// Returns the next element in the iterator if it exists.
     extern "C" fn next(&mut self) -> crate::Option<Self::Item>;
+    /// See [`core::iter::Iterator::size_hint`]
     extern "C" fn size_hint(&self) -> crate::Tuple<usize, crate::Option<usize>>;
 }
 
 impl<T: core::iter::Iterator> Iterator for T
 where
-    T::Item: IDiscriminantProvider<()>,
+    T::Item: IDeterminantProvider<()>,
 {
     type Item = T::Item;
     extern "C" fn next(&mut self) -> crate::Option<Self::Item> {
@@ -21,7 +25,7 @@ where
     }
 }
 
-impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDiscriminantProvider<()>>
+impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>>
     core::iter::Iterator
     for crate::Dyn<'a, P, crate::vtable::VTable<StabbyVtableIterator<Output>, Vt>>
 {

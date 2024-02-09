@@ -38,6 +38,12 @@ use libc::free as aligned_free;
 pub struct LibcAlloc {
     inner: [u8; 0],
 }
+impl LibcAlloc {
+    /// Constructs the allocator.
+    pub const fn new() -> Self {
+        Self { inner: [] }
+    }
+}
 
 impl super::IAlloc for LibcAlloc {
     fn alloc(&mut self, layout: Layout) -> *mut () {

@@ -37,22 +37,22 @@ fn main() {
     let mut padding_file = BufWriter::new(File::create(padding_rs).unwrap());
     for i in 0..=SEQ_MAX {
         let u = u(i);
-        writeln!(padding_file, "pub type U{i} = {u};").unwrap();
-        writeln!(padding_file, "pub type Ux{i:X} = {u};").unwrap();
-        writeln!(padding_file, "pub type Ub{i:b} = {u};").unwrap();
+        writeln!(padding_file, "/// {i}\npub type U{i} = {u};").unwrap();
+        writeln!(padding_file, "/// {i}\npub type Ux{i:X} = {u};").unwrap();
+        writeln!(padding_file, "/// {i}\npub type Ub{i:b} = {u};").unwrap();
     }
     for i in 0..39 {
         let ipow = 10u128.pow(i);
         let u = u(ipow);
-        writeln!(padding_file, "pub type U10pow{i} = {u};").unwrap();
+        writeln!(padding_file, "/// {i}\npub type U10pow{i} = {u};").unwrap();
         if ipow > SEQ_MAX {
-            writeln!(padding_file, "pub type U{ipow} = {u};").unwrap();
-            writeln!(padding_file, "pub type Ux{ipow:X} = {u};").unwrap();
-            writeln!(padding_file, "pub type Ub{ipow:b} = {u};").unwrap();
+            writeln!(padding_file, "/// {i}\npub type U{ipow} = {u};").unwrap();
+            writeln!(padding_file, "/// {i}\npub type Ux{ipow:X} = {u};").unwrap();
+            writeln!(padding_file, "/// {i}\npub type Ub{ipow:b} = {u};").unwrap();
         }
     }
     for i in 0..128 {
         let u = u(1 << i);
-        writeln!(padding_file, "pub type U2pow{i} = {u};").unwrap();
+        writeln!(padding_file, "/// {i}\npub type U2pow{i} = {u};").unwrap();
     }
 }

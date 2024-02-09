@@ -49,6 +49,10 @@ jobs:
         with:
           command: clippy
           args: --all-targets -- -D warnings
+      - name: Clean artifacts
+        uses: actions-rs/cargo@v1
+        with:
+          command: clean
 
   test:
     name: Run tests on ${{ matrix.os }}
@@ -81,3 +85,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+      - name: Clean artifacts
+        uses: actions-rs/cargo@v1
+        with:
+          command: clean

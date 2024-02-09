@@ -14,7 +14,7 @@
 
 [package]
 name = "stabby"
-version = "2.0.1"
+version = "3.0.0"
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }
@@ -26,12 +26,11 @@ description = "A Stable ABI for Rust with compact sum-types."
 [features]
 default = ["std", "libc"]
 std = ["libc"]
-unsafe_wakers = ["stabby-abi/unsafe_wakers"]
 libloading = ["dep:libloading", "std"]
 libc = ["stabby-abi/libc"]
 
 [dependencies]
-stabby-abi = { path = "../stabby-abi/", version = "2.0.1" }
+stabby-abi = { path = "../stabby-abi/", version = "3.0.0" }
 
 lazy_static = "1.4.0"
 libloading = { version = "0.8", optional = true }

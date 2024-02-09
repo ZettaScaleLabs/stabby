@@ -16,11 +16,13 @@ use crate::*;
 
 use super::istable::{IBitMask, IForbiddenValues, Saturator};
 
-// #[crate::stabby]
+/// Pads `T` with `Left` bytes (plus alignment if needed)
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Padded<Left: Unsigned, T> {
+    /// Padding
     pub lpad: Left::Padding,
+    /// The value.
     pub value: T,
 }
 unsafe impl<Left: Unsigned, T: IStable> IStable for Padded<Left, T> {
@@ -31,7 +33,9 @@ unsafe impl<Left: Unsigned, T: IStable> IStable for Padded<Left, T> {
         <T::UnusedBits as IBitMask>::Shift<Left>,
     >;
     type HasExactlyOneNiche = Saturator;
+    type ContainsIndirections = T::ContainsIndirections;
     const REPORT: &'static report::TypeReport = T::REPORT;
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
 impl<Left: Unsigned, T> From<T> for Padded<Left, T> {
     fn from(value: T) -> Self {

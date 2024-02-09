@@ -50,6 +50,7 @@ unsafe impl<Layout: IStable> IStable for CompilerVersion_{snake_version}<Layout>
 	type ForbiddenValues = Layout::ForbiddenValues;
 	type UnusedBits = Layout::UnusedBits;
 	type HasExactlyOneNiche = Layout::HasExactlyOneNiche;
+	type ContainsIndirections = Layout::ContainsIndirections;
 	const REPORT: &'static crate::abi::report::TypeReport = &crate::abi::report::TypeReport {{
 		name: crate::abi::str::Str::new("CompilerVersion_{snake_version}"),
 		module: crate::abi::str::Str::new(core::module_path!()),
@@ -58,9 +59,10 @@ unsafe impl<Layout: IStable> IStable for CompilerVersion_{snake_version}<Layout>
 			ty: <Layout as crate::abi::IStable>::REPORT,
 			next_field: crate::abi::StableLike::new(None),
 		}})),
-		last_break: crate::abi::report::Version::NEVER,
+		version: 0,
 		tyty: crate::abi::report::TyTy::Struct,
 	}};
+	const ID: u64 = crate::abi::report::gen_id(Self::REPORT);
 }}
 "#
         )

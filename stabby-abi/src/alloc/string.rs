@@ -6,27 +6,32 @@ use super::{
 };
 use core::hash::Hash;
 
+/// A growable owned string.
 #[crate::stabby]
 #[derive(Clone)]
 pub struct String<Alloc: IAlloc = super::DefaultAllocator> {
     pub(crate) inner: Vec<u8, Alloc>,
 }
 
+#[cfg(feature = "libc")]
+impl String {
+    /// Constructs a new string using the default allocator.
+    pub const fn new() -> Self {
+        Self { inner: Vec::new() }
+    }
+}
 impl<Alloc: IAlloc> String<Alloc> {
+    /// Constructs a new string using the provided allocator.
     pub const fn new_in(alloc: Alloc) -> Self {
         Self {
             inner: Vec::new_in(alloc),
         }
     }
-    pub fn new() -> Self
-    where
-        Alloc: Default,
-    {
-        Self { inner: Vec::new() }
-    }
+    /// Returns self as a borrowed string
     pub fn as_str(&self) -> &str {
         unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
     }
+    /// Returns self as a mutably borrowed string
     pub fn as_str_mut(&mut self) -> &mut str {
         unsafe { core::str::from_utf8_unchecked_mut(self.inner.as_slice_mut()) }
     }
@@ -42,7 +47,9 @@ impl<Alloc: IAlloc> String<Alloc> {
 }
 impl<Alloc: IAlloc + Default> Default for String<Alloc> {
     fn default() -> Self {
-        Self::new()
+        Self {
+            inner: Vec::default(),
+        }
     }
 }
 impl<S: AsRef<str> + ?Sized, Alloc: IAlloc> core::ops::Add<&S> for String<Alloc> {
@@ -124,17 +131,29 @@ impl<Alloc: IAlloc> Ord for String<Alloc> {
 
 impl<Alloc: IAlloc + Default> From<&str> for String<Alloc> {
     fn from(value: &str) -> Self {
-        Self::new() + value
+        Self::default() + value
     }
 }
 
+/// A reference counted boxed string.
 #[crate::stabby]
 pub struct ArcStr<Alloc: IAlloc = super::DefaultAllocator> {
     inner: ArcSlice<u8, Alloc>,
 }
 impl<Alloc: IAlloc> ArcStr<Alloc> {
+    /// Returns a borrow to the inner string.
     pub fn as_str(&self) -> &str {
         unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
+    }
+    /// Returns a mutably borrow to the inner str.
+    /// # Safety
+    /// [`Self::is_unique`] must be true.
+    pub unsafe fn as_str_mut_unchecked(&mut self) -> &mut str {
+        unsafe { core::str::from_utf8_unchecked_mut(self.inner.as_slice_mut_unchecked()) }
+    }
+    /// Returns a mutably borrow to the inner str if no other borrows of it can exist.
+    pub fn as_str_mut(&mut self) -> Option<&mut str> {
+        Self::is_unique(self).then(|| unsafe { self.as_str_mut_unchecked() })
     }
     /// Whether or not `this` is the sole owner of its data, including weak owners.
     pub fn is_unique(this: &Self) -> bool {
@@ -208,13 +227,23 @@ impl<Alloc: IAlloc> Hash for ArcStr<Alloc> {
     }
 }
 
+/// A weak reference counted boxed string.
 #[crate::stabby]
 pub struct WeakStr<Alloc: IAlloc = super::DefaultAllocator> {
     inner: WeakSlice<u8, Alloc>,
 }
 impl<Alloc: IAlloc> WeakStr<Alloc> {
+    /// Returns a strong reference if the strong count hasn't reached 0 yet.
     pub fn upgrade(&self) -> Option<ArcStr<Alloc>> {
         self.inner.upgrade().map(|inner| ArcStr { inner })
+    }
+    /// Returns a strong reference to the string.
+    ///
+    /// If you're using this, there are probably design issues in your program...
+    pub fn force_upgrade(&self) -> ArcStr<Alloc> {
+        ArcStr {
+            inner: self.inner.force_upgrade(),
+        }
     }
 }
 impl<Alloc: IAlloc> From<&ArcStr<Alloc>> for WeakStr<Alloc> {
@@ -232,13 +261,19 @@ impl<Alloc: IAlloc> Clone for WeakStr<Alloc> {
     }
 }
 
+/// A boxed string.
 #[crate::stabby]
 pub struct BoxedStr<Alloc: IAlloc = super::DefaultAllocator> {
     inner: BoxedSlice<u8, Alloc>,
 }
 impl<Alloc: IAlloc> BoxedStr<Alloc> {
+    /// Returns a borrow to the inner string.
     pub fn as_str(&self) -> &str {
         unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
+    }
+    /// Returns a mutable borrow to the inner string.
+    pub fn as_str_mut(&mut self) -> &mut str {
+        unsafe { core::str::from_utf8_unchecked_mut(self.inner.as_slice_mut()) }
     }
 }
 impl<Alloc: IAlloc> AsRef<str> for BoxedStr<Alloc> {

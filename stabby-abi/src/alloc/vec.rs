@@ -18,14 +18,19 @@ use super::{single_or_vec, AllocPtr, AllocSlice, AllocationError, IAlloc};
 use core::fmt::Debug;
 use core::ptr::NonNull;
 
-#[crate::stabby]
-pub struct VecInner<T, Alloc: IAlloc> {
-    pub(crate) start: AllocPtr<T, Alloc>,
-    pub(crate) end: NonNull<T>,
-    pub(crate) capacity: NonNull<T>,
-    pub(crate) alloc: Alloc,
+mod seal {
+    use super::*;
+    #[crate::stabby]
+    pub struct VecInner<T, Alloc: IAlloc> {
+        pub(crate) start: AllocPtr<T, Alloc>,
+        pub(crate) end: NonNull<T>,
+        pub(crate) capacity: NonNull<T>,
+        pub(crate) alloc: Alloc,
+    }
 }
+pub(crate) use seal::*;
 
+/// A growable vector of elements.
 #[crate::stabby]
 pub struct Vec<T, Alloc: IAlloc = super::DefaultAllocator> {
     pub(crate) inner: VecInner<T, Alloc>,
@@ -48,6 +53,14 @@ pub(crate) const fn ptr_add<T>(lhs: NonNull<T>, rhs: usize) -> NonNull<T> {
     }
 }
 
+#[cfg(feature = "libc")]
+impl<T> Vec<T> {
+    /// Constructs a new vector with the default allocator. This doesn't actually allocate.
+    pub const fn new() -> Self {
+        Self::new_in(super::DefaultAllocator::new())
+    }
+}
+
 impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     /// Constructs a new vector in `alloc`. This doesn't actually allocate.
     pub const fn new_in(alloc: Alloc) -> Self {
@@ -64,13 +77,6 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
                 alloc,
             },
         }
-    }
-    /// Constructs a new vector. This doesn't actually allocate.
-    pub fn new() -> Self
-    where
-        Alloc: Default,
-    {
-        Self::new_in(Alloc::default())
     }
     /// Constructs a new vector in `alloc`, allocating sufficient space for `capacity` elements.
     ///
@@ -114,11 +120,13 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     const fn zst_mode() -> bool {
         core::mem::size_of::<T>() == 0
     }
+    /// Returns the number of elements in the vector.
     pub const fn len(&self) -> usize {
         ptr_diff(self.inner.end, self.inner.start.ptr)
     }
-    pub fn is_empty(&self) -> bool {
-        self.inner.end.as_ptr() == self.inner.start.as_ptr()
+    /// Returns `true` if the vector is empty.
+    pub const fn is_empty(&self) -> bool {
+        self.len() == 0
     }
     /// Sets the length of the vector, not calling any destructors.
     /// # Safety
@@ -233,11 +241,13 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
             self.set_len(len)
         };
     }
+    /// Returns a slice of the vector's elements.
     pub fn as_slice(&self) -> &[T] {
         let start = self.inner.start;
         let end = self.inner.end;
         unsafe { core::slice::from_raw_parts(start.as_ptr(), ptr_diff(end, *start)) }
     }
+    /// Returns a mutable slice of the vector's elements.
     pub fn as_slice_mut(&mut self) -> &mut [T] {
         let start = self.inner.start;
         let end = self.inner.end;
@@ -286,9 +296,11 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         }
         Ok(())
     }
+    /// Iterates immutably over the vector's elements.
     pub fn iter(&self) -> core::slice::Iter<'_, T> {
         self.into_iter()
     }
+    /// Iterates mutably over the vector's elements.
     pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, T> {
         self.into_iter()
     }
@@ -390,6 +402,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
             )
         };
     }
+    /// Removes the last element of the vector, returning it if it exists.
     pub fn pop(&mut self) -> Option<T> {
         if self.is_empty() {
             None
@@ -440,7 +453,7 @@ impl<T: Ord, Alloc: IAlloc> Ord for Vec<T, Alloc> {
     }
 }
 
-use crate::{IDiscriminantProvider, IStable};
+use crate::{IDeterminantProvider, IStable};
 use single_or_vec::Single;
 
 macro_rules! impl_index {
@@ -460,7 +473,7 @@ macro_rules! impl_index {
         where
             T: IStable,
             Alloc: IStable,
-            Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+            Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
             Vec<T, Alloc>: IStable,
             crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
         {
@@ -473,7 +486,7 @@ macro_rules! impl_index {
         where
             T: IStable,
             Alloc: IStable,
-            Single<T, Alloc>: IDiscriminantProvider<Vec<T, Alloc>>,
+            Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
             Vec<T, Alloc>: IStable,
             crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
         {
@@ -507,7 +520,7 @@ impl<T, Alloc: IAlloc> core::convert::AsMut<[T]> for Vec<T, Alloc> {
 }
 impl<T, Alloc: IAlloc + Default> Default for Vec<T, Alloc> {
     fn default() -> Self {
-        Self::new()
+        Self::new_in(Alloc::default())
     }
 }
 impl<T, Alloc: IAlloc> Drop for Vec<T, Alloc> {
@@ -686,6 +699,7 @@ impl<'a, T: 'a, Alloc: IAlloc + 'a> Drop for Drain<'a, T, Alloc> {
         }
     }
 }
+/// A vector drain that works on both ends.
 #[crate::stabby]
 pub struct DoubleEndedDrain<'a, T: 'a, Alloc: IAlloc + 'a> {
     vec: &'a mut Vec<T, Alloc>,

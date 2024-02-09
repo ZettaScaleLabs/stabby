@@ -121,13 +121,15 @@ pub fn stabby(
             type Size = <#layout as #st::IStable>::Size;
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = <#layout as #st::IStable>::HasExactlyOneNiche;
+            type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
             const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
                 name: #st::str::Str::new(#sident),
                 module: #st::str::Str::new(core::module_path!()),
                 fields: unsafe{#st::StableLike::new(#report)},
-                last_break: #st::report::Version::NEVER,
+                version: 0,
                 tyty: #st::report::TyTy::Struct,
             };
+            const ID: u64 = #st::report::gen_id(Self::REPORT);
         }
         #[allow(dead_code, missing_docs)]
         struct #opt_id #generics #where_clause #fields #semi_token

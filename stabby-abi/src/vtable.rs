@@ -17,11 +17,13 @@ use crate as stabby;
 /// Implementation detail for stabby's version of dyn traits.
 /// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
 pub trait IConstConstructor<'a, Source>: 'a + Copy {
+    /// The vtable.
     const VTABLE: &'a Self;
 }
 
 /// Implementation detail for stabby's version of dyn traits.
 pub trait TransitiveDeref<Head, N> {
+    /// Deref transitiverly.
     fn tderef(&self) -> &Head;
 }
 /// Implementation detail for stabby's version of dyn traits.
@@ -34,11 +36,17 @@ pub struct T<T>(T);
 #[stabby::stabby]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct VTable<Head, Tail = VtDrop> {
+    /// The rest of the vtable.
+    ///
+    /// It comes first to allow upcasting vtables.
     pub tail: Tail,
+    /// The head of the vtable (the last trait listed in the macros)
     pub head: Head,
 }
 
+/// Concatenate vtables
 pub trait CompoundVt {
+    /// The concatenated vtable.
     type Vt<T>;
 }
 
@@ -68,6 +76,7 @@ impl<Head, Tail: TransitiveDeref<Vt, N>, Vt, N> TransitiveDeref<Vt, T<N>> for VT
 
 /// Allows extracting the dropping vtable from a vtable
 pub trait HasDropVt {
+    /// Access the [`VtDrop`] section of a vtable.
     fn drop_vt(&self) -> &VtDrop;
 }
 impl HasDropVt for VtDrop {
@@ -91,10 +100,12 @@ impl<T: HasDropVt> HasDropVt for VtSync<T> {
     }
 }
 
+/// Whether or not a vtable includes [`VtSend`]
 pub trait HasSendVt {}
 impl<T> HasSendVt for VtSend<T> {}
 impl<T: HasSendVt> HasSendVt for VtSync<T> {}
 impl<Head, Tail: HasSyncVt> HasSendVt for VTable<Head, Tail> {}
+/// Whether or not a vtable includes [`VtSync`]
 pub trait HasSyncVt {}
 impl<T> HasSyncVt for VtSync<T> {}
 impl<T: HasSyncVt> HasSyncVt for VtSend<T> {}
@@ -105,6 +116,7 @@ impl<Head, Tail: HasSyncVt> HasSyncVt for VTable<Head, Tail> {}
 #[stabby::stabby]
 #[derive(Clone, Copy)]
 pub struct VtDrop {
+    ///
     pub drop: crate::StableLike<unsafe extern "C" fn(&mut ()), core::num::NonZeroUsize>,
 }
 impl PartialEq for VtDrop {
@@ -182,8 +194,10 @@ impl<Head, Tail> From<crate::vtable::VtSync<VTable<Head, Tail>>> for VTable<Head
     }
 }
 
+/// An ABI-stable equivalent to [`core::any::Any`]
 #[stabby::stabby]
 pub trait Any {
+    /// The report of the type.
     extern "C" fn report(&self) -> &'static crate::report::TypeReport;
 }
 impl<T: crate::IStable> Any for T {
