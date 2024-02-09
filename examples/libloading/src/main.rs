@@ -20,7 +20,7 @@ fn main() {
         } else if cfg!(target_os = "windows") {
             "./target/debug/library.dll"
         } else if cfg!(target_os = "macos") {
-            "./target/debug/library.dylib"
+            "./target/debug/liblibrary.dylib"
         } else {
             ""
         };
@@ -28,6 +28,7 @@ fn main() {
             panic!(
                 "{e}\n\nreaddir(./target/debug)={:?}",
                 std::fs::read_dir("./target/debug")
+                    .map(|d| d.map(|f| f.unwrap().file_name()).collect::<Vec<_>>())
             )
         });
         let stable_fn = lib.get_stabbied::<extern "C" fn(u8)>(b"stable_fn").unwrap();
