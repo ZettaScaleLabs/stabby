@@ -396,6 +396,7 @@ unsafe impl IStable for u128 {
     primitive_report!("u128");
 }
 
+#[cfg(not(doc))]
 check!(u128);
 
 unsafe impl IStable for core::num::NonZeroU128 {
@@ -420,6 +421,7 @@ unsafe impl IStable for usize {
     same_as!(u8, "usize");
     type ContainsIndirections = B0;
 }
+#[cfg(not(doc))]
 check!(usize);
 unsafe impl IStable for core::num::NonZeroUsize {
     #[cfg(target_pointer_width = "64")]

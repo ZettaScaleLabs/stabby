@@ -14,7 +14,7 @@
 
 [package]
 name = "stabby"
-version = "3.0.3-rc"
+version = "3.0.3-rc1"
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }
@@ -30,7 +30,7 @@ libloading = ["dep:libloading", "std"]
 libc = ["stabby-abi/libc"]
 
 [dependencies]
-stabby-abi = { path = "../stabby-abi/", version = "3.0.3-rc" }
+stabby-abi = { path = "../stabby-abi/", version = "3.0.3-rc1" }
 
 lazy_static = "1.4.0"
 libloading = { version = "0.8", optional = true }
