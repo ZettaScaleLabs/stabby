@@ -1,3 +1,6 @@
+# 3.0.3-rc
+- Ensure docrs can properly build docs
+
 # 3.0.2
 - Add support for `AtomicDuration` and `AtomicInstant`: these allow storing `Duration`s and `Instant`s in an atomic manner, at the cost of their resolution being limited to 1μs and their range limited to ~270000 years.
 - Add many convenience methods to `stabby::time::Duration`.
