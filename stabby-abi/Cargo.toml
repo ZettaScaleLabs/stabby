@@ -14,7 +14,7 @@
 
 [package]
 name = "stabby-abi"
-version = "3.0.3-rc2"
+version = "3.0.3"
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }
@@ -38,7 +38,7 @@ abi_stable-channels = ["abi_stable", "abi_stable/channels"]
 # unsafe_wakers = [] # unsafe_wakers is no longer a feature, but a compile option: you can enable them using `RUST_FLAGS='--cfg unsafe_wakers="true"'`
 
 [dependencies]
-stabby-macros = { path = "../stabby-macros/", version = "3.0.3-rc2" }
+stabby-macros = { path = "../stabby-macros/", version = "3.0.3" }
 abi_stable = { version = "0.11.2", optional = true }
 libc = { version = "0.2", optional = true }
 rustversion = "1.0"

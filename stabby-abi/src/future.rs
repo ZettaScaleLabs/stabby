@@ -176,7 +176,7 @@ mod stable_waker {
 pub trait Future {
     /// The output type of the future.
     type Output: IDeterminantProvider<()>;
-    /// Equivalent to [`core::fututre::Future::poll`].
+    /// Equivalent to [`core::future::Future::poll`].
     extern "C" fn poll<'a>(&'a mut self, waker: StableWaker<'a>) -> Option<Self::Output>;
 }
 impl<T: core::future::Future> Future for T

@@ -26,7 +26,7 @@ use super::{
     AllocPtr, AllocSlice, DefaultAllocator, IAlloc, Layout,
 };
 
-/// [`alloc::sync::Arc`], but ABI-stable.
+/// [`alloc::sync::Arc`](https://doc.rust-lang.org/stable/alloc/sync/struct.Arc.html), but ABI-stable.
 #[crate::stabby]
 pub struct Arc<T, Alloc: IAlloc = super::DefaultAllocator> {
     ptr: AllocPtr<T, Alloc>,
@@ -152,7 +152,7 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     }
     /// Constructs `Self` from a raw allocation.
     /// # Safety
-    /// `this` MUST not be dangling, and have been obtained through [`Self::into_inner`].
+    /// `this` MUST not be dangling, and have been obtained through [`Self::into_raw`].
     pub const unsafe fn from_raw(this: AllocPtr<T, Alloc>) -> Self {
         Self { ptr: this }
     }
@@ -260,7 +260,7 @@ impl<T, Alloc: IAlloc> core::ops::Deref for Arc<T, Alloc> {
     }
 }
 
-/// [`alloc::sync::Weak`], but ABI-stable.
+/// [`alloc::sync::Weak`](https://doc.rust-lang.org/stable/alloc/sync/struct.Weak.html), but ABI-stable.
 #[crate::stabby]
 pub struct Weak<T, Alloc: IAlloc = super::DefaultAllocator> {
     ptr: AllocPtr<T, Alloc>,
@@ -286,7 +286,7 @@ impl<T, Alloc: IAlloc> Weak<T, Alloc> {
     }
     /// Constructs `Self` from a raw allocation.
     /// # Safety
-    /// `this` MUST not be dangling, and have been obtained through [`Self::into_inner`].
+    /// `this` MUST not be dangling, and have been obtained through [`Self::into_raw`].
     pub const unsafe fn from_raw(this: AllocPtr<T, Alloc>) -> Self {
         Self { ptr: this }
     }

@@ -94,7 +94,7 @@ impl From<Duration> for core::time::Duration {
     }
 }
 
-/// A signed [`Duration`] represented as a single [`AtomicU64`], allowing to change its value atomically.
+/// A signed [`Duration`] represented as a single [`AtomicI64`], allowing to change its value atomically.
 ///
 /// Its resolution is 1μs, and the maximum encodable duration is 278737 years.
 #[crate::stabby]
@@ -169,7 +169,7 @@ mod impls {
     use super::{AtomicDuration, Duration};
     use core::sync::atomic::Ordering;
     use std::time::UNIX_EPOCH;
-    /// A stable equivalent to [`std::tine::SystemTime`].
+    /// A stable equivalent to [`std::time::SystemTime`].
     /// # Stability
     /// It is always represented as a duration since [`std::time::UNIX_EPOCH`].
     #[crate::stabby]
@@ -221,8 +221,8 @@ mod impls {
     ///
     /// ## Verified platforms
     /// Platforms where [`Instant`] is known to be stable accross processes:
-    /// - Unix systems use [`libc::CLOCK_MONOTONIC`], which is system-global.
-    /// - MacOS use [`libc::CLOCK_UPTIME_RAW`], which is system-global.
+    /// - Unix systems use [`libc::CLOCK_MONOTONIC`](https://docs.rs/libc/latest/libc/constant.CLOCK_MONOTONIC.html), which is system-global.
+    /// - MacOS use [`libc::CLOCK_UPTIME_RAW`](https://docs.rs/libc/latest/libc/constant.CLOCK_UPTIME_RAW.html), which is system-global.
     /// - Windows uses performance counters, and [states](https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps#guidance-for-acquiring-time-stamps) that said counters are consistent accross processes, except on platforms that don't provide consistent multi-core counters on pre-Vista systems
     ///
     /// Platforms where [`Instant`] is only known to be stable within a process:

@@ -226,11 +226,11 @@ pub trait IUnsignedBase {
     ///
     type _Mul<T: IUnsigned>: IUnsigned;
 }
-/// A is smaller than B if A::Cmp<B> = Lesser.
+/// A is smaller than B if `A::Cmp<B>` = Lesser.
 pub struct Lesser;
-/// A equals B if A::Cmp<B> = Equal.
+/// A equals B if `A::Cmp<B>` = Equal.
 pub struct Equal;
-/// A is greater than B if A::Cmp<B> = Greater.
+/// A is greater than B if `A::Cmp<B>` = Greater.
 pub struct Greater;
 
 /// An unsigned number.

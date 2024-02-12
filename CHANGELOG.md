@@ -1,4 +1,4 @@
-# 3.0.3-rc2
+# 3.0.3
 - Ensure docrs can properly build docs
 
 # 3.0.2
