@@ -32,15 +32,15 @@ impl core::fmt::Display for AllocationError {
 #[cfg(feature = "std")]
 impl std::error::Error for AllocationError {}
 
-/// [`alloc::boxed`], but ABI-stable.
+/// [`alloc::boxed`](https://doc.rust-lang.org/stable/alloc/boxed/), but ABI-stable.
 pub mod boxed;
 /// A vector that stores a single element on the stack until allocation is necessary.
 pub mod single_or_vec;
-/// [`alloc::string`], but ABI-stable
+/// [`alloc::string`](https://doc.rust-lang.org/stable/alloc/string/), but ABI-stable
 pub mod string;
-/// [`alloc::sync`], but ABI-stable
+/// [`alloc::sync`](https://doc.rust-lang.org/stable/alloc/sync/), but ABI-stable
 pub mod sync;
-/// [`alloc::vec`], but ABI-stable
+/// [`alloc::vec`](https://doc.rust-lang.org/stable/alloc/vec/), but ABI-stable
 pub mod vec;
 
 /// The default allocator: libc malloc based if the libc feature is enabled, or unavailable otherwise.
@@ -199,7 +199,7 @@ impl IAlloc for core::convert::Infallible {
     }
 }
 
-/// The prefix common to all allocations in [`stabby::realloc`].
+/// The prefix common to all allocations in [`stabby::alloc`](crate::alloc).
 ///
 /// This allows reuse of allocations when converting between container types.
 #[crate::stabby]
