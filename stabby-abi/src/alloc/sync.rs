@@ -23,7 +23,7 @@ use crate::IntoDyn;
 
 use super::{
     vec::{ptr_add, ptr_diff, Vec, VecInner},
-    AllocPtr, AllocSlice, DefaultAllocator, IAlloc, Layout,
+    AllocPtr, AllocSlice, DefaultAllocator, IAlloc,
 };
 
 /// [`alloc::sync::Arc`](https://doc.rust-lang.org/stable/alloc/sync/struct.Arc.html), but ABI-stable.
@@ -66,17 +66,12 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
         constructor: F,
         mut alloc: Alloc,
     ) -> Result<Self, (F, Alloc)> {
-        let layout = Layout::of::<T>();
-        let mut ptr = if layout.size != 0 {
-            match AllocPtr::alloc(&mut alloc) {
-                Some(mut ptr) => {
-                    unsafe { core::ptr::write(&mut ptr.prefix_mut().alloc, alloc) };
-                    ptr
-                }
-                None => return Err((constructor, alloc)),
+        let mut ptr = match AllocPtr::alloc(&mut alloc) {
+            Some(mut ptr) => {
+                unsafe { core::ptr::write(&mut ptr.prefix_mut().alloc, alloc) };
+                ptr
             }
-        } else {
-            AllocPtr::dangling()
+            None => return Err((constructor, alloc)),
         };
         unsafe {
             constructor(core::mem::transmute::<&mut T, _>(ptr.as_mut()));
@@ -110,17 +105,12 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
         constructor: F,
         mut alloc: Alloc,
     ) -> Self {
-        let layout = Layout::of::<T>();
-        let mut ptr = if layout.size != 0 {
-            match AllocPtr::alloc(&mut alloc) {
-                Some(mut ptr) => {
-                    unsafe { core::ptr::write(&mut ptr.prefix_mut().alloc, alloc) };
-                    ptr
-                }
-                None => panic!("Allocation failed"),
+        let mut ptr = match AllocPtr::alloc(&mut alloc) {
+            Some(mut ptr) => {
+                unsafe { core::ptr::write(&mut ptr.prefix_mut().alloc, alloc) };
+                ptr
             }
-        } else {
-            AllocPtr::dangling()
+            None => panic!("Allocation failed"),
         };
         unsafe {
             constructor(core::mem::transmute::<&mut T, _>(ptr.as_mut()));
@@ -647,7 +637,7 @@ impl<T, Alloc: IAlloc> IntoDyn for Arc<T, Alloc> {
         let original_prefix = self.ptr.prefix_ptr();
         let anonymized = unsafe { core::mem::transmute::<_, Self::Anonymized>(self) };
         let anonymized_prefix = anonymized.ptr.prefix_ptr();
-        assert_eq!(anonymized_prefix, original_prefix);
+        assert_eq!(anonymized_prefix, original_prefix, "The allocation prefix was lost in anonimization, this is definitely a bug, please report it.");
         anonymized
     }
 }

@@ -22,7 +22,11 @@ pub trait StabbyLibrary {
     /// Since this function calls foreign code, it is inherently unsafe.
     ///
     /// # Errors
-    /// If the symbol is not found OR reflection indicated an ABI-mismatch
+    /// If the symbol is not found OR reflection indicated an ABI-mismatch.
+    ///
+    /// The symbol missing can mean that the library was compiled with a different version of stabby, or that the symbol was not exported with `#[stabby::export]`.
+    ///
+    /// In case of ABI-mismatch, the error will contain a message indicating the expected and found type layouts.
     unsafe fn get_stabbied<'a, T: crate::IStable>(
         &'a self,
         symbol: &[u8],

@@ -534,11 +534,28 @@ impl<T, Alloc: IAlloc> Drop for Vec<T, Alloc> {
 impl<T, Alloc: IAlloc> core::iter::Extend<T> for Vec<T, Alloc> {
     fn extend<Iter: IntoIterator<Item = T>>(&mut self, iter: Iter) {
         let iter = iter.into_iter();
-        let min = iter.size_hint().0;
-        self.reserve(min);
-        for item in iter {
-            self.push(item);
+        let (min, max) = iter.size_hint();
+        match max {
+            Some(max) => {
+                self.reserve(max);
+                iter.for_each(|item| {
+                    unsafe { self.inner.end.as_ptr().write(item) };
+                    self.inner.end = ptr_add(self.inner.end, 1);
+                })
+            }
+            _ => {
+                self.reserve(min);
+                iter.for_each(|item| self.push(item))
+            }
         }
+    }
+}
+
+impl<T, Alloc: IAlloc + Default> core::iter::FromIterator<T> for Vec<T, Alloc> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut ret = Self::default();
+        ret.extend(iter);
+        ret
     }
 }
 

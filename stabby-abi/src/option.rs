@@ -15,7 +15,7 @@
 //! A stable option for when rust's `Option<T>` isn't!
 
 use crate::enums::IDeterminantProvider;
-use crate::IStable;
+use crate::{unreachable_unchecked, IStable};
 
 /// A niche optimizing equivalent of [`core::option::Option`] that's ABI-stable regardless of the inner type's niches.
 #[crate::stabby]
@@ -159,7 +159,7 @@ where
     /// # Safety
     /// Calling this on `Self::None()` is UB.
     pub unsafe fn unwrap_unchecked(self) -> T {
-        self.unwrap_or_else(|| core::hint::unreachable_unchecked())
+        self.unwrap_or_else(|| unsafe { unreachable_unchecked!() })
     }
     /// # Panics
     /// If `!self.is_some`

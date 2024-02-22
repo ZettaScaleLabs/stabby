@@ -33,3 +33,18 @@ license = " EPL-2.0 OR Apache-2.0"
 categories = ["development-tools::ffi", "no-std::no-alloc"]
 repository = "https://github.com/ZettaScaleLabs/stabby"
 readme = "stabby/README.md"
+
+[workspace.dependencies]
+abi_stable = "0.11.2"
+criterion = "0.5.1"
+lazy_static = "1.4.0"
+libc = "0.2"
+libloading = "0.8"
+proc-macro2 = "1.0"
+proc-macro-crate = "3.1.0"
+quote = "1.0"
+rand = "0.8.5"
+rustversion = "1.0"
+sha2-const-stable = "0.1.0"
+smol = "2.0.0"
+syn = "1.0"

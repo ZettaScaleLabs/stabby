@@ -20,7 +20,7 @@ pub use crate::enums::IDeterminant;
 use crate::enums::IDeterminantProvider;
 use crate::padding::Padded;
 use crate::Union;
-use crate::{self as stabby, IStable};
+use crate::{self as stabby, unreachable_unchecked, IStable};
 
 /// An ABI-stable, niche optimizing equivalent of [`core::result::Result`]
 #[stabby::stabby]
@@ -174,11 +174,6 @@ where
     #[allow(clippy::missing_errors_doc)]
     pub fn as_ref(&self) -> core::result::Result<&Ok, &Err> {
         self.match_ref(Ok, Err)
-    }
-    /// Converts to a standard [`Result`](core::result::Result) of mutable references to the variants.
-    #[allow(clippy::missing_errors_doc)]
-    pub fn as_mut(&mut self) -> core::result::Result<&mut Ok, &mut Err> {
-        self.match_mut(Ok, Err)
     }
 
     /// Equivalent to `match &self`. If you need multiple branches to obtain mutable access or ownership
@@ -348,7 +343,7 @@ where
     /// # Safety
     /// Called on an `Err`, this triggers Undefined Behaviour.
     pub unsafe fn unwrap_unchecked(self) -> Ok {
-        self.unwrap_or_else(|_| core::hint::unreachable_unchecked())
+        self.unwrap_or_else(|_| unsafe { unreachable_unchecked!() })
     }
     /// # Panics
     /// If `!self.is_ok()`
@@ -365,7 +360,7 @@ where
     /// # Safety
     /// Called on an `Ok`, this triggers Undefined Behaviour.
     pub unsafe fn unwrap_err_unchecked(self) -> Err {
-        self.unwrap_err_or_else(|_| core::hint::unreachable_unchecked())
+        self.unwrap_err_or_else(|_| unsafe { unreachable_unchecked!() })
     }
     /// # Panics
     /// If `!self.is_err()`

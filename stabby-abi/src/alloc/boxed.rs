@@ -30,6 +30,10 @@ impl<T> Box<T> {
     ///
     /// Note that the allocation may or may not be zeroed.
     ///
+    /// If the allocation fails, the `constructor` will not be run.
+    ///
+    /// If the `constructor` panics, the allocated memory will be leaked.
+    ///
     /// # Panics
     /// If the allocator fails to provide an appropriate allocation.
     pub fn make<F: FnOnce(&mut core::mem::MaybeUninit<T>)>(constructor: F) -> Self {
@@ -46,8 +50,12 @@ impl<T> Box<T> {
 impl<T, Alloc: IAlloc> Box<T, Alloc> {
     /// Attempts to allocate [`Self`], initializing it with `constructor`.
     ///
+    /// Note that the allocation may or may not be zeroed.
+    ///
+    /// If the `constructor` panics, the allocated memory will be leaked.
+    ///
     /// # Errors
-    /// Returns the constructor and the allocator in case of failure.
+    /// Returns the `constructor` and the allocator in case of failure.
     ///
     /// # Notes
     /// Note that the allocation may or may not be zeroed.
@@ -197,7 +205,7 @@ impl<T, Alloc: IAlloc> IntoDyn for Box<T, Alloc> {
         let original_prefix = self.ptr.prefix_ptr();
         let anonymized = unsafe { core::mem::transmute::<_, Self::Anonymized>(self) };
         let anonymized_prefix = anonymized.ptr.prefix_ptr();
-        assert_eq!(anonymized_prefix, original_prefix);
+        assert_eq!(anonymized_prefix, original_prefix, "The allocation prefix was lost in anonimization, this is definitely a bug, please report it.");
         anonymized
     }
 }
