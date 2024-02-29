@@ -236,17 +236,6 @@ impl<T, As: IStable> StableLike<T, As> {
     }
 }
 
-impl<T: IStable, As: IStable> core::ops::Deref for StableLike<T, As> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        unsafe { self.as_ref_unchecked() }
-    }
-}
-impl<T: IStable, As: IStable> core::ops::DerefMut for StableLike<T, As> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { self.as_mut_unchecked() }
-    }
-}
 unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
     type Size = As::Size;
     type Align = As::Align;

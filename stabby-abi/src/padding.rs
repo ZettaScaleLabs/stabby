@@ -25,6 +25,7 @@ pub struct Padded<Left: Unsigned, T> {
     /// The value.
     pub value: T,
 }
+
 unsafe impl<Left: Unsigned, T: IStable> IStable for Padded<Left, T> {
     type Size = Left::Add<T::Size>;
     type Align = T::Align;

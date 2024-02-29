@@ -63,7 +63,7 @@ const _ARCH: &[u8] = b"sparc64";
 
 macro_rules! check {
     ($t: ty) => {
-        #[cfg(not(docsrs))]
+        #[cfg(not(any(docsrs, miri)))]
         const _: () = {
             let mut buffer = [0; 1024];
             let mut len = 0;

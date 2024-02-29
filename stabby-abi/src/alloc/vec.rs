@@ -482,18 +482,6 @@ macro_rules! impl_index {
                 &self.as_slice()[index]
             }
         }
-        impl<T, Alloc: IAlloc> core::ops::IndexMut<$index> for SingleOrVec<T, Alloc>
-        where
-            T: IStable,
-            Alloc: IStable,
-            Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
-            Vec<T, Alloc>: IStable,
-            crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
-        {
-            fn index_mut(&mut self, index: $index) -> &mut Self::Output {
-                &mut self.as_slice_mut()[index]
-            }
-        }
     };
 }
 

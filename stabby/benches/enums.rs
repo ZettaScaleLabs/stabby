@@ -55,9 +55,13 @@ fn bench_dynptr(c: &mut Criterion) {
         };
     }
     const _: () = {
+        // Surprisingly, Rust doesn't minimize the size here. Does it not see the niche?
         assert_eq!(std::mem::size_of::<StdOp>(), 12);
+        // [`Manual`] uses the niche that [`StdOp`] should be able to use.
         assert_eq!(std::mem::size_of::<Manual>(), 8);
+        // Good old repr(C) must be fat for historical reasons
         assert_eq!(std::mem::size_of::<COp>(), 12);
+        // Stabby finds the niche automagically.
         assert_eq!(std::mem::size_of::<StabbyOp>(), 8);
         assert_eq!(std::mem::size_of::<COption<NonZeroU32>>(), 8);
         assert_eq!(std::mem::size_of::<Option<NonZeroU32>>(), 4);
@@ -80,6 +84,7 @@ fn bench_dynptr(c: &mut Criterion) {
     let mut manual_op = Vec::with_capacity(ops.len());
     let mut c_op = Vec::with_capacity(ops.len());
     let mut stabby_op = Vec::with_capacity(ops.len());
+    // Baseline (81.233 µs) for constructing 100K enum variants where niches might be available.
     c.bench_function("std_new", |b| {
         b.iter(|| {
             std_op.clear();
@@ -102,6 +107,7 @@ fn bench_dynptr(c: &mut Criterion) {
             }
         });
     });
+    // Faster (65.052 µs), likely thanks to the smaller memory footprint and constifyability.
     c.bench_function("manual_new", |b| {
         b.iter(|| {
             manual_op.clear();
@@ -127,6 +133,7 @@ fn bench_dynptr(c: &mut Criterion) {
             }
         });
     });
+    // Same performance, same memory footprint.
     c.bench_function("c_new", |b| {
         b.iter(|| {
             c_op.clear();
@@ -149,6 +156,7 @@ fn bench_dynptr(c: &mut Criterion) {
             }
         });
     });
+    // Much slower (379.25 µs), the smaller layout doesn't compensate for 2 branches that can't be constified.
     c.bench_function("stabby_new", |b| {
         b.iter(|| {
             stabby_op.clear();
@@ -171,6 +179,8 @@ fn bench_dynptr(c: &mut Criterion) {
             }
         });
     });
+
+    // Baseline (439.04 µs) for executing 100K operations
     c.bench_function("std_run", |b| {
         b.iter(|| {
             let mut result = 0;
@@ -196,6 +206,7 @@ fn bench_dynptr(c: &mut Criterion) {
             black_box(result);
         });
     });
+    // Slightly faster (432.38 µs), better optimization?
     c.bench_function("manual_run", |b| {
         b.iter(|| {
             let mut result = 0;
@@ -233,6 +244,7 @@ fn bench_dynptr(c: &mut Criterion) {
             black_box(result);
         });
     });
+    // Slower (458.91 µs), likely due to more memory churn
     c.bench_function("c_run", |b| {
         b.iter(|| {
             let mut result = 0;
@@ -258,6 +270,7 @@ fn bench_dynptr(c: &mut Criterion) {
             black_box(result);
         });
     });
+    /// Same performance
     c.bench_function("stabby_run", |b| {
         b.iter(|| {
             let mut result = 0;
@@ -284,6 +297,7 @@ fn bench_dynptr(c: &mut Criterion) {
             black_box(result);
         });
     });
+
     let ops = (0..N)
         .map({
             let mut rng = rng.clone();
@@ -298,6 +312,7 @@ fn bench_dynptr(c: &mut Criterion) {
     let mut std_op = Vec::with_capacity(ops.len());
     let mut c_op = Vec::with_capacity(ops.len());
     let mut stabby_op = Vec::with_capacity(ops.len());
+    // Baseline (160μs) for `new_opt` bench series, where 100000 instances of `Option<NonZeroU32>` are pushed into a pre-allocated vector.
     c.bench_function("std_new_opt", |b| {
         b.iter(|| {
             std_op.clear();
@@ -306,6 +321,7 @@ fn bench_dynptr(c: &mut Criterion) {
             }
         });
     });
+    // Slower (189μs), likely due to COpt<NonZeroU32> being twice as big. It has to churn through more memory, but construction is cheap and cache prediction easy.
     c.bench_function("c_new_opt", |b| {
         b.iter(|| {
             c_op.clear();
@@ -317,6 +333,7 @@ fn bench_dynptr(c: &mut Criterion) {
             }
         });
     });
+    // Much slower (398μs), likely due to the constructor for `None` being non-const due to trait limitations.
     c.bench_function("stabby_new_opt", |b| {
         b.iter(|| {
             stabby_op.clear();
@@ -328,6 +345,8 @@ fn bench_dynptr(c: &mut Criterion) {
             }
         });
     });
+
+    // Baseline (152μs) for accessing all values of the 100000 element vector and adding the present ones to a result.
     c.bench_function("std_run_opt", |b| {
         b.iter(|| {
             let mut result = 0;
@@ -337,6 +356,7 @@ fn bench_dynptr(c: &mut Criterion) {
             black_box(result);
         });
     });
+    // Equivalent performance, the larger memory footprint is likely compensated by a better optimization of the operation (branchless?).
     c.bench_function("c_run_opt", |b| {
         b.iter(|| {
             let mut result = 0;
@@ -349,6 +369,7 @@ fn bench_dynptr(c: &mut Criterion) {
             black_box(result);
         });
     });
+    // Faster (137μs) despite not having much of a reason to be, maybe this form let the optimizer find a better gen?
     c.bench_function("stabby_run_opt", |b| {
         b.iter(|| {
             let mut result = 0;

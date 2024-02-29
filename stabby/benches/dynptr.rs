@@ -51,6 +51,7 @@ fn bench_dynptr(c: &mut Criterion) {
             move |_| rng.gen_range(0..=2u8)
         })
         .collect::<Vec<_>>();
+    // Baseline (14.734 µs) for constructing 1K arc traits.
     c.bench_function("stabby_arc_new", |b| {
         b.iter(|| {
             stabby_arc.clear();

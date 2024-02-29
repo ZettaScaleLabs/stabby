@@ -1,3 +1,14 @@
+# 4.0.0
+- Fix a soundness hole in `Result`, contaminating all `#[repr(stabby)]` enums: mutable references to a variant can no longer be held past the closure they originate from. This is needed because assigning to such a reference may override the determinant, which `stabby` reinserts at the end of the match. Passing a continuation in `match_mut_ctx` is the proper way to use a reference that may have originated from several variants.
+- Introduce the `uX` and `iX` types. These types are implemented as a newtype on the smallest integer type that is larger than them, but expose niches that are exclusive to `stabby`.
+- Some benchmarks have been built to measure `stabby`'s impact on performance. The global result is that `stabby` generally has similar performances to `std`, being marginally faster and marginally slower depending on cases. Some specific exceptions exist:
+	- `repr(stabby)` enums get much slower than their `std` versions, due to not being able to constify some of its niche handling. They can however be more compact, letting them be faster when memory access become the bottleneck.
+	- `stabby`'s `Vec` is faster at growing than Rust's thanks to a growth factor that minimizes memory partitioning. Note that your mileage may vary here, as a PR in the stdlib was attempted to use the same trick and did not yield better performances.
+	- `stabby` is much faster at converting between `Vec` and `ArcSlice`, and between large `Box`es and `Arc`s. This is thanks to all `stabby::alloc` types sharing a slot in front of their payload to allow converting between them without reallocating.
+- MIRI passes are being made to ensure that `stabby` stays safely within defined behaviour.
+	- Some UB may now no longer occur.
+	- Some UB is still detected in certain tests. Work is ongoing to remove said UB.
+
 # 3.0.3
 - Ensure docrs can properly build docs
 
