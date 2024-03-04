@@ -519,6 +519,13 @@ impl<T, Alloc: IAlloc> Drop for Vec<T, Alloc> {
         }
     }
 }
+impl<T: Copy, Alloc: IAlloc + Default> From<&[T]> for Vec<T, Alloc> {
+    fn from(value: &[T]) -> Self {
+        let mut this = Self::with_capacity(value.len());
+        this.copy_extend(value);
+        this
+    }
+}
 impl<T, Alloc: IAlloc> core::iter::Extend<T> for Vec<T, Alloc> {
     fn extend<Iter: IntoIterator<Item = T>>(&mut self, iter: Iter) {
         let iter = iter.into_iter();

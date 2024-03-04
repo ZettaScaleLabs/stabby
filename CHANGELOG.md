@@ -1,3 +1,6 @@
+# 4.0.1
+- Add constructors from slices for `Vec<T, A>`, `BoxedSlice<T, A>` and `ArcSlice<T, A>` where `T` is `Copy` and `A` is a default constructible allocator.
+
 # 4.0.0
 - With Rust 1.77, `u128`'s alignment changes to 16 bytes. This version of `stabby` supports both and is able to tell them appart.
 - Fix a soundness hole in `Result`, contaminating all `#[repr(stabby)]` enums: mutable references to a variant can no longer be held past the closure they originate from. This is needed because assigning to such a reference may override the determinant, which `stabby` reinserts at the end of the match. Passing a continuation in `match_mut_ctx` is the proper way to use a reference that may have originated from several variants.

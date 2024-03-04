@@ -325,6 +325,11 @@ impl<T, Alloc: IAlloc> From<BoxedSlice<T, Alloc>> for Vec<T, Alloc> {
         }
     }
 }
+impl<T: Copy, Alloc: IAlloc + Default> From<&[T]> for BoxedSlice<T, Alloc> {
+    fn from(value: &[T]) -> Self {
+        Vec::from(value).into()
+    }
+}
 
 impl<T, Alloc: IAlloc> Drop for BoxedSlice<T, Alloc> {
     fn drop(&mut self) {

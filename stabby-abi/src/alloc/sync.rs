@@ -387,6 +387,11 @@ impl<T, Alloc: IAlloc> From<Arc<T, Alloc>> for ArcSlice<T, Alloc> {
         }
     }
 }
+impl<T: Copy, Alloc: IAlloc + Default> From<&[T]> for ArcSlice<T, Alloc> {
+    fn from(value: &[T]) -> Self {
+        Vec::from(value).into()
+    }
+}
 impl<T, Alloc: IAlloc> From<Vec<T, Alloc>> for ArcSlice<T, Alloc> {
     fn from(value: Vec<T, Alloc>) -> Self {
         let (mut slice, capacity, mut alloc) = value.into_raw_components();
