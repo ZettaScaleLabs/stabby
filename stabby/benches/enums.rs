@@ -270,7 +270,7 @@ fn bench_dynptr(c: &mut Criterion) {
             black_box(result);
         });
     });
-    /// Same performance
+    // Same performance
     c.bench_function("stabby_run", |b| {
         b.iter(|| {
             let mut result = 0;

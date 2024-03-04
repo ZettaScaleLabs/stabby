@@ -59,32 +59,32 @@ fn enums() {
     let _: typenum2::U2 = <Result<u8, u8> as IStable>::Size::default();
     let _: typenum2::U2 = <Result<Result<u8, u8>, Result<u8, u8>> as IStable>::Size::default();
     inner(Tuple2(1u8, 2u16), Tuple2(3u16, 4u16), 6);
-    // inner(
-    //     Tuple2(1u8, 2u16),
-    //     Tuple2(3u8, NonZeroU8::new(4).unwrap()),
-    //     4,
-    // );
-    // inner(
-    //     Tuple2(3u8, NonZeroU8::new(4).unwrap()),
-    //     Tuple2(1u8, 2u16),
-    //     4,
-    // );
-    // inner(
-    //     Tuple3(3u8, NonZeroU8::new(4).unwrap(), 6u16),
-    //     Tuple2(1u8, 2u16),
-    //     4,
-    // );
-    // inner(Tuple2(3u8, 4u16), Tuple2(1u8, 2u16), 4);
-    // inner(3u16, Tuple2(1u8, 2u16), 4);
-    // inner(1u8, NonZeroU16::new(6).unwrap(), 4);
-    // let _: typenum2::U2 = <stabby::option::Option<NonZeroU16> as IStable>::Size::default();
-    // let _: typenum2::U2 = <stabby::option::Option<u8> as IStable>::Size::default();
-    // let _: typenum2::U1 = <stabby::option::Option<bool> as IStable>::Size::default();
-    // inner(true, (), 1);
-    // let string: stabby::string::String = stabby::string::String::from("Hi");
-    // inner(
-    //     string,
-    //     stabby::str::Str::from("there"),
-    //     core::mem::size_of::<stabby::string::String>(),
-    // );
+    inner(
+        Tuple2(1u8, 2u16),
+        Tuple2(3u8, NonZeroU8::new(4).unwrap()),
+        4,
+    );
+    inner(
+        Tuple2(3u8, NonZeroU8::new(4).unwrap()),
+        Tuple2(1u8, 2u16),
+        4,
+    );
+    inner(
+        Tuple3(3u8, NonZeroU8::new(4).unwrap(), 6u16),
+        Tuple2(1u8, 2u16),
+        4,
+    );
+    inner(Tuple2(3u8, 4u16), Tuple2(1u8, 2u16), 4);
+    inner(3u16, Tuple2(1u8, 2u16), 4);
+    inner(1u8, NonZeroU16::new(6).unwrap(), 4);
+    let _: typenum2::U2 = <stabby::option::Option<NonZeroU16> as IStable>::Size::default();
+    let _: typenum2::U2 = <stabby::option::Option<u8> as IStable>::Size::default();
+    let _: typenum2::U1 = <stabby::option::Option<bool> as IStable>::Size::default();
+    inner(true, (), 1);
+    let string: stabby::string::String = stabby::string::String::from("Hi");
+    inner(
+        string,
+        stabby::str::Str::from("there"),
+        core::mem::size_of::<stabby::string::String>(),
+    );
 }

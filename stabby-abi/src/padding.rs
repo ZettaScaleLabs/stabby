@@ -14,7 +14,7 @@
 
 use crate::*;
 
-use super::istable::{IBitMask, IForbiddenValues, Saturator};
+use super::istable::{IBitMask, IForbiddenValues};
 
 /// Pads `T` with `Left` bytes (plus alignment if needed)
 #[repr(C)]
