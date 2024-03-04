@@ -15,7 +15,8 @@
 //! A stable option for when rust's `Option<T>` isn't!
 
 use crate::enums::IDeterminantProvider;
-use crate::IStable;
+use crate::result::OkGuard;
+use crate::{unreachable_unchecked, IStable};
 
 /// A niche optimizing equivalent of [`core::option::Option`] that's ABI-stable regardless of the inner type's niches.
 #[crate::stabby]
@@ -63,6 +64,11 @@ where
         Self::None()
     }
 }
+/// A guard that ensures that niche determinants are reinserted if the `Some` variant of an [`Option`] is re-established after it may have been mutated.
+///
+/// When dropped, this guard ensures that the result's determinant is properly set.
+/// Failing to drop this guard may result in undefined behaviour.
+pub type SomeGuard<'a, T> = OkGuard<'a, T, ()>;
 impl<T: IStable> Option<T>
 where
     T: IDeterminantProvider<()>,
@@ -86,7 +92,7 @@ where
         self.match_ref(Some, || None)
     }
     /// Returns a mutable reference to the option's contents if they exist.
-    pub fn as_mut(&mut self) -> core::option::Option<&mut T> {
+    pub fn as_mut(&mut self) -> core::option::Option<SomeGuard<T>> {
         self.match_mut(Some, || None)
     }
     /// Equivalent to `match &self`. If you need multiple branches to obtain mutable access or ownership
@@ -109,7 +115,7 @@ where
     }
     /// Equivalent to `match &mut self`. If you need multiple branches to obtain mutable access or ownership
     /// of a local, use [`Self::match_mut_ctx`] instead.
-    pub fn match_mut<'a, U, FnSome: FnOnce(&'a mut T) -> U, FnNone: FnOnce() -> U>(
+    pub fn match_mut<'a, U, FnSome: FnOnce(SomeGuard<'a, T>) -> U, FnNone: FnOnce() -> U>(
         &'a mut self,
         some: FnSome,
         none: FnNone,
@@ -117,7 +123,13 @@ where
         self.inner.match_mut(some, |_| none())
     }
     /// Equivalent to `match &mut self`.
-    pub fn match_mut_ctx<'a, I, U, FnSome: FnOnce(I, &'a mut T) -> U, FnNone: FnOnce(I) -> U>(
+    pub fn match_mut_ctx<
+        'a,
+        I,
+        U,
+        FnSome: FnOnce(I, SomeGuard<'a, T>) -> U,
+        FnNone: FnOnce(I) -> U,
+    >(
         &'a mut self,
         ctx: I,
         some: FnSome,
@@ -159,7 +171,7 @@ where
     /// # Safety
     /// Calling this on `Self::None()` is UB.
     pub unsafe fn unwrap_unchecked(self) -> T {
-        self.unwrap_or_else(|| core::hint::unreachable_unchecked())
+        self.unwrap_or_else(|| unsafe { unreachable_unchecked!() })
     }
     /// # Panics
     /// If `!self.is_some`

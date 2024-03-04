@@ -14,7 +14,7 @@
 
 use crate::*;
 
-use super::istable::{IBitMask, IForbiddenValues, Saturator};
+use super::istable::{IBitMask, IForbiddenValues};
 
 /// Pads `T` with `Left` bytes (plus alignment if needed)
 #[repr(C)]
@@ -25,6 +25,7 @@ pub struct Padded<Left: Unsigned, T> {
     /// The value.
     pub value: T,
 }
+
 unsafe impl<Left: Unsigned, T: IStable> IStable for Padded<Left, T> {
     type Size = Left::Add<T::Size>;
     type Align = T::Align;

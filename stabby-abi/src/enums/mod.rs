@@ -34,7 +34,9 @@ pub trait IDeterminant: IStable {
     /// This function MUST be called after setting `union` to a valid value for type `Err`
     unsafe fn err(union: *mut u8) -> Self;
     /// Returns the state of the union.
-    fn is_ok(&self, union: *const u8) -> bool;
+    fn is_det_ok(&self, union: *const u8) -> bool;
+    /// Whether the determinant is explicit or implicit.
+    type IsNicheTrick: Bit;
 }
 
 /// If no niche can be found, an external tag is used.
@@ -63,9 +65,10 @@ impl IDeterminant for BitDeterminant {
     unsafe fn err(_: *mut u8) -> Self {
         BitDeterminant::Err
     }
-    fn is_ok(&self, _: *const u8) -> bool {
+    fn is_det_ok(&self, _: *const u8) -> bool {
         (*self as u8 & 1) == 0
     }
+    type IsNicheTrick = B0;
 }
 impl IDeterminant for End {
     unsafe fn ok(_: *mut u8) -> Self {
@@ -74,9 +77,10 @@ impl IDeterminant for End {
     unsafe fn err(_: *mut u8) -> Self {
         End
     }
-    fn is_ok(&self, _: *const u8) -> bool {
+    fn is_det_ok(&self, _: *const u8) -> bool {
         false
     }
+    type IsNicheTrick = B0;
 }
 
 /// Indicates that if the `Offset`th byte equals `Value`, and that the `Tail` also says so, `Err` is the current variant of the inspected union.
@@ -119,10 +123,11 @@ where
         *ptr.add(Offset::USIZE) = Value::U8;
         ValueIsErr(PhantomData, Tail::err(union))
     }
-    fn is_ok(&self, union: *const u8) -> bool {
+    fn is_det_ok(&self, union: *const u8) -> bool {
         let ptr = union;
-        unsafe { *ptr.add(Offset::USIZE) != Value::U8 || self.1.is_ok(union) }
+        unsafe { *ptr.add(Offset::USIZE) != Value::U8 || self.1.is_det_ok(union) }
     }
+    type IsNicheTrick = B1;
 }
 /// Coerces a type into a [`ValueIsErr`].
 pub trait IntoValueIsErr {
@@ -150,18 +155,25 @@ impl<Offset, Mask> Unpin for BitIsErr<Offset, Mask> {}
 impl<Offset: Unsigned, Mask: Unsigned> IDeterminant for BitIsErr<Offset, Mask> {
     unsafe fn ok(union: *mut u8) -> Self {
         let ptr = union;
+        if Mask::U8 == 1 {
+            *ptr.add(Offset::USIZE) = 0;
+        }
         *ptr.add(Offset::USIZE) &= u8::MAX ^ Mask::U8;
         BitIsErr(PhantomData)
     }
     unsafe fn err(union: *mut u8) -> Self {
         let ptr = union;
+        if Mask::U8 == 1 {
+            *ptr.add(Offset::USIZE) = 0;
+        }
         *ptr.add(Offset::USIZE) |= Mask::U8;
         BitIsErr(PhantomData)
     }
-    fn is_ok(&self, union: *const u8) -> bool {
+    fn is_det_ok(&self, union: *const u8) -> bool {
         let ptr = union;
         unsafe { *ptr.add(Offset::USIZE) & Mask::U8 == 0 }
     }
+    type IsNicheTrick = B1;
 }
 /// Inverts the return value of `Determinant`'s inspection.
 #[derive(Debug, Clone, Copy)]
@@ -186,9 +198,10 @@ where
     unsafe fn err(union: *mut u8) -> Self {
         Not(Determinant::ok(union))
     }
-    fn is_ok(&self, union: *const u8) -> bool {
-        !self.0.is_ok(union)
+    fn is_det_ok(&self, union: *const u8) -> bool {
+        !self.0.is_det_ok(union)
     }
+    type IsNicheTrick = Determinant::IsNicheTrick;
 }
 
 // "And now for the tricky bit..."

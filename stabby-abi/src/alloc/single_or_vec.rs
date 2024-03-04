@@ -1,6 +1,7 @@
 use super::vec::Vec;
 use crate::alloc::{AllocationError, DefaultAllocator, IAlloc};
 use crate::num::NonMaxUsize;
+use crate::result::OkGuard;
 use crate::{IDeterminantProvider, IStable};
 mod seal {
     #[crate::stabby]
@@ -203,7 +204,7 @@ where
                 let new_capacity = 1 + additional;
                 // either `inner` must be leaked and overwritten by the new owner of `value` and `alloc`,
                 // or these two must be leaked to prevent double frees.
-                let Single { value, alloc } = core::ptr::read(value);
+                let Single { value, alloc } = core::ptr::read(&*value);
                 match Vec::try_with_capacity_in(new_capacity, alloc) {
                     Ok(mut vec) => {
                         vec.push(value);
@@ -218,7 +219,7 @@ where
                     }
                 }
             },
-            |vec| vec.try_reserve(additional),
+            |mut vec| vec.try_reserve(additional),
         )
     }
     /// Removes all elements from `self` from the `len`th onward.
@@ -231,12 +232,12 @@ where
         let inner = &mut self.inner as *mut _;
         self.inner.match_mut(
             |value| unsafe {
-                let Single { value, alloc } = core::ptr::read(value);
+                let Single { value, alloc } = core::ptr::read(&*value);
                 core::mem::drop(value); // drop `value` to prevent leaking it since we'll overwrite `inner` with something that doesn't own it
                                         // overwrite `inner` with the new owner of `alloc`
                 core::ptr::write(inner, crate::Result::Err(Vec::new_in(alloc)))
             },
-            |vec| vec.truncate(len),
+            |mut vec| vec.truncate(len),
         )
     }
     /// Returns a slice of the elements in the vector.
@@ -247,10 +248,12 @@ where
         )
     }
     /// Returns a mutable slice of the elements in the vector.
-    pub fn as_slice_mut(&mut self) -> &mut [T] {
+    pub fn as_slice_mut(&mut self) -> SliceGuardMut<T, Alloc> {
         self.inner.match_mut(
-            |value| core::slice::from_mut(&mut value.value),
-            |vec| vec.as_slice_mut(),
+            |value| SliceGuardMut { inner: Ok(value) },
+            |mut vec| SliceGuardMut {
+                inner: Err(unsafe { core::mem::transmute(vec.as_slice_mut()) }),
+            },
         )
     }
     // pub fn iter(&self) -> core::slice::Iter<'_, T> {
@@ -259,6 +262,49 @@ where
     // pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, T> {
     //     self.into_iter()
     // }
+}
+
+/// A mutable accessor to [`SingleOrVec`]'s inner slice.
+///
+/// Failing to drop this guard may cause Undefined Behaviour
+pub struct SliceGuardMut<'a, T, Alloc>
+where
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
+    Vec<T, Alloc>: IStable,
+    crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+    Alloc: IAlloc,
+{
+    #[allow(clippy::type_complexity)]
+    inner: Result<OkGuard<'a, Single<T, Alloc>, Vec<T, Alloc>>, &'a mut [T]>,
+}
+impl<'a, T, Alloc> core::ops::Deref for SliceGuardMut<'a, T, Alloc>
+where
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
+    Vec<T, Alloc>: IStable,
+    crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+    Alloc: IAlloc,
+{
+    type Target = [T];
+    fn deref(&self) -> &Self::Target {
+        match &self.inner {
+            Ok(v) => core::slice::from_ref(&v.value),
+            Err(v) => v,
+        }
+    }
+}
+impl<'a, T, Alloc> core::ops::DerefMut for SliceGuardMut<'a, T, Alloc>
+where
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
+    Vec<T, Alloc>: IStable,
+    crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+    Alloc: IAlloc,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match &mut self.inner {
+            Ok(v) => core::slice::from_mut(&mut v.value),
+            Err(v) => v,
+        }
+    }
 }
 
 impl<T: Clone, Alloc: IAlloc + Clone> Clone for SingleOrVec<T, Alloc>
@@ -353,30 +399,6 @@ where
         self.as_slice()
     }
 }
-impl<T, Alloc: IAlloc> core::ops::DerefMut for SingleOrVec<T, Alloc>
-where
-    T: IStable,
-    Alloc: IStable,
-    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
-    Vec<T, Alloc>: IStable,
-    crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
-{
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.as_slice_mut()
-    }
-}
-impl<T, Alloc: IAlloc> core::convert::AsMut<[T]> for SingleOrVec<T, Alloc>
-where
-    T: IStable,
-    Alloc: IStable,
-    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
-    Vec<T, Alloc>: IStable,
-    crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
-{
-    fn as_mut(&mut self) -> &mut [T] {
-        self.as_slice_mut()
-    }
-}
 impl<T, Alloc: IAlloc> core::iter::Extend<T> for SingleOrVec<T, Alloc>
 where
     T: IStable,
@@ -418,11 +440,105 @@ where
     crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
 {
     type Item = &'a mut T;
-    type IntoIter = core::slice::IterMut<'a, T>;
+    type IntoIter = IterMut<'a, T, Alloc>;
     fn into_iter(self) -> Self::IntoIter {
-        self.as_slice_mut().iter_mut()
+        let inner = self.as_slice_mut();
+        IterMut {
+            start: 0,
+            end: inner.len(),
+            inner,
+        }
     }
 }
+
+/// An iterator over a [`SliceGuardMut`].
+pub struct IterMut<'a, T, Alloc>
+where
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
+    Vec<T, Alloc>: IStable,
+    crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+    Alloc: IAlloc,
+{
+    inner: SliceGuardMut<'a, T, Alloc>,
+    start: usize,
+    end: usize,
+}
+
+impl<'a, T, Alloc> Iterator for IterMut<'a, T, Alloc>
+where
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
+    Vec<T, Alloc>: IStable,
+    crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+    Alloc: IAlloc,
+{
+    type Item = &'a mut T;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start < self.end {
+            let r = unsafe { core::mem::transmute(self.inner.get_unchecked_mut(self.start)) };
+            self.start += 1;
+            Some(r)
+        } else {
+            None
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
+
+    fn count(self) -> usize
+    where
+        Self: Sized,
+    {
+        self.len()
+    }
+
+    fn last(mut self) -> Option<Self::Item>
+    where
+        Self: Sized,
+    {
+        self.next_back()
+    }
+
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        self.start += n;
+        self.next()
+    }
+}
+
+impl<'a, T, Alloc> DoubleEndedIterator for IterMut<'a, T, Alloc>
+where
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
+    Vec<T, Alloc>: IStable,
+    crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+    Alloc: IAlloc,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.start < self.end {
+            self.end -= 1;
+            let r = unsafe { core::mem::transmute(self.inner.get_unchecked_mut(self.end)) };
+            Some(r)
+        } else {
+            None
+        }
+    }
+    fn nth_back(&mut self, n: usize) -> Option<Self::Item> {
+        self.end = self.end.saturating_sub(n);
+        self.next_back()
+    }
+}
+impl<'a, T, Alloc> ExactSizeIterator for IterMut<'a, T, Alloc>
+where
+    Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
+    Vec<T, Alloc>: IStable,
+    crate::Result<Single<T, Alloc>, Vec<T, Alloc>>: IStable,
+    Alloc: IAlloc,
+{
+    fn len(&self) -> usize {
+        self.end.saturating_sub(self.start)
+    }
+}
+
 impl<T, Alloc: IAlloc> From<Vec<T, Alloc>> for SingleOrVec<T, Alloc>
 where
     T: IStable,

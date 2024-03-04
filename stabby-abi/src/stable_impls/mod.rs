@@ -63,7 +63,7 @@ const _ARCH: &[u8] = b"sparc64";
 
 macro_rules! check {
     ($t: ty) => {
-        #[cfg(not(docsrs))]
+        #[cfg(not(any(docsrs)))]
         const _: () = {
             let mut buffer = [0; 1024];
             let mut len = 0;
@@ -388,12 +388,23 @@ unsafe impl IStable for u128 {
     type ForbiddenValues = End;
     type Size = U16;
     type HasExactlyOneNiche = B0;
+    #[rustversion::before(1.77)]
     #[cfg(not(target_arch = "aarch64"))]
     type Align = U8;
+    #[rustversion::since(1.77)]
+    type Align = U16;
+    #[rustversion::before(1.77)]
     #[cfg(target_arch = "aarch64")]
     type Align = U16;
     type ContainsIndirections = B0;
-    primitive_report!("u128");
+    #[rustversion::before(1.77)]
+    #[cfg(not(target_arch = "aarch64"))]
+    primitive_report!("u128(8)");
+    #[rustversion::since(1.77)]
+    primitive_report!("u128(16)");
+    #[rustversion::before(1.77)]
+    #[cfg(target_arch = "aarch64")]
+    primitive_report!("u128(16)");
 }
 
 check!(u128);

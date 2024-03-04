@@ -284,7 +284,7 @@ pub fn repr_stabby(
         .collect::<Vec<_>>();
     let vtymut = vty
         .iter()
-        .map(|v| v.map(|ty| quote!(&'st_lt mut #ty)))
+        .map(|v| v.map(|ty| quote!(&mut #ty)))
         .collect::<Vec<_>>();
     let vid = variants.iter().map(|v| &v.ident).collect::<Vec<_>>();
     let vattrs = variants.iter().map(|v| &v.attrs);
@@ -352,10 +352,24 @@ pub fn repr_stabby(
     };
     let owned_matcher = matcher(quote!(match_owned));
     let ref_matcher = matcher(quote!(match_ref));
-    let mut_matcher = matcher(quote!(match_mut));
+    let mut_matcher = variants.map_with_finalizer(
+        |Variant { ident, field, .. }| match field {
+            Some(_) => quote!(|mut a| #ident(&mut*a)),
+            None => quote!(|_| #ident()),
+        },
+        |a, b| quote!(move |mut this| this.match_mut(#a, #b)),
+        |a, b| quote!(self.0.match_mut(#a, #b)),
+    );
     let owned_matcher_ctx = matcher_ctx(quote!(match_owned_ctx));
     let ref_matcher_ctx = matcher_ctx(quote!(match_ref_ctx));
-    let mut_matcher_ctx = matcher_ctx(quote!(match_mut_ctx));
+    let mut_matcher_ctx = variants.map_with_finalizer(
+        |Variant { ident, field, .. }| match field {
+            Some(_) => quote!(|stabby_ctx, mut a| #ident(stabby_ctx, &mut *a)),
+            None => quote!(|stabby_ctx, _| #ident(stabby_ctx)),
+        },
+        |a, b| quote!(move |stabby_ctx, mut this| this.match_mut_ctx(stabby_ctx, #a, #b)),
+        |a, b| quote!(self.0.match_mut_ctx(stabby_ctx, #a, #b)),
+    );
     let layout = &result;
 
     let bounds2 = generics.where_clause.as_ref().map(|c| &c.predicates);

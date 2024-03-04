@@ -236,17 +236,6 @@ impl<T, As: IStable> StableLike<T, As> {
     }
 }
 
-impl<T: IStable, As: IStable> core::ops::Deref for StableLike<T, As> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        unsafe { self.as_ref_unchecked() }
-    }
-}
-impl<T: IStable, As: IStable> core::ops::DerefMut for StableLike<T, As> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { self.as_mut_unchecked() }
-    }
-}
 unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
     type Size = As::Size;
     type Align = As::Align;
@@ -398,4 +387,71 @@ mod boundtests {
         a: usize,
         b: usize,
     }
+}
+
+/// Expands to [`unreachable!()`](core::unreachable) in debug builds or if `--cfg check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`core::hint::unreachable_unchecked`] otherwise.
+///
+/// This lets the compiler take advantage of the fact that the code is unreachable in release builds, and optimize accordingly, while giving you the opportunity to double check this at runtime in case of doubts.
+///
+/// # Panics
+/// This macro panics if the code is actually reachable in debug mode.
+/// This would mean that release code would be UB!
+///
+/// # Safety
+/// This macro is inherently unsafe, as it can cause UB in release mode if the code is actually reachable.
+#[macro_export]
+macro_rules! unreachable_unchecked {
+    () => {
+        if cfg!(any(debug_assertions, check_unreachable = "true")) {
+            ::core::unreachable!()
+        } else {
+            ::core::hint::unreachable_unchecked()
+        }
+    };
+}
+
+/// Expands to [`assert!(condition)`](core::assert) in debug builds or if `--cfg check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`if condition {core::hint::unreachable_unchecked()}`](core::hint::unreachable_unchecked) otherwise.
+///
+/// This lets the compiler take advantage of the fact that the condition is always true in release builds, and optimize accordingly, while giving you the opportunity to double check this at runtime in case of doubts.
+///
+/// # Panics
+/// This macro panics if the code is actually false in debug mode.
+/// This would mean that release code would be UB!
+///
+/// # Safety
+/// This macro is inherently unsafe, as it can cause UB in release mode if the assertion can actually be false.
+#[macro_export]
+macro_rules! assert_unchecked {
+    ($e: expr, $($t: tt)*) => {
+        if cfg!(any(debug_assertions, check_unreachable = "true")) {
+            ::core::assert!($e, $($t)*);
+        } else {
+            if !$e {
+                ::core::hint::unreachable_unchecked();
+            }
+        }
+    };
+}
+
+/// Expands to [`assert_eq`](core::assert_eq) in debug builds or if `--cfg check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`if a != b {core::hint::unreachable_unchecked()}`](core::hint::unreachable_unchecked) otherwise.
+///
+/// This lets the compiler take advantage of the fact that the condition is always true in release builds, and optimize accordingly, while giving you the opportunity to double check this at runtime in case of doubts.
+///
+/// # Panics
+/// This macro panics if the code is actually false in debug mode.
+/// This would mean that release code would be UB!
+///
+/// # Safety
+/// This macro is inherently unsafe, as it can cause UB in release mode if the assertion can actually be false.
+#[macro_export]
+macro_rules! assert_eq_unchecked {
+    ($a: expr, $b: expr, $($t: tt)*) => {
+        if cfg!(any(debug_assertions, check_unreachable = "true")) {
+            ::core::assert_eq!($a, $b, $($t)*);
+        } else {
+            if $a != $b {
+                ::core::hint::unreachable_unchecked();
+            }
+        }
+    };
 }

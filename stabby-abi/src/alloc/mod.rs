@@ -229,6 +229,8 @@ impl<Alloc> AllocPrefix<Alloc> {
 
 /// A non-null pointer guaranteed to be preceded by a valid
 /// [`AllocPrefix`] unless the pointer is dangling.
+///
+/// This means that unless `T` is a ZST, the pointer is guaranteed to be aligned to the maximum of `T`'s alignment and the alignment of the prefix, which itself is ptr-size aligned.
 #[crate::stabby]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AllocPtr<T, Alloc> {

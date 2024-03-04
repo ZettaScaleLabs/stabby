@@ -24,7 +24,9 @@
 
 extern crate core;
 
-pub use stabby_abi::{dynptr, export, import, stabby, vtmacro as vtable};
+pub use stabby_abi::{
+    assert_unchecked, dynptr, export, import, stabby, unreachable_unchecked, vtmacro as vtable,
+};
 
 pub use stabby_abi as abi;
 
@@ -73,7 +75,7 @@ pub mod time;
 macro_rules! format {
     ($($t: tt)*) => {{
         use ::core::fmt::Write;
-        let mut s = $crate::string::String::new();
+        let mut s = $crate::string::String::default();
         ::core::write!(s, $($t)*).map(move |_| s)
     }};
 }

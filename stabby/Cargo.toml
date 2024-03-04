@@ -14,7 +14,7 @@
 
 [package]
 name = "stabby"
-version = "3.0.3"
+version = "4.0.0"
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }
@@ -30,14 +30,28 @@ libloading = ["dep:libloading", "std"]
 libc = ["stabby-abi/libc"]
 
 [dependencies]
-stabby-abi = { path = "../stabby-abi/", version = "3.0.3" }
+stabby-abi = { path = "../stabby-abi/", version = "4.0.0" }
 
-lazy_static = "1.4.0"
-libloading = { version = "0.8", optional = true }
-rustversion = "1.0"
+lazy_static = { workspace = true }
+libloading = { workspace = true, optional = true }
+rustversion = { workspace = true }
 
 [dev-dependencies]
-smol = "2.0.0"
+smol = { workspace = true }
+criterion = { workspace = true }
+rand = { workspace = true }
 
 [package.metadata.docs.rs]
 rustc-args = ["--cfg", "docsrs"]
+
+[[bench]]
+name = "dynptr"
+harness = false
+
+[[bench]]
+name = "boxed_slices"
+harness = false
+
+[[bench]]
+name = "enums"
+harness = false

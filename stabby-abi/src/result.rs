@@ -14,13 +14,11 @@
 
 //! Stable results!
 
-use core::ops::DerefMut;
-
 pub use crate::enums::IDeterminant;
 use crate::enums::IDeterminantProvider;
 use crate::padding::Padded;
 use crate::Union;
-use crate::{self as stabby, IStable};
+use crate::{self as stabby, unreachable_unchecked, Bit, IStable};
 
 /// An ABI-stable, niche optimizing equivalent of [`core::result::Result`]
 #[stabby::stabby]
@@ -30,11 +28,13 @@ where
     Err: IStable,
 {
     niche_exporter: <Ok as IDeterminantProvider<Err>>::NicheExporter,
-    discriminant: <Ok as IDeterminantProvider<Err>>::Determinant,
+    determinant: <Ok as IDeterminantProvider<Err>>::Determinant,
     #[allow(clippy::type_complexity)]
-    union: Union<
-        Padded<<Ok as IDeterminantProvider<Err>>::OkShift, Ok>,
-        Padded<<Ok as IDeterminantProvider<Err>>::ErrShift, Err>,
+    union: core::mem::MaybeUninit<
+        Union<
+            Padded<<Ok as IDeterminantProvider<Err>>::OkShift, Ok>,
+            Padded<<Ok as IDeterminantProvider<Err>>::ErrShift, Err>,
+        >,
     >,
 }
 
@@ -68,10 +68,10 @@ where
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         if self.is_ok() {
             true.hash(state);
-            unsafe { &self.union.ok }.hash(state);
+            unsafe { self.ok_unchecked() }.hash(state);
         } else {
             false.hash(state);
-            unsafe { &self.union.err }.hash(state);
+            unsafe { self.err_unchecked() }.hash(state);
         }
     }
 }
@@ -84,8 +84,8 @@ where
 {
     fn eq(&self, other: &Self) -> bool {
         match (self.is_ok(), other.is_ok()) {
-            (true, true) => unsafe { self.union.ok.eq(&other.union.ok) },
-            (false, false) => unsafe { self.union.err.eq(&other.union.err) },
+            (true, true) => unsafe { self.ok_unchecked().eq(other.ok_unchecked()) },
+            (false, false) => unsafe { self.err_unchecked().eq(other.err_unchecked()) },
             _ => false,
         }
     }
@@ -125,10 +125,11 @@ where
     Err: IStable,
 {
     fn drop(&mut self) {
-        self.match_mut(
-            |ok| unsafe { core::ptr::drop_in_place(ok) },
-            |err| unsafe { core::ptr::drop_in_place(err) },
-        )
+        if self.is_ok() {
+            unsafe { core::ptr::drop_in_place(&mut self.union.assume_init_mut().ok.value) }
+        } else {
+            unsafe { core::ptr::drop_in_place(&mut self.union.assume_init_mut().err.value) }
+        }
     }
 }
 impl<Ok, Err> Result<Ok, Err>
@@ -139,34 +140,36 @@ where
     /// Construct the `Ok` variant.
     #[allow(non_snake_case)]
     pub fn Ok(value: Ok) -> Self {
-        let mut union = Union {
+        let mut union = core::mem::MaybeUninit::new(Union {
             ok: core::mem::ManuallyDrop::new(Padded {
                 lpad: Default::default(),
                 value,
             }),
+        });
+        let determinant = unsafe {
+            <Ok as IDeterminantProvider<Err>>::Determinant::ok(union.as_mut_ptr().cast())
         };
         Self {
             niche_exporter: Default::default(),
-            discriminant: unsafe {
-                <Ok as IDeterminantProvider<Err>>::Determinant::ok(&mut union as *mut _ as *mut _)
-            },
+            determinant,
             union,
         }
     }
     /// Construct the `Err` variant.
     #[allow(non_snake_case)]
     pub fn Err(value: Err) -> Self {
-        let mut union = Union {
+        let mut union = core::mem::MaybeUninit::new(Union {
             err: core::mem::ManuallyDrop::new(Padded {
                 lpad: Default::default(),
                 value,
             }),
+        });
+        let determinant = unsafe {
+            <Ok as IDeterminantProvider<Err>>::Determinant::err(union.as_mut_ptr().cast())
         };
         Self {
             niche_exporter: Default::default(),
-            discriminant: unsafe {
-                <Ok as IDeterminantProvider<Err>>::Determinant::err(&mut union as *mut _ as *mut _)
-            },
+            determinant,
             union,
         }
     }
@@ -174,11 +177,6 @@ where
     #[allow(clippy::missing_errors_doc)]
     pub fn as_ref(&self) -> core::result::Result<&Ok, &Err> {
         self.match_ref(Ok, Err)
-    }
-    /// Converts to a standard [`Result`](core::result::Result) of mutable references to the variants.
-    #[allow(clippy::missing_errors_doc)]
-    pub fn as_mut(&mut self) -> core::result::Result<&mut Ok, &mut Err> {
-        self.match_mut(Ok, Err)
     }
 
     /// Equivalent to `match &self`. If you need multiple branches to obtain mutable access or ownership
@@ -189,9 +187,9 @@ where
         err: FnErr,
     ) -> U {
         if self.is_ok() {
-            unsafe { ok(&self.union.ok.value) }
+            unsafe { ok(self.ok_unchecked()) }
         } else {
-            unsafe { err(&self.union.err.value) }
+            unsafe { err(self.err_unchecked()) }
         }
     }
     /// Equivalent to `match &self`.
@@ -202,29 +200,31 @@ where
         err: FnErr,
     ) -> U {
         if self.is_ok() {
-            unsafe { ok(ctx, &self.union.ok.value) }
+            unsafe { ok(ctx, self.ok_unchecked()) }
         } else {
-            unsafe { err(ctx, &self.union.err.value) }
+            unsafe { err(ctx, self.err_unchecked()) }
         }
     }
     /// Equivalent to `match &mut self`. If you need multiple branches to obtain mutable access or ownership
     /// of a local, use [`Self::match_mut_ctx`] instead.
-    pub fn match_mut<'a, U, FnOk: FnOnce(&'a mut Ok) -> U, FnErr: FnOnce(&'a mut Err) -> U>(
+    pub fn match_mut<
+        'a,
+        U,
+        FnOk: FnOnce(OkGuard<'a, Ok, Err>) -> U,
+        FnErr: FnOnce(ErrGuard<'a, Ok, Err>) -> U,
+    >(
         &'a mut self,
         ok: FnOk,
         err: FnErr,
     ) -> U {
         let r;
-        let union = &mut self.union as *mut _ as *mut u8;
         if Self::is_ok(self) {
             unsafe {
-                r = ok(&mut self.union.ok.deref_mut().value);
-                self.discriminant = <Ok as IDeterminantProvider<Err>>::Determinant::ok(union);
+                r = ok(self.ok_mut_unchecked());
             }
         } else {
             unsafe {
-                r = err(&mut self.union.err.deref_mut().value);
-                self.discriminant = <Ok as IDeterminantProvider<Err>>::Determinant::err(union);
+                r = err(self.err_mut_unchecked());
             }
         }
         r
@@ -234,8 +234,8 @@ where
         'a,
         T,
         U,
-        FnOk: FnOnce(T, &'a mut Ok) -> U,
-        FnErr: FnOnce(T, &'a mut Err) -> U,
+        FnOk: FnOnce(T, OkGuard<'a, Ok, Err>) -> U,
+        FnErr: FnOnce(T, ErrGuard<'_, Ok, Err>) -> U,
     >(
         &'a mut self,
         ctx: T,
@@ -243,16 +243,13 @@ where
         err: FnErr,
     ) -> U {
         let r;
-        let union = &mut self.union as *mut _ as *mut u8;
         if Self::is_ok(self) {
             unsafe {
-                r = ok(ctx, &mut self.union.ok.deref_mut().value);
-                self.discriminant = <Ok as IDeterminantProvider<Err>>::Determinant::ok(union);
+                r = ok(ctx, self.ok_mut_unchecked());
             }
         } else {
             unsafe {
-                r = err(ctx, &mut self.union.err.deref_mut().value);
-                self.discriminant = <Ok as IDeterminantProvider<Err>>::Determinant::err(union);
+                r = err(ctx, self.err_mut_unchecked());
             }
         }
         r
@@ -265,7 +262,7 @@ where
         err: FnErr,
     ) -> U {
         let is_ok = self.is_ok();
-        let union = self.union.clone();
+        let union = unsafe { self.union.assume_init_read() };
         core::mem::forget(self);
         if is_ok {
             ok(core::mem::ManuallyDrop::into_inner(unsafe { union.ok }).value)
@@ -281,7 +278,7 @@ where
         err: FnErr,
     ) -> U {
         let is_ok = self.is_ok();
-        let union = self.union.clone();
+        let union = unsafe { self.union.assume_init_read() };
         core::mem::forget(self);
         if is_ok {
             ok(
@@ -297,7 +294,8 @@ where
     }
     /// Returns `true` if in the `Ok` variant.
     pub fn is_ok(&self) -> bool {
-        self.discriminant.is_ok(&self.union as *const _ as *const _)
+        self.determinant
+            .is_det_ok(&self.union as *const _ as *const _)
     }
     /// Returns `true` if in the `Err` variant.
     pub fn is_err(&self) -> bool {
@@ -320,11 +318,11 @@ where
         self.match_ref(|_| None, Some)
     }
     /// Returns the `Ok` variant by mutable reference if it exists, `None` otherwise.
-    pub fn ok_mut(&mut self) -> Option<&mut Ok> {
+    pub fn ok_mut(&mut self) -> Option<OkGuard<'_, Ok, Err>> {
         self.match_mut(Some, |_| None)
     }
     /// Returns the `Err` variant by mutable reference if it exists, `None` otherwise.
-    pub fn err_mut(&mut self) -> Option<&mut Err> {
+    pub fn err_mut(&mut self) -> Option<ErrGuard<'_, Ok, Err>> {
         self.match_mut(|_| None, Some)
     }
     /// Applies a computation to the `Ok` variant.
@@ -348,7 +346,7 @@ where
     /// # Safety
     /// Called on an `Err`, this triggers Undefined Behaviour.
     pub unsafe fn unwrap_unchecked(self) -> Ok {
-        self.unwrap_or_else(|_| core::hint::unreachable_unchecked())
+        self.unwrap_or_else(|_| unsafe { unreachable_unchecked!() })
     }
     /// # Panics
     /// If `!self.is_ok()`
@@ -365,7 +363,7 @@ where
     /// # Safety
     /// Called on an `Ok`, this triggers Undefined Behaviour.
     pub unsafe fn unwrap_err_unchecked(self) -> Err {
-        self.unwrap_err_or_else(|_| core::hint::unreachable_unchecked())
+        self.unwrap_err_or_else(|_| unsafe { unreachable_unchecked!() })
     }
     /// # Panics
     /// If `!self.is_err()`
@@ -374,5 +372,108 @@ where
         Ok: core::fmt::Debug,
     {
         self.unwrap_err_or_else(|e| panic!("Result::unwrap_err called on Ok variant: {e:?}"))
+    }
+    unsafe fn ok_unchecked(&self) -> &Ok {
+        &self.union.assume_init_ref().ok.value
+    }
+    unsafe fn err_unchecked(&self) -> &Err {
+        &self.union.assume_init_ref().err.value
+    }
+    unsafe fn ok_mut_unchecked(&mut self) -> OkGuard<'_, Ok, Err> {
+        OkGuard { inner: self }
+    }
+    unsafe fn err_mut_unchecked(&mut self) -> ErrGuard<Ok, Err> {
+        ErrGuard { inner: self }
+    }
+}
+
+/// A guard that ensures that niche determinants are reinserted if the `Ok` variant of an [`Result`] is re-established after it may have been mutated.
+///
+/// When dropped, this guard ensures that the result's determinant is properly set.
+/// Failing to drop this guard may result in undefined behaviour.
+pub struct OkGuard<'a, Ok, Err>
+where
+    Ok: IDeterminantProvider<Err>,
+    Err: IStable,
+{
+    inner: &'a mut Result<Ok, Err>,
+}
+impl<'a, Ok, Err> core::ops::Deref for OkGuard<'a, Ok, Err>
+where
+    Ok: IDeterminantProvider<Err>,
+    Err: IStable,
+{
+    type Target = Ok;
+    fn deref(&self) -> &Self::Target {
+        unsafe { &self.inner.union.assume_init_ref().ok.value }
+    }
+}
+impl<'a, Ok, Err> core::ops::DerefMut for OkGuard<'a, Ok, Err>
+where
+    Ok: IDeterminantProvider<Err>,
+    Err: IStable,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut self.inner.union.assume_init_mut().ok.value }
+    }
+}
+impl<'a, Ok, Err> Drop for OkGuard<'a, Ok, Err>
+where
+    Ok: IDeterminantProvider<Err>,
+    Err: IStable,
+{
+    fn drop(&mut self) {
+        if <<<Ok as IDeterminantProvider<Err>>::Determinant as IDeterminant>::IsNicheTrick as Bit>::BOOL {
+            unsafe {
+                <Ok as IDeterminantProvider<Err>>::Determinant::ok(self.inner.union.as_mut_ptr().cast())
+            };
+        }
+    }
+}
+
+/// A guard that ensures that niche determinants are reinserted if the `Err` variant of an [`Option`] is re-established after it may have been mutated.
+///
+/// When dropped, this guard ensures that the result's determinant is properly set.
+/// Failing to drop this guard may result in undefined behaviour.
+pub struct ErrGuard<'a, Ok, Err>
+where
+    Ok: IDeterminantProvider<Err>,
+    Err: IStable,
+{
+    inner: &'a mut Result<Ok, Err>,
+}
+
+impl<'a, Ok, Err> core::ops::Deref for ErrGuard<'a, Ok, Err>
+where
+    Ok: IDeterminantProvider<Err>,
+    Err: IStable,
+{
+    type Target = Err;
+    fn deref(&self) -> &Self::Target {
+        unsafe { &self.inner.union.assume_init_ref().err.value }
+    }
+}
+impl<'a, Ok, Err> core::ops::DerefMut for ErrGuard<'a, Ok, Err>
+where
+    Ok: IDeterminantProvider<Err>,
+    Err: IStable,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut self.inner.union.assume_init_mut().err.value }
+    }
+}
+impl<'a, Ok, Err> Drop for ErrGuard<'a, Ok, Err>
+where
+    Ok: IDeterminantProvider<Err>,
+    Err: IStable,
+{
+    fn drop(&mut self) {
+        if <<<Ok as IDeterminantProvider<Err>>::Determinant as IDeterminant>::IsNicheTrick as Bit>::BOOL {
+            unsafe {
+                <Ok as IDeterminantProvider<Err>>::Determinant::err(
+                    self.inner.union.as_mut_ptr().cast(),
+                )
+            };
+        }
     }
 }

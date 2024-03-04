@@ -42,12 +42,12 @@ fn main() -> Result<(), std::io::Error> {
     for line in output.lines() {
         let line = line.trim();
         if let Some(release) = line.strip_prefix("release: ") {
-            for (i, s) in release.split('.').enumerate() {
+            for (i, s) in release.split('.').enumerate().take(3) {
                 rustc[i] = s.parse().unwrap_or(0);
             }
         }
         if let Some(release) = line.strip_prefix("LLVM version: ") {
-            for (i, s) in release.split('.').enumerate() {
+            for (i, s) in release.split('.').enumerate().take(3) {
                 llvm[i] = s.parse().unwrap_or(0);
             }
         }
