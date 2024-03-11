@@ -1,3 +1,6 @@
+# 4.0.2
+- Fix lifetimes seeping in code generation in traits, allowing more valid code to compile.
+
 # 4.0.1
 - Add constructors from slices for `Vec<T, A>`, `BoxedSlice<T, A>` and `ArcSlice<T, A>` where `T` is `Copy` and `A` is a default constructible allocator.
 

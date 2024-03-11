@@ -18,7 +18,7 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::{
     token::{Const, Mut, Unsafe},
-    Abi, AngleBracketedGenericArguments, BoundLifetimes, Expr, Lifetime, PatType, Path,
+    Abi, AngleBracketedGenericArguments, Binding, BoundLifetimes, Expr, Lifetime, PatType, Path,
     PathArguments, PathSegment, Receiver, Signature, TraitItemMethod, TraitItemType, Type,
     TypeArray, TypeBareFn, TypeGroup, TypeParen, TypePath, TypePtr, TypeReference, TypeTuple,
 };
@@ -1064,8 +1064,12 @@ impl Ty {
                 }
                 if let Arguments::AngleBracketed { generics } = arguments {
                     for arg in generics {
-                        if let GenericArgument::Lifetime(lt) = arg {
-                            *lt = syn::Lifetime::new("'static", Span::call_site())
+                        match arg {
+                            GenericArgument::Lifetime(lt) => {
+                                *lt = syn::Lifetime::new("'static", Span::call_site())
+                            }
+                            GenericArgument::Type(ty) => ty.elide_lifetime(),
+                            _ => {}
                         }
                     }
                 }
