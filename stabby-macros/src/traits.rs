@@ -18,7 +18,7 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::{
     token::{Const, Mut, Unsafe},
-    Abi, AngleBracketedGenericArguments, Binding, BoundLifetimes, Expr, Lifetime, PatType, Path,
+    Abi, AngleBracketedGenericArguments, BoundLifetimes, Expr, Lifetime, PatType, Path,
     PathArguments, PathSegment, Receiver, Signature, TraitItemMethod, TraitItemType, Type,
     TypeArray, TypeBareFn, TypeGroup, TypeParen, TypePath, TypePtr, TypeReference, TypeTuple,
 };
