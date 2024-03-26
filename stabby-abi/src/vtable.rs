@@ -14,6 +14,14 @@
 
 use crate as stabby;
 
+#[rustversion::nightly]
+/// Implementation detail for stabby's version of dyn traits.
+/// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
+pub trait IConstConstructor<'a, Source>: 'a + Copy + core::marker::Freeze {
+    /// The vtable.
+    const VTABLE: &'a Self;
+}
+#[rustversion::not(nightly)]
 /// Implementation detail for stabby's version of dyn traits.
 /// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
 pub trait IConstConstructor<'a, Source>: 'a + Copy {
@@ -116,7 +124,7 @@ impl<Head, Tail: HasSyncVt> HasSyncVt for VTable<Head, Tail> {}
 #[stabby::stabby]
 #[derive(Clone, Copy)]
 pub struct VtDrop {
-    ///
+    /// The [`Drop::drop`] function, shimmed with the C calling convention.
     pub drop: crate::StableLike<unsafe extern "C" fn(&mut ()), core::num::NonZeroUsize>,
 }
 impl PartialEq for VtDrop {

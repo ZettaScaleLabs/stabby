@@ -24,6 +24,7 @@
     clippy::missing_errors_doc
 )]
 #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(stabby_nightly, feature(freeze))]
 
 /// ABI-stable smart pointers and allocated data structures, with support for custom allocators.
 pub mod alloc;

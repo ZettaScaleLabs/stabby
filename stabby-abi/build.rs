@@ -55,4 +55,9 @@ fn main() {
         let u = u(1 << i);
         writeln!(padding_file, "/// {i}\npub type U2pow{i} = {u};").unwrap();
     }
+    if let Ok(toolchain) = std::env::var("RUSTUP_TOOLCHAIN") {
+        if toolchain.starts_with("nightly") {
+            println!("cargo:rustc-cfg=stabby_nightly");
+        }
+    }
 }

@@ -229,6 +229,8 @@ fn layouts() {
         3 * 16
     );
 }
+
+#[allow(dead_code)]
 #[repr(align(16))]
 struct Align128(u128);
 unsafe impl stabby::abi::IStable for Align128 {

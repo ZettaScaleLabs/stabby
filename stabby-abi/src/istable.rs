@@ -326,7 +326,7 @@ impl<A: IForbiddenValues, B: IForbiddenValues> IForbiddenValues for Or<A, B> {
 pub struct Or<A, B>(core::marker::PhantomData<(A, B)>);
 /// Whether or not the type is the end of a list.
 pub trait IsEnd {
-    ///
+    /// The result
     type Output: Bit;
 }
 impl IsEnd for End {
@@ -354,11 +354,11 @@ where
 }
 /// Runtime values for [`ISaturatingAdd`]
 pub enum SaturatingAddValue {
-    ///
+    /// 0
     B0,
-    ///
+    /// 1
     B1,
-    ///
+    /// More than 1
     Saturator,
 }
 /// An addition that saturates at 2.
@@ -390,7 +390,7 @@ pub struct Saturator;
 
 /// Whether or not a value is included in a set.
 pub trait Includes<SubSet> {
-    ///
+    /// The result
     type Output;
 }
 impl<T> Includes<End> for T {
@@ -431,14 +431,14 @@ impl<O1: Unsigned, T1, Tail: IBitMask> Arrayify for ((O1, T1), Tail, B0, B0) {
 impl<Tail, T, U> Arrayify for (End, Tail, T, U) {
     type Output = End;
 }
-///
+/// Support for stabby computations
 pub trait Arrayify {
-    ///
+    /// Support for stabby computations
     type Output;
 }
-///
+/// Support for stabby computations
 pub trait IncludesComputer<SubSet> {
-    ///
+    /// Support for stabby computations
     type Output;
 }
 impl<O1: Unsigned, T1, O2: Unsigned, T2, R2: IBitMask> IncludesComputer<(O1, T1)>
@@ -495,7 +495,7 @@ where
     same_as!(Struct<(Union<A, B>, B1)>);
 }
 
-///
+/// Computes a `T`-typed field's layout when it's after `Start` bytes, taking `T`'s alignment into account.
 pub struct AlignedAfter<T, Start: Unsigned>(core::marker::PhantomData<(T, Start)>);
 
 // AlignedAfter a ZST
