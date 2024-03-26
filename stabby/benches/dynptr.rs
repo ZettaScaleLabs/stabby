@@ -26,12 +26,15 @@ macro_rules! impl_op {
     };
 }
 
+#[allow(dead_code)]
 #[derive(Default)]
 pub struct Add(u8);
 impl_op!(Add, lhs, rhs: lhs.wrapping_add(rhs));
+#[allow(dead_code)]
 #[derive(Default)]
 pub struct Sub(u8);
 impl_op!(Sub, lhs, rhs: lhs.wrapping_sub(rhs));
+#[allow(dead_code)]
 #[derive(Default)]
 pub struct Mul(u8);
 impl_op!(Mul, lhs, rhs: lhs.wrapping_mul(rhs));

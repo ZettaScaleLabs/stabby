@@ -1,3 +1,7 @@
+# 4.0.3
+- Ensure `stabby` compiles on `nightly` by using `core::marker::Freeze` to reassure Rust that a bound that will eventually become required for const static references is respected by v-tables.
+- Small documentation pass on internals to make nightly clippy happy
+
 # 4.0.2
 - Fix lifetimes seeping in code generation in traits, allowing more valid code to compile.
 

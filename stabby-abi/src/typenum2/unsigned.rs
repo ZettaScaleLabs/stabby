@@ -49,33 +49,33 @@ unsafe impl IStable for PadByte {
 
 /// The basis on which [`IBit`] stands.
 pub trait IBitBase {
-    ///
+    /// Support for [`IBit`]
     const _BOOL: bool;
-    ///
+    /// Support for [`IBit`]
     type _And<T: IBit>: IBit;
-    ///
+    /// Support for [`IBit`]
     type _Or<T: IBit>: IBit;
-    ///
+    /// Support for [`IBit`]
     type _Not: IBit;
-    ///
+    /// Support for [`IBit`]
     type _Ternary<A, B>;
-    ///
+    /// Support for [`IBit`]
     type _UTernary<A: IUnsigned, B: IUnsigned>: IUnsigned;
-    ///
+    /// Support for [`IBit`]
     type _NzTernary<A: NonZero, B: NonZero>: NonZero;
-    ///
+    /// Support for [`IBit`]
     type _BTernary<A: IBit, B: IBit>: IBit;
-    ///
+    /// Support for [`IBit`]
     type _BmTernary<A: IBitMask, B: IBitMask>: IBitMask;
-    ///
+    /// Support for [`IBit`]
     type _PTernary<A: IPowerOf2, B: IPowerOf2>: IPowerOf2;
-    ///
+    /// Support for [`IBit`]
     type _FvTernary<A: IForbiddenValues, B: IForbiddenValues>: IForbiddenValues;
-    ///
+    /// Support for [`IBit`]
     type _UbTernary<A: IBitMask, B: IBitMask>: IBitMask;
-    ///
+    /// Support for [`IBit`]
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd>: ISaturatingAdd;
-    ///
+    /// Support for [`IBit`]
     type AsForbiddenValue: ISingleForbiddenValue;
 }
 /// false
@@ -187,43 +187,43 @@ impl<Bit: IBitBase> IBit for Bit {
 }
 /// The basis for [`IUnsigned`].
 pub trait IUnsignedBase {
-    ///
+    /// Support for [`IUnsigned`]
     const _U128: u128;
-    ///
+    /// Support for [`IUnsigned`]
     type Bit: IBitBase;
-    ///
+    /// Support for [`IUnsigned`]
     type Msb: IUnsigned;
-    ///
+    /// Support for [`IUnsigned`]
     type _BitAndInner<T: IUnsigned>: IUnsigned;
-    ///
+    /// Support for [`IUnsigned`]
     type _IsUTerm: IBit;
-    ///
+    /// Support for [`IUnsigned`]
     type _BitOrInner<T: IUnsigned>: IUnsigned;
-    ///
+    /// Support for [`IUnsigned`]
     type _Simplified: IUnsigned;
-    ///
+    /// Support for [`IUnsigned`]
     type _Equals<T: IUnsigned>: IBit;
-    ///
+    /// Support for [`IUnsigned`]
     type _Add<T: IUnsigned, Carry: IBit>: IUnsigned;
-    ///
+    /// Support for [`IUnsigned`]
     type _Sub<T: IUnsigned, Carry: IBit>: IUnsigned;
-    ///
+    /// Support for [`IUnsigned`]
     type _Greater<T: IUnsigned, Hint: IBit>: IBit;
-    ///
+    /// Support for [`IUnsigned`]
     type _Truncate<T: IUnsigned>: IUnsigned;
-    ///
+    /// Support for [`IUnsigned`]
     type NextPow2: IUnsigned;
-    ///
+    /// Support for [`IUnsigned`]
     type Increment: IUnsigned;
-    ///
+    /// Support for [`IUnsigned`]
     type _Padding: IStable + Default + Copy + Unpin;
-    ///
+    /// Support for [`IUnsigned`]
     type _SatDecrement: IUnsigned;
-    ///
+    /// Support for [`IUnsigned`]
     type _TruncateAtRightmostOne: NonZero;
-    ///
+    /// Support for [`IUnsigned`]
     type _NonZero: NonZero;
-    ///
+    /// Support for [`IUnsigned`]
     type _Mul<T: IUnsigned>: IUnsigned;
 }
 /// A is smaller than B if `A::Cmp<B>` = Lesser.
@@ -271,7 +271,7 @@ pub trait IUnsigned: IUnsignedBase {
     type Min<T: IUnsigned>: IUnsigned;
     /// max(Self, T)
     type Max<T: IUnsigned>: IUnsigned;
-    ///
+    /// Support for modular operations.
     type Truncate<T: IUnsigned>: IUnsigned;
     /// Self % T
     type Mod<T: IPowerOf2>: IUnsigned;
