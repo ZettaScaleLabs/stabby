@@ -152,6 +152,41 @@ impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
 }
 #[stabby::stabby]
 /// A stable trait object (or a stable `&mut dyn`)
+/// # Examples
+/// ```rust
+/// trait Piece {}
+/// struct Slice;
+/// impl Piece for Slice {}
+/// struct Teaspoon;
+/// impl Piece for Teaspoon {}
+/// let slice = Slice;
+/// let teaspoon = Teaspoon;
+/// // Dyn<&'a mut (), vtable!(Piece)>
+/// type DynPiece<'a> = stabby::dynptr!('a mut dyn Piece);
+/// // Dyn<&'a, stabby::boxed::Box<()>, vtable!(Piece)>
+/// type DynBoxPiece<'a> = stabby::dynptr!(stabby::boxed::Box<dyn Piece + 'a>);
+/// // Dyn<&'a, stabby::sync::Arc<()>, vtable!(Piece)>
+/// type DynArcPiece<'a> = stabby::dynptr!(stabby::sync::Arc<dyn Piece + 'a>);
+/// // Dyn and DynRef structs are constructed by using the from method of their From trait implementation
+/// {
+/// 	// Dyn struct construction from borrow of trait implementor
+/// 	let dyn_piece = DynPiece::from(&slice);
+/// 	let dyn_piece = DynPiece::from(&teaspoon);
+/// }
+/// // Dyn struct construction from heap allocated owned trait implementor
+/// let inner_dyn_box_piece = stabby::boxed::Box::new(slice);
+/// let dyn_box_piece = DynBoxPiece::from(inner_dyn_box_piece);
+/// let inner_dyn_box_piece = stabby::boxed::Box::new(teaspoon);
+/// let dyn_box_piece = DynBoxPiece::from(inner_dyn_box_piece);
+/// // slice and teaspoon were previously moved so have to recreate them for DynArcPiece
+/// let slice = Slice;
+/// let teaspoon = Teaspoon;
+/// // Dyn struct construction from thread safe owned trait implementor
+/// let inner_dyn_arc_piece = stabby::sync::Arc::new(slice);
+/// let dyn_arc_piece = DynArcPiece::from(inner_dyn_arc_piece);
+/// let inner_dyn_arc_piece = stabby::sync::Arc::new(teaspoon);
+/// let dyn_arc_piece = DynArcPiece::from(inner_dyn_arc_piece);
+/// ```
 pub struct Dyn<'a, P: IPtrOwned + 'a, Vt: HasDropVt + 'static> {
     ptr: core::mem::ManuallyDrop<P>,
     vtable: &'static Vt,
