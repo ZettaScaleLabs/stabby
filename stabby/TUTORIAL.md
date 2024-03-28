@@ -202,12 +202,93 @@ pub enum AllInts {
 For a type to be ABI-stable, not only must its components be assembled in stable ways, but these components must also be ABI-stable.
 
 The [`IStable`] trait is already implemented for most ABI-stable types in Rust's `core`, including all integers\*, non-zero integers\*,
-floats, thin pointers, thin references, and transparent types (\*`u128` and `i128` are considered ABI-stable, despite their ABI having changed between `1.76` and `1.77` due to LLVM changing their alignment on x86. `stabby` is able to tell appart these types when they've been compiled with either alignment.).
+floats, thin pointers, thin references, and transparent types (\*`u128` and `i128` are considered ABI-stable, despite their ABI having changed between `1.76` and `1.77` due to LLVM changing their alignment on x86. `stabby` is able to tell appart these types when they've been compiled with either alignment).
 
 On top of this, `stabby` can tell when `core::option::Option<T>` is ABI-stable (when `T` is ABI-stable and known to have only one possible niche, like thin references and `NonZero` types).
 
-`stabby` also provides ABI-stable equivalents to a few of the core allocated types from `alloc`, as none of `alloc`'s types are ABI-stable. If you need more than the types currently offered by `stabby`, contributions are always welcome. However, for more complex types,
-[trait objects](#defining-abi-stable-traits) might be a better solution than stabilizing a given representation.
+`stabby` also provides ABI-stable equivalents to a few of the core allocated types from `alloc`, as none of `alloc`'s types are ABI-stable, notably because their default allocator is not guaranteed to stay the same ([it has changed before](https://internals.rust-lang.org/t/jemalloc-was-just-removed-from-the-standard-library/8759)), despite the allocator being a type invariant for any type containing owning pointers.
+
+Allocator choice is a great excuse to introduce another important concept in ABI-stability: type invariants are part of your ABI. This is important because this means that if you decide to include (or not to include) and invariant in your type at any point, changing your mind on this
+is an ABI breakage, as passing memory from a binary that doesn't uphold the invariant to one that expects it to be upheld may lead to undefined behaviour.
+
+### Escaping ABI stability
+
+Sometimes, you might decide that you'd rather not commit to a given representation for your type, or for a given set of invariants. That's perfectly normal, especially if that type is expected to allow complex behaviour.
+
+Lucky for you, a solution for that has existed since times immemorial: opaque types.
+
+The core principle with these is to make consumer code completely unaware of their internal representation, limiting interraction to functions that return and accept pointers to them. The `FILE` and `socket`APIs in C are prime examples of this.
+
+Opaque types are typically used when only one implementation of their API is expected to be loaded at any given time. The moment you expect more, what you probably want is trait objects.
+
+While this isn't yet implemented, as I'm still looking for ways to do it both conveniently and reliably, `stabby` will eventually try to provide a way to define opaque types with minimal boilerplate such that their binary code is only included when built as a shared object, while
+dependents on them would instead get bindings to interract with said shared objects as if they were standard Rust code. In the meantime, [trait objects](defining-abi-stable-traits) can fulfill the same role at a slightly higher runtime cost, but with greater flexibility yet.
 
 ## Defining ABI stable traits.
 
+`stabby::stabby` can also be applied to traits! Doing so will let you use these traits in ABI-stable trait objects using a rather familiar syntax.
+```rust
+use stabby::boxed::Box;
+#[stabby::stabby(checked)]
+// `checked` verifies that all function signatures are ABI-stable.
+// A following example will show why it is disabled by default.
+pub trait Volume {
+	extern "C" fn in_liters(&self) -> f32;
+}
+#[stabby::export]
+pub extern "C" fn teaspoons(n: f32) -> stabby::dynptr!(Box<dyn Volume>) {
+	struct Teaspoon(f32);
+	impl Volume for Teaspoon {
+		extern "C" fn in_liters(&self) -> f32 { 0.004928 * self.0 }
+	}
+	Box::new(Teaspoon(n)).into()
+}
+```
+
+`stabby::dynptr` allows you to obtain the type of the `stabby`-defined trait object with the familiar trait object syntax. Here, it actually expands to the pretty horrid 
+```text
+stabby::abi::Dyn<
+	'static,
+	Box<()>,
+	stabby::abi::VTable<VtVolume, VtDrop>
+>
+```
+
+An error you may quickly run into when working with multiple trait objects is that you can't just use `stabby::dynptr` (or any other macro, for that matter) in the function signatures, because `stabby` cannot see through macros:
+
+```compile_fail
+# use stabby::boxed::Box;
+# #[stabby::stabby(checked)]
+# pub trait Volume {
+# 	extern "C" fn in_liters(&self) -> f32;
+# }
+#[stabby::stabby(checked)]
+pub trait Engine {
+	extern "C" fn volume(&self) -> stabby::dynptr!(Box<dyn Volume>);
+}
+```
+This is, however, easy to circumvent using a type alias.
+```rust
+# use stabby::boxed::Box;
+# #[stabby::stabby(checked)]
+# pub trait Volume {
+# 	extern "C" fn in_liters(&self) -> f32;
+# }
+type BoxedVolume = stabby::dynptr!(Box<dyn Volume>);
+#[stabby::stabby(checked)]
+pub trait Engine {
+	extern "C" fn volume(&self) -> BoxedVolume;
+}
+```
+
+`stabby` originally checked all traits for ABI-stability by default. This behaviour was changed in `1.0.1` as it would lead to the `cargo check` looping forever when trying to evaluate the trait's stability when one of its methods mentioned it:
+```rust
+type RefVolume<'a> = stabby::dynptr!(&'a dyn Volume);
+#[stabby::stabby] // Adding `checked` here would provoke an infinite loop.
+pub trait Volume {
+	extern "C" fn in_liters(&self) -> f32;
+	extern "C" fn cmp(&self, rhs: RefVolume<'_>) -> core::cmp::Ordering;
+}
+```
+
+Note however that until I wrote this example, `stabby` didn't know that `core::cmp::Ordering` was actually ABI-stable, yet accepted it as such because the checks were bypassed. I would therefore advise to enable the check whenever possible, as leaving it disabled does punch a hole in stabby's safety net.
