@@ -42,6 +42,7 @@ criterion = { workspace = true }
 rand = { workspace = true }
 
 [package.metadata.docs.rs]
+all-features = true
 rustc-args = ["--cfg", "docsrs"]
 
 [[bench]]

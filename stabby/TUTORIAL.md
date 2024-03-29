@@ -1,22 +1,24 @@
 # The Stabby Tutorial
 
 `stabby` provides a set of tools to use all of Rust's power accross FFI with as little runtime overhead as possible. This page is meant to guide you through its various features and how you're expected to use it.
-
 <!-- TOC -->
 
 - [Defining ABI stable types](#defining-abi-stable-types)
 	- [Product types or structs](#product-types-or-structs)
 	- [Sum types or enums](#sum-types-or-enums)
-		- [External tagging: repruX and repriX](#external-tagging-reprux-and-reprix)
-		- [Stable niche optimizations: reprstabby](#stable-niche-optimizations-reprstabby)
 	- [ABI-stability must go all the way down...](#abi-stability-must-go-all-the-way-down)
-	- [Unless you get tricky](#unless-you-get-tricky)
+	- [Unless you opacify types to their dependents](#unless-you-opacify-types-to-their-dependents)
 - [Defining ABI stable traits](#defining-abi-stable-traits)
 	- [Common pitfalls](#common-pitfalls)
 	- [Multi-trait objects](#multi-trait-objects)
 - [Creating shared libraries](#creating-shared-libraries)
+	- [Exporting functions in shared objects](#exporting-functions-in-shared-objects)
+	- [Exporting functions with checks](#exporting-functions-with-checks)
+	- [Importing functions at runtime](#importing-functions-at-runtime)
+	- [Importing functions at runtime _with checks_](#importing-functions-at-runtime-_with-checks_)
 
 <!-- /TOC -->
+
 
 ## Defining ABI stable types
 
@@ -231,7 +233,7 @@ Sometimes, you might decide that you'd rather not commit to a given representati
 
 Lucky for you, a solution for that has existed since times immemorial: opaque types.
 
-The core principle with these is to make consumer code completely unaware of their internal representation, limiting interraction to functions that return and accept pointers to them. The `FILE` and `socket`APIs in C are prime examples of this.
+The core principle with opaque types is to make consumer code completely unaware of their internal representation, limiting interraction to functions that return and accept pointers to them. The `FILE` and `socket`APIs in C are prime examples of this.
 
 Opaque types are typically used when only one implementation of their API is expected to be loaded at any given time. The moment you expect more, what you probably want is trait objects.
 
@@ -358,3 +360,75 @@ type BoxedEngineAndVolume = stabby::dynptr!(Box<dyn Engine + Volume>);
 
 Now that we have ways to define types that will work accross the shared library boundary, let's see how we can put them to good use!
 
+If you'd rather just look at code, [these examples](https://github.com/ZettaScaleLabs/stabby/tree/main/examples) exist solely to show you how to make a shared [library](https://github.com/ZettaScaleLabs/stabby/tree/main/examples/library), and how to link it [at load-time](https://github.com/ZettaScaleLabs/stabby/tree/main/examples/dynlinkage) or [at runtime with `libloading`](https://github.com/ZettaScaleLabs/stabby/tree/main/examples/libloading).
+
+### Exporting functions in shared objects
+
+Before we can load functions from shared objects, we need to create them. To do so, we need to ask `cargo` to produce one by adding the `cdylib` crate type to our library:
+```toml
+[lib]
+crate-type = ["cdylib"]
+```
+
+By doing so, `cargo` will now build an appropriately named artifact for your system, `lib<crate_name>.so` on Linux, which you'll be able to find in the target directory corresponding to your build profile. If you start inspecting it with `nm`, you'll find that it's home to a multitude of oddly named symbols: that's because unless you explicitly ask Rust not to do so, it will mangle symbol names so that symbols that share the same identifier, but were defined in different modules or with different generic parameters, can coexist in the binary and be told appart.
+
+If you've done any C before, you might be used to "manually mangling" your function names: prefixing them with a prefix systematically to avoid your `intvec_push` from clashing with someone else's. That's because C doesn't do mangling (leaving you to mangle your mind and fingers doing it yourself), but that's also what makes it easy to work with shared objects in C.
+
+I just said "unless you explicitly ask Rust not to do so", though. Here's how that looks:
+```rust
+#[no_mangle]
+pub extern "C" fn my_self_mangled_function(param1: u8, param2: u16) {}
+```
+
+`#[no_mangle]` is really explicit: the symbol it annotates will not have its name mangled, meaning it will appear as-is in the list of symbols `nm` will now give you.
+
+You might also have spotted that `extern "C"` here, and possibly earlier when we were talking about traits. `extern "X"` is how you tell Rust to use the `X` calling convention for a givent function. Calling conventions are complicated, but the gist of them is this:
+- A calling convention defines how a function should be called: where its arguments will be in memory/registers; how the caller should recover their return value; which of the `caller` and `callee` is supposed to save which registers to prevent `caller`'s intermediate results from getting erased by `callee` doing its own job.
+- Rust's default calling convention is not "stable": it may change depending on which version of the compiler you're using, or which settings you used for it. This means that calling a function from a different binary that wasn't explicitly annotated with a stable calling convention may result in undefined behaviour.
+- The `C` calling convention is one of the most commonly used stable calling conventions. This is also the calling convention you should use when importing symbols from a binary produced by C when no explicit calling conventions have been specified.
+
+Rust will also take that as enough reason not to "tree shake" your function out of the final shared object: even if nothing calls your function in your object's code, it will still be included in the resulting binary. Tree shaking is a common feature in compiled languages where code that's unused will be removed from the final binary (possibly very early in the compilation process to avoid wasting time building that code at all).
+
+### Exporting functions with checks
+
+The previous example is the default way of exporting symbols in Rust when you're planning on dynamically linking to them in other binaries.
+
+However, `stabby` attempts to provide a better way: `#[stabby::export]`, which comes in two flavours:
+- The default flavour will export an additional symbol which lets the importer inquire on the exported function's signature, allowing the detection of incompatibilities between the exported function's signature and the signature you're trying to import it as. It is by far `stabby`'s favoured way of exporting symbols, but does require all function parameters to be proven ABI-stable with the [`IStable`] trait. This means that this will only compile if your function's ABI is indeed entirely stable.
+- The `canaries` flavour, will export additional symbols which let the importer inquire on the version and settings of the compiler used to compile the shared object. You can use this exporter when you want your function to use types that aren't provably stable in their signature. Doing so is still risky, but the canaries make it less risky than just straight up ignoring the risks. From my previous experience with [Zenoh](https://zenoh.io)'s plugin system, we've never detected any undefined behaviour in doing things without guaranteeing ABI-stability as long as we did check the parameters checked by these canaries.
+
+In either case, `#[stabby::export]` will automatically imply `#[no_mangle]`, and will force you to pick a stable calling convention (which, suprisingly, `#[no_mangle]` doesn't warn you about forgetting).
+
+### Importing functions at runtime
+
+To import functions at runtime, you will first need to link the shared object that contains them at runtime.
+
+No need to panic, it's not that hard: the most common way to do that in Rust is to rely on the [`libloading`](https://crates.io/crates/libloading) crate to interface with whatever your OS provides to load libraries (`dlopen` on POSIX compliant OSes, `LoadLibrary` on Windows). 
+```no_run
+extern crate libloading;
+let lib = unsafe { libloading::Library::new("my_library").unwrap() };
+```
+
+Once you've loaded your shared object (or `Library`), you'll have to actually import the symbols you want from it:
+
+```no_run
+# extern crate libloading;
+# let lib = unsafe { libloading::Library::new("my_library").unwrap() };
+let my_imported_function = unsafe { 
+		lib.get::<extern "C" fn(u8, u16)>(b"my_self_mangled_function").unwrap()
+	};
+```
+
+And from this point on, you can use your function! Hurray!
+
+### Importing functions at runtime _with checks_
+
+```text
+But wait, how was `stabby` involved in the last example?
+```
+
+Very observant of you, imaginary reader: the previous example shows how you'd do it without `stabby`, but then you wouldn't take any advantage from using `#[stabby::export]` instead of `#[no_mangle]`.
+
+`stabby` offers two alternative ways to `get` a symbol from a [`libloading::Library`](::libloading::Library), provided through the [`StabbyLibrary`](crate::libloading::StabbyLibrary) trait.
+
+The trait adds the [`get_stabbied`](crate::libloading::StabbyLibrary::get_stabbied) and [`get_canaried`](crate::libloading::StabbyLibrary::get_canaried) methods to [`libloading::Library`](::libloading::Library). These can be used to load symbols that were exported with `#[stabby::export]` and `#[stabby::export(canaries)]` respectively, and will return errors if the signatures or canaries respectively mismatch the ones you expected.
