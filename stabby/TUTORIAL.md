@@ -2,7 +2,21 @@
 
 `stabby` provides a set of tools to use all of Rust's power accross FFI with as little runtime overhead as possible. This page is meant to guide you through its various features and how you're expected to use it.
 
+<!-- TOC -->
 
+- [Defining ABI stable types](#defining-abi-stable-types)
+	- [Product types or structs](#product-types-or-structs)
+	- [Sum types or enums](#sum-types-or-enums)
+		- [External tagging: repruX and repriX](#external-tagging-reprux-and-reprix)
+		- [Stable niche optimizations: reprstabby](#stable-niche-optimizations-reprstabby)
+	- [ABI-stability must go all the way down...](#abi-stability-must-go-all-the-way-down)
+	- [Unless you get tricky](#unless-you-get-tricky)
+- [Defining ABI stable traits](#defining-abi-stable-traits)
+	- [Common pitfalls](#common-pitfalls)
+	- [Multi-trait objects](#multi-trait-objects)
+- [Creating shared libraries](#creating-shared-libraries)
+
+<!-- /TOC -->
 
 ## Defining ABI stable types
 
@@ -14,7 +28,7 @@ Lucky for you, you're _never_ expected to implement it yourself, relying instead
 
 If you're experienced in Rust, you may now wonder why this is an attribute macro and not a derive macro: the answer is that this macro does not limit itself to generating a trait implementation...
 
-### `stabby::stabby` on structs
+### Product types (or `struct`s)
 
 When you annotate a structure with `stabby` like so
 ```rust
@@ -98,7 +112,7 @@ pub struct MyStructExplicitlySuboptimal {
 
 Finally, `stabby` is perfectly happy to annotate unit and tuple structs.
 
-### `stabby::stabby` on enums
+### Sum types (or `enum`s)
 
 `stabby`'s core reason for wanting to compute things about your types is so that it can do enum layout optimizations.
 
@@ -130,7 +144,7 @@ pub enum AllInts {
 }
 ```
 
-#### `repr(uX)` and `repr(iX)`
+#### External tagging: `repr(uX)` and `repr(iX)`
 
 These are `Rust`'s standard way of making ABI-stable sum types: an external tag of type `uX`/`iX` is added in front of the `union` of each
 variant's data.
@@ -140,7 +154,7 @@ This is actually optimal for `AllInts`, as there isn't any niche to exploit in t
 However, `Poll<T>` could have more efficient representations if `T` has "niches": binary patterns that do not correspond to any valid value of `T`. For example, `core::num::NonZeroU64` occupies 64 bits in memory, but is never allowed to be
 `0`, which means that we could set all 64 bits to `0` as a way of indicating `Pending`. This is generally refered to as "niche optimizations" in Rust, and is something that normal Rust enums perform, but not `repr(uX/iX/C)`.
 
-#### `repr(stabby)`
+#### Stable niche optimizations: `repr(stabby)`
 
 `stabby` was originally created as PoC that through [type system shenanigans](https://www.youtube.com/watch?v=g6mUtBVESb0), one could keep track of a type's layout at compile time, and use that information to define niche optimized layouts in a deterministic way,
 granting ABI-stability without sacrificing memory-efficiency.
@@ -197,7 +211,7 @@ pub enum AllInts {
 }
 ```
 
-### ABI-stability must go all the way down
+### ABI-stability must go all the way down...
 
 For a type to be ABI-stable, not only must its components be assembled in stable ways, but these components must also be ABI-stable.
 
@@ -211,7 +225,7 @@ On top of this, `stabby` can tell when `core::option::Option<T>` is ABI-stable (
 Allocator choice is a great excuse to introduce another important concept in ABI-stability: type invariants are part of your ABI. This is important because this means that if you decide to include (or not to include) and invariant in your type at any point, changing your mind on this
 is an ABI breakage, as passing memory from a binary that doesn't uphold the invariant to one that expects it to be upheld may lead to undefined behaviour.
 
-### Escaping ABI stability
+### ... Unless you opacify types to their dependents
 
 Sometimes, you might decide that you'd rather not commit to a given representation for your type, or for a given set of invariants. That's perfectly normal, especially if that type is expected to allow complex behaviour.
 
@@ -224,7 +238,7 @@ Opaque types are typically used when only one implementation of their API is exp
 While this isn't yet implemented, as I'm still looking for ways to do it both conveniently and reliably, `stabby` will eventually try to provide a way to define opaque types with minimal boilerplate such that their binary code is only included when built as a shared object, while
 dependents on them would instead get bindings to interract with said shared objects as if they were standard Rust code. In the meantime, [trait objects](defining-abi-stable-traits) can fulfill the same role at a slightly higher runtime cost, but with greater flexibility yet.
 
-## Defining ABI stable traits.
+## Defining ABI stable traits
 
 `stabby::stabby` can also be applied to traits! Doing so will let you use these traits in ABI-stable trait objects using a rather familiar syntax.
 ```rust
@@ -254,6 +268,7 @@ stabby::abi::Dyn<
 >
 ```
 
+### Common pitfalls
 An error you may quickly run into when working with multiple trait objects is that you can't just use `stabby::dynptr` (or any other macro, for that matter) in the function signatures, because `stabby` cannot see through macros:
 
 ```compile_fail
@@ -292,3 +307,54 @@ pub trait Volume {
 ```
 
 Note however that until I wrote this example, `stabby` didn't know that `core::cmp::Ordering` was actually ABI-stable, yet accepted it as such because the checks were bypassed. I would therefore advise to enable the check whenever possible, as leaving it disabled does punch a hole in stabby's safety net.
+
+Alternatively, if you need to disable checks to prevent a loop, but still want to guarantee stability, you could add the following lines to the previous example:
+```rust
+const _: () = {
+	stabby::abi::assert_stable::<f32>();
+	stabby::abi::assert_stable::<core::cmp::Ordering>();
+};
+```
+
+### Multi-trait objects
+
+`stabby`'s trait objects differ from Rust's in two points:
+- While Rust's trait objects automatically take on all of their supertrait's methods into their v-table, `stabby`'s trait objects don't.
+- Contrary to Rust, `stabby` allows your trait objects to refer to multiple traits.
+
+Let's imagine you wanted a trait object with all of `Volume` and `Engine`'s methods. Rust's way of handling trait objects would mean you'd need to create a trait
+that inherits them both:
+```rust
+# use stabby::boxed::Box;
+# #[stabby::stabby(checked)]
+# pub trait Volume {
+# 	extern "C" fn in_liters(&self) -> f32;
+# }
+# type BoxedVolume = stabby::dynptr!(Box<dyn Volume>);
+# #[stabby::stabby(checked)]
+# pub trait Engine {
+# 	extern "C" fn volume(&self) -> BoxedVolume;
+# }
+pub trait EngineAndVolume: Engine + Volume {}
+impl<T: Engine + Volume> EngineAndVolume for T {}
+type BoxedEngineAndVolume = Box<dyn EngineAndVolume>;
+```
+while in stabby, you would instead to the following:
+```rust
+# use stabby::boxed::Box;
+# #[stabby::stabby(checked)]
+# pub trait Volume {
+# 	extern "C" fn in_liters(&self) -> f32;
+# }
+# type BoxedVolume = stabby::dynptr!(Box<dyn Volume>);
+# #[stabby::stabby(checked)]
+# pub trait Engine {
+# 	extern "C" fn volume(&self) -> BoxedVolume;
+# }
+type BoxedEngineAndVolume = stabby::dynptr!(Box<dyn Engine + Volume>);
+```
+
+## Creating shared libraries
+
+Now that we have ways to define types that will work accross the shared library boundary, let's see how we can put them to good use!
+
