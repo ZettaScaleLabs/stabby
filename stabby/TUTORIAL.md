@@ -71,7 +71,19 @@ This means that unless you explicitly specify a stable calling convention, your 
 
 __Problem 4__ is also not usually a problem as most languages will blindly follow your source to lay out types. Rust doesn't do that: it tries to lay your types out in the most compact manner possible.
 
-Since the algorithm to pick these layouts may change, Rust doesn't offer stability in these layouts: types in Rust aren't __ABI-stable__ by default.
+Since the algorithm to pick these layouts may change, Rust doesn't offer stability in these layouts: field order may change depending on your compiler version and settings, and possibly other things, since the documentation makes no promises about layout at all.
+
+### So what _is_ an ABI
+
+ABI stands for Applictaion Binary Interface, and it's really the sum of all the choices made regarding the type layouts and calling conventions used in your binary.
+
+Just like you can say that an API (Application Programming Interface) is stable from one library version to the next if no code needs to be updated in order to keep using it, you could say that a shared library's ABI is stable if no host program loading it needs to be re-compiled in order to use its new version.
+
+As we've just explained, Rust's default type layouts and calling conventions are not guaranteed to stay the same, even using the same version of the compiler.
+
+Since this instability is contageous, that means that no type embedding a type that uses Rust's representation, or a function pointer without an explicit calling convention, is guaranteed to have the same layout from one build to the next.
+
+Hence, most of Rust's standard library, as well as its trait-objects, should be kept away from your shared library's interface unless you want to risk undefined behaviour... Disappointing, isn't it?
 
 ### What `stabby` offers
 
@@ -79,7 +91,8 @@ Since the algorithm to pick these layouts may change, Rust doesn't offer stabili
 
 Its core goal is to ensure that even forgetful souls can define dynamic libraries that don't expose their dependents to undefined behaviour, while helping them dodge certain performance pitfalls:
 - Compiler-change-proof ABI-stability is proven statically through the type system.
-- `stabby` will deny compilation when a type is poorly laid out in memory.
+- `stabby` also provides an alternative to the standard library's most commonly used types so you don't have to rewrite everything like you do in C.
+- `stabby` will deny compilation when a type is poorly laid out in memory, letting you worry about more important things instead.
 - Expoting functions embeds reports in the produced binaries to allow them to identify mismatching API/ABIs.
 - Importing functions checks these type reports, solving all the problems listed above.
 
