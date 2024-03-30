@@ -3,6 +3,10 @@
 `stabby` provides a set of tools to use all of Rust's power accross FFI with as little runtime overhead as possible. This page is meant to guide you through its various features and how you're expected to use it.
 <!-- TOC -->
 
+- [What's the point of ABI stability?](#whats-the-point-of-abi-stability)
+	- [Static vs Dynamic Linkage](#static-vs-dynamic-linkage)
+	- [Dynamic linkage is dumb](#dynamic-linkage-is-dumb)
+	- [What stabby offers](#what-stabby-offers)
 - [Defining ABI stable types](#defining-abi-stable-types)
 	- [Product types or structs](#product-types-or-structs)
 	- [Sum types or enums](#sum-types-or-enums)
@@ -11,14 +15,75 @@
 - [Defining ABI stable traits](#defining-abi-stable-traits)
 	- [Common pitfalls](#common-pitfalls)
 	- [Multi-trait objects](#multi-trait-objects)
+	- [Standard traits](#standard-traits)
 - [Creating shared libraries](#creating-shared-libraries)
 	- [Exporting functions in shared objects](#exporting-functions-in-shared-objects)
 	- [Exporting functions with checks](#exporting-functions-with-checks)
+- [Loading code from shared libraries](#loading-code-from-shared-libraries)
 	- [Importing functions at runtime](#importing-functions-at-runtime)
 	- [Importing functions at runtime _with checks_](#importing-functions-at-runtime-_with-checks_)
+	- [Importing functions at load time](#importing-functions-at-load-time)
+	- [Importing functions at load time _with checks_](#importing-functions-at-load-time-_with-checks_)
+- [Conclusion](#conclusion)
 
 <!-- /TOC -->
 
+## What's the point of ABI stability?
+I have [an entire RustConf talk](https://www.youtube.com/watch?v=qkh8Fs2c4mY) on the subject, but here's the gist of it.
+<iframe width="560" height="315" src="https://www.youtube.com/embed/qkh8Fs2c4mY?si=KYvgiwiqVaS63UVx" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+### Static vs Dynamic Linkage
+
+Rust has perfected the user experience of linking your projects statically: when you add a dependency in your `Cargo.toml`, that dependency's code will be compiled and added to your own to produce a single binary object.
+
+Static linkage has its advantages:
+- It produces a single binary with no dynamic dependencies (unless your dependencies had dynamic dependencies themselves). This makes that binary super-easy to install.
+- Since all code is available at once, more optimizations can be performed, including inlining code accross crate-boundaries.
+
+It's not the only way to handle dependencies though: you may instead decide to keep some of your dependencies separate from your own binary. There are two flavours of doing so:
+- If you need between 0 and N implementations of a given symbol, you're probably designing a plugin system. Here, you'll be importing functions at runtime when you figure you need them.
+- If you need exactly one implementation of a given symbol, it may make more sense to ensure it's available before your program actually runs: this can be achieved with load-time linkage.
+
+Despite the flavours looking very different, the core concept is the same: __dynamic linkage__ consists in asking the OS to load external code from a "shared object" (or "shared library") for you, and then ask it for the memory addresses of the
+specific functions that are of interest to you.
+
+Doing so enables a few nice things:
+- Plugin systems are able to share memory between host and plugin, allowing them to be as fast as possible. When you have N optional features that may each be heavy, this allows fine-grained packaging without having to build 2^N versions of your binary.
+- Static linkage requires the dependency to be available at compile-time. In some edge cases, this may not be possible.
+- Static linkage embeds the dependency in your binary, meaning that if you and 20 other binaries statically link one dependency, and run in parallel on a user's computer, 20 copies of that dependencies will exist in that user's disk and RAM. Dynamic linkage allows all these binaries to share a single copy of that dependency, both on disk and in RAM for most OSes.
+- Because static linkage embeds a snapshot of the dependency in your binary, that means that recompiling is necessary to update that dependency for your binary. By contrast, if your binary links to that dependency dynamically, then all the user needs to do for your binary to use the latest version of that dependency is to update the shared library file. This makes patching vulnerabilities much easier, notably.
+
+### Dynamic linkage is dumb
+
+But dynamic linkage has one great pitfal: it's not very clever. When you ask for a function, you're only asking the linker to give you the address of the symbol that has the name you asked for. This doesn't take into account any of the following:
+1. That symbol may not actually be a function: it could be a static variable.
+2. Even if it's a function, the signatures aren't compared at all: it could be expecting very different arguments from what you intend to pass.
+3. Even if the argumens and return type line up, the function may expect to be called a specific way (in terms of binary operations). This is called a _calling convention_, and your program _must_ respect it.
+4. Finally, the values passed need to be understood by both binaries the same way: for example, if a vector is passed, both binaries need to agree on which of its words is the start pointer. This is called _type layout_.
+
+It's rather rare to run into __problems 1 and 2__: just make sure you checked the signatures of the symbols you dynamically load for your dependency's documentation.
+
+__Problem 3__ is usually not a problem in most language, because their default calling convention tends to be stable (meaning you'll only run into problems when you ignore your dependency specifying a different one). 
+
+However, Rust's default calling convention is not stable: it's susceptible to change (to attempt to extract more performance), even while using the same version of the compiler. 
+
+This means that unless you explicitly specify a stable calling convention, your binaries may be unable to agree on how certain types of functions should be called, leading to undefined behaviours.
+
+__Problem 4__ is also not usually a problem as most languages will blindly follow your source to lay out types. Rust doesn't do that: it tries to lay your types out in the most compact manner possible.
+
+Since the algorithm to pick these layouts may change, Rust doesn't offer stability in these layouts: types in Rust aren't __ABI-stable__ by default.
+
+### What `stabby` offers
+
+`stabby` provides the tools to solve all of these issues with dynamic linkage at the smallest cost possible.
+
+Its core goal is to ensure that even forgetful souls can define dynamic libraries that don't expose their dependents to undefined behaviour, while helping them dodge certain performance pitfalls:
+- Compiler-change-proof ABI-stability is proven statically through the type system.
+- `stabby` will deny compilation when a type is poorly laid out in memory.
+- Expoting functions embeds reports in the produced binaries to allow them to identify mismatching API/ABIs.
+- Importing functions checks these type reports, solving all the problems listed above.
+
+`stabby` also ensures that all of Rust's best features are usable accross dynamic linkage with minimal effort, including trait objects, closures and futures.
 
 ## Defining ABI stable types
 
@@ -56,7 +121,7 @@ const _: () = {	assert!(MyStruct::has_optimal_layout()) };
 ```
 
 This last `const` here will prevent your code from compiling unless you've laid out your fields in an order that doesn't introduce unnecessary padding. 
-If you're not familiar with the concept of alignment padding, [I've done a talk on the subject at RustConf 2023](https://www.youtube.com/watch?v=qkh8Fs2c4mY).
+If you're not familiar with the concept of alignment padding, I've explained more about it in the talk linked above.
 
 The core thing to retain about alignment padding is that it's necessary to uphold alignment constraints, which CPUs care about a lot: a value of a type must
 always be at an address in memory that's a multiple of its alignment. In structures, padding will be inserted between fields to ensure this constraint in respected.
@@ -356,6 +421,12 @@ while in stabby, you would instead to the following:
 type BoxedEngineAndVolume = stabby::dynptr!(Box<dyn Engine + Volume>);
 ```
 
+### Standard traits
+
+`stabby` already ensures that some of `core`'s traits (notably `Send`, `Sync`, [closures](crate::closure) and [`Future`](crate::future)) have an ABI-stable equivalent ready to use to minimize boilerplate.
+
+If you feel like some of them are missing, please let me know, and I'll consider adding it.
+
 ## Creating shared libraries
 
 Now that we have ways to define types that will work accross the shared library boundary, let's see how we can put them to good use!
@@ -399,6 +470,7 @@ However, `stabby` attempts to provide a better way: `#[stabby::export]`, which c
 
 In either case, `#[stabby::export]` will automatically imply `#[no_mangle]`, and will force you to pick a stable calling convention (which, suprisingly, `#[no_mangle]` doesn't warn you about forgetting).
 
+## Loading code from shared libraries
 ### Importing functions at runtime
 
 To import functions at runtime, you will first need to link the shared object that contains them at runtime.
@@ -421,6 +493,16 @@ let my_imported_function = unsafe {
 
 And from this point on, you can use your function! Hurray!
 
+Keep in mind that nothing prevents you from doing the following:
+```no_run
+# extern crate libloading;
+# let lib = unsafe { libloading::Library::new("my_library").unwrap() };
+let my_imported_function = unsafe { 
+		lib.get::<extern "C" fn(u32)->u64>(b"my_self_mangled_function").unwrap()
+	};
+```
+Thich will happily return a wrongly typed function pointer (hence the unsafe).
+
 ### Importing functions at runtime _with checks_
 
 ```text
@@ -431,4 +513,64 @@ Very observant of you, imaginary reader: the previous example shows how you'd do
 
 `stabby` offers two alternative ways to `get` a symbol from a [`libloading::Library`](::libloading::Library), provided through the [`StabbyLibrary`](crate::libloading::StabbyLibrary) trait.
 
-The trait adds the [`get_stabbied`](crate::libloading::StabbyLibrary::get_stabbied) and [`get_canaried`](crate::libloading::StabbyLibrary::get_canaried) methods to [`libloading::Library`](::libloading::Library). These can be used to load symbols that were exported with `#[stabby::export]` and `#[stabby::export(canaries)]` respectively, and will return errors if the signatures or canaries respectively mismatch the ones you expected.
+The trait adds the [`get_stabbied`](crate::libloading::StabbyLibrary::get_stabbied) and [`get_canaried`](crate::libloading::StabbyLibrary::get_canaried) methods to [`libloading::Library`](::libloading::Library). These can be used to load symbols that were exported with `#[stabby::export]` and `#[stabby::export(canaries)]` respectively.
+
+[`get_canaried`](crate::libloading::StabbyLibrary::get_canaried) will return an error if the symbol is missing from the library, or if the canaries associated to it are missing or don't match those expected for the loader's compiler settings; it doesn't check that the symbol you're importing is typed as expected.
+
+[`get_stabbied`](crate::libloading::StabbyLibrary::get_stabbied) will return an error if the symbol is missing, or if the report associated to it indicates that the API or ABI of the symbol isn't the same as expected.
+
+To my knowledge, `stabby` is the only crate that provides a systematic way in Rust to check that the symbols you load from a shared object are indeed typed as you expect them to be.
+
+### Importing functions at load time
+
+Loading shared libraries at runtime like we've studdied above is more typical when implementing a plugin system, as the main advamtage of doing so is that this lets you load any number of shared objects that provide an intersecting set of symbols (including 0).
+
+However, if you want to avoid linking some functions statically in your own binary, but still need these functions in order to run, load-time linkage may be more relevant.
+
+Load-time linkage is basically politely asking the OS to link your binary with a given set of shared object before calling your `main`. These shared objects will likely have been installed in directories the OS knows about before or while installing your own binary.
+
+To import a set of functions, all it takes in an extern block listing the functions you wish to import:
+```no_run
+#[link(name = "my_library")]
+extern "C" {
+	pub fn my_self_mangled_function(param1: u8, param2: u16);
+	pub fn other_fn() -> i32;
+}
+```
+
+The block's calling convention must match that of the imported functions, and the names and signature must match.
+
+The `link` attribute tells Rust what library these symbols should be looked up in, and is further documented [here](https://doc.rust-lang.org/reference/items/external-blocks.html).
+
+Finaly, you may notice that the [load-time linkage example](https://github.com/ZettaScaleLabs/stabby/tree/main/examples/dynlinkage) has a `build.rs`.
+
+For an external block to compile, the library it should dynamically link to must be visible by the compiler so that it can check that the expected symbols are indeed available in the library.
+
+The `build.rs` ensures that the path where the dynamic library example gets built to is part of the search path so that it gets found.
+
+### Importing functions at load time _with checks_
+
+By simply replacing the `link` attribute with `stabby::import`, you get `stabby` to check the reports to prove that using your functions is safe before the first time it gets run.
+```no_run
+#[stabby::import(name = "my_library")]
+extern "C" {
+	pub fn my_self_mangled_function(param1: u8, param2: u16);
+	pub fn other_fn() -> i32;
+}
+```
+If the reports mismatch, then the loader will panic instead of running the function, as running it may lead to undefined behaviour.
+
+And if you exported some functions with canaries instead of the default export, you should let the attribute know so that i this import 
+```no_run
+extern "C" {
+	pub fn yet_another(unstable_param: &[u8]);
+}
+```
+
+If any of the canaries don't match, or if the reports for non-canaried imports are missing from the loaded library, linkage will simply fail, preventing your program from running (into potential undefined behaviour) altogether.
+
+## Conclusion
+
+This concludes our tour of `stabby`.
+
+If you feel like something was unclear, or that something is missing from `stabby`, don't hesitate to reach out.

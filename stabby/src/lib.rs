@@ -82,5 +82,6 @@ macro_rules! format {
     }};
 }
 
+#[cfg(doc)]
 #[doc = include_str!("../TUTORIAL.md")]
-pub mod tutorial {}
+pub mod _tutorial_ {}
