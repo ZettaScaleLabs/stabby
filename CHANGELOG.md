@@ -1,3 +1,10 @@
+# 4.0.4
+- Introduce a tutorial to help onboard new users.
+	- Available as `stabby/TUTORIAL.md` in sources.
+	- Inserted as the documentation to a docs-only `stabby::_tutorial_` module. This ensures that codeblocks in it compile and that links to the doc are checked.
+- Allow `stabby::sync::Weak` to function as a pointer-type for fat pointers, allowing the `stabby::dynptr!(Weak<dyn Trait>)` pattern.
+	- This can be helpful if you're building a plugin that needs to refer to its host weakly to avoid cycles, for example.
+
 # 4.0.3
 - Ensure `stabby` compiles on `nightly` by using `core::marker::Freeze` to reassure Rust that a bound that will eventually become required for const static references is respected by v-tables.
 - Small documentation pass on internals to make nightly clippy happy

@@ -6,6 +6,7 @@
 - [What's the point of ABI stability?](#whats-the-point-of-abi-stability)
 	- [Static vs Dynamic Linkage](#static-vs-dynamic-linkage)
 	- [Dynamic linkage is dumb](#dynamic-linkage-is-dumb)
+	- [So what _is_ an ABI](#so-what-_is_-an-abi)
 	- [What stabby offers](#what-stabby-offers)
 - [Defining ABI stable types](#defining-abi-stable-types)
 	- [Product types or structs](#product-types-or-structs)
@@ -24,6 +25,9 @@
 	- [Importing functions at runtime _with checks_](#importing-functions-at-runtime-_with-checks_)
 	- [Importing functions at load time](#importing-functions-at-load-time)
 	- [Importing functions at load time _with checks_](#importing-functions-at-load-time-_with-checks_)
+- [Some use cases for stabby](#some-use-cases-for-stabby)
+	- [Developping plugins](#developping-plugins)
+	- [Developping no-serialization protocols](#developping-no-serialization-protocols)
 - [Conclusion](#conclusion)
 
 <!-- /TOC -->
@@ -581,6 +585,68 @@ extern "C" {
 ```
 
 If any of the canaries don't match, or if the reports for non-canaried imports are missing from the loaded library, linkage will simply fail, preventing your program from running (into potential undefined behaviour) altogether.
+
+## Some use cases for `stabby`
+
+### Developping plugins
+
+I've been rather vocal that I consider __Inter Process Communications__-based plugins to be a much better approach to a modern plugin system, notably because by spawning plugins in distinct processes, you can ensure that they don't crash the host process, nor cause the host process to misbehave. Not only that, but they get you ready to export your plugins to separate machines, and allow plugins to be developped in any language that supports your IPC of choice.
+
+Still, IPC plugins require the messages between host and plugins to be serialized and passed over some form of IPC, both of which are going to cause overhead. This overhead tends to scale with the size of exchanged messages, and can get high if your plugins need to work on very large chunks of memory that can't be otherwise shared between processes.
+
+I consider `stabby` to be your best pick if you plan on developping dynamically linked plugins written in Rust.
+
+If that is your plan, my advice is to create a `project-plugin-core` crate where you define your plugins API as a trait:
+```rust
+#[stabby::stabby]
+#[repr(u8)]
+pub enum CloseResponse {
+	/// Your plugin accepts that the file will be closed
+	Acknowledge,
+	/// Your plugin requests that the file be kept open
+	Refuse,
+}
+use stabby::slice::Slice;
+#[stabby::stabby(checked)]
+pub trait MyTextEditorPlugin {
+	extern "C" fn on_editor_opened(&mut self, path: Slice<'_, u8>);
+	extern "C" fn on_editor_closing(&mut self, path: Slice<'_, u8>) -> CloseResponse;
+}
+#[stabby::stabby(checked)]
+pub trait MyTextEditorHost {
+	extern "C" fn move_cursor(&self, path: Slice<'_, u8>, line: u32, column: u32);
+}
+type Host = stabby::dynptr!(stabby::sync::Weak<dyn MyTextEditorHost>);
+type Plugin = stabby::dynptr!(stabby::boxed::Box<dyn MyTextEditorPlugin>);
+```
+
+You can then specify that your host expects plugins to be shared libraries that expose an init function with a given name and signature:
+```ignore
+use stabby::{boxed::Box, result::Result, string::String}
+use project_plugin_core::{Host, Plugin};
+struct MyPlugin(Host);
+impl MyTextEditorPlugin for MyPlugin { ... }
+
+#[stabby::export]
+pub extern "C" fn my_text_editor_init_plugin(host: Host) -> Result<Plugin, String> {
+	Result::Ok(Box::new(MyPlugin(Host)).into())
+}
+```
+
+Meanwhile, your host can simply use what we learned in the [Importing functions at runtime _with checks_](#importing-functions-at-runtime-_with-checks_) section to load plugin libraries, get the `my_text_editor_init_plugin` symbol,
+and instanciate it.
+
+### Developping no-serialization protocols
+
+A rather common (though often decried) practice in C to send data over the network or save it in files is to simply copy the structure itself on that IO stream, as it appeared in memory.
+
+While this is not a practice that can be used _in general_, either because the type may contain indirections (in which case the copy will contain an address which won't make sense in any other process's conext);
+or because the copy may be read from a different machine with a different architecture (in which case alignment and endianness differences could cause the data to get corrupted).
+
+The [`IPod`](crate::abi::istable::IPod) trait, standing for __Plain Old Data__, acts as a proof that the types it's implemented for don't contain indirrections, while also providing a hash
+of its representation (including the machine's architecture), allowing to detect both architecture mismatch and type mismatches.
+
+This means that you can design your types to be [`IPod`](crate::abi::istable::IPod) and copy them happily to other processes, and be safe in the knowledge that nothing wonky will happen as long as the [`identifier`s](crate::abi::istable::IPod::identifier) match.
 
 ## Conclusion
 

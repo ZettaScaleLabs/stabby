@@ -15,11 +15,12 @@
 use core::{
     fmt::Debug,
     hash::Hash,
+    mem::ManuallyDrop,
     ptr::NonNull,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use crate::IntoDyn;
+use crate::{vtable::HasDropVt, Dyn, IStable, IntoDyn};
 
 use super::{
     vec::{ptr_add, ptr_diff, Vec, VecInner},
@@ -218,6 +219,11 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
             _ = unsafe { Weak::<T, Alloc>::from_raw(Arc::into_raw(this)) };
             Ok(ret)
         }
+    }
+
+    /// Constructs an additional [`Weak`] pointer to `this`.
+    pub fn downgrade(this: &Self) -> Weak<T, Alloc> {
+        this.into()
     }
 }
 impl<T, Alloc: IAlloc> Drop for Arc<T, Alloc> {
@@ -644,5 +650,64 @@ impl<T, Alloc: IAlloc> IntoDyn for Arc<T, Alloc> {
         let anonymized_prefix = anonymized.ptr.prefix_ptr();
         assert_eq!(anonymized_prefix, original_prefix, "The allocation prefix was lost in anonimization, this is definitely a bug, please report it.");
         anonymized
+    }
+}
+
+impl<T, Alloc: IAlloc> crate::IPtrOwned for Weak<T, Alloc> {
+    fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ())) {
+        if unsafe { this.ptr.prefix() }
+            .strong
+            .fetch_sub(1, Ordering::Relaxed)
+            != 1
+        {
+            return;
+        }
+        unsafe {
+            drop(this.ptr.cast().as_mut());
+            _ = Weak::<T, Alloc>::from_raw(this.ptr);
+        }
+    }
+}
+
+impl<T, Alloc: IAlloc> crate::IPtrClone for Weak<T, Alloc> {
+    fn clone(this: &Self) -> Self {
+        this.clone()
+    }
+}
+
+impl<T, Alloc: IAlloc> IntoDyn for Weak<T, Alloc> {
+    type Anonymized = Weak<(), Alloc>;
+    type Target = T;
+    fn anonimize(self) -> Self::Anonymized {
+        let original_prefix = self.ptr.prefix_ptr();
+        let anonymized = unsafe { core::mem::transmute::<_, Self::Anonymized>(self) };
+        let anonymized_prefix = anonymized.ptr.prefix_ptr();
+        assert_eq!(anonymized_prefix, original_prefix, "The allocation prefix was lost in anonimization, this is definitely a bug, please report it.");
+        anonymized
+    }
+}
+
+impl<'a, Vt: HasDropVt, Alloc: IAlloc> From<&'a Dyn<'a, Arc<(), Alloc>, Vt>>
+    for Dyn<'a, Weak<(), Alloc>, Vt>
+{
+    fn from(value: &'a Dyn<'a, Arc<(), Alloc>, Vt>) -> Self {
+        Self {
+            ptr: ManuallyDrop::new(Arc::downgrade(&value.ptr)),
+            vtable: value.vtable,
+            unsend: core::marker::PhantomData,
+        }
+    }
+}
+impl<'a, Vt: HasDropVt + IStable, Alloc: IAlloc> Dyn<'a, Weak<(), Alloc>, Vt> {
+    /// Attempts to upgrade a weak trait object to a strong one.
+    pub fn upgrade(self) -> crate::option::Option<Dyn<'a, Arc<(), Alloc>, Vt>> {
+        let Some(ptr) = self.ptr.upgrade() else {
+            return crate::option::Option::None();
+        };
+        crate::option::Option::Some(Dyn {
+            ptr: ManuallyDrop::new(ptr),
+            vtable: self.vtable,
+            unsend: core::marker::PhantomData,
+        })
     }
 }

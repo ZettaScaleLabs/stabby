@@ -41,7 +41,7 @@ impl<T: IPtrMut> IPtrTryAsMut for T {
 /// Provides drop support in dynptr for pointers that have at least partial ownership of their pointee.
 ///
 /// `drop` is the drop function of the pointee.
-pub trait IPtrOwned: IPtr {
+pub trait IPtrOwned {
     /// Called instead of `Drop::drop` when the dynptr is dropped.
     fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ()));
 }
@@ -153,9 +153,9 @@ impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
 #[stabby::stabby]
 /// A stable trait object (or a stable `&mut dyn`)
 pub struct Dyn<'a, P: IPtrOwned + 'a, Vt: HasDropVt + 'static> {
-    ptr: core::mem::ManuallyDrop<P>,
-    vtable: &'static Vt,
-    unsend: core::marker::PhantomData<&'a P>,
+    pub(crate) ptr: core::mem::ManuallyDrop<P>,
+    pub(crate) vtable: &'static Vt,
+    pub(crate) unsend: core::marker::PhantomData<&'a P>,
 }
 
 /// Allows casting a `dyn A + B` into `dyn A`.
@@ -207,7 +207,7 @@ impl<'a, P: IPtrOwned + IPtrClone, Vt: HasDropVt + 'a> Clone for Dyn<'a, P, Vt> 
         }
     }
 }
-impl<'a, P: IPtrOwned, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
+impl<'a, P: IPtrOwned + IPtr, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
     /// Access the data pointer immutably.
     pub fn ptr(&self) -> &P {
         &self.ptr
