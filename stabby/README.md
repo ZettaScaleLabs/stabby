@@ -6,6 +6,8 @@
 
 Your main vector of interraction with `stabby` will be the `#[stabby::stabby]` proc-macro, with which you can annotate a lot of things.
 
+While this readme is mostly centered around listing `stabby`'s feature, stabby also has a [tutorial in its docs](https://docs.rs/stabby/latest/stabby/_tutorial_/index.html).
+
 ## Why would I _want_ a stable ABI? And what even _is_ an ABI?
 ABI stands for _Application Binary Interface_, and is like API's more detail focused sibbling. While an API defines what type of data a function expects, and what properties these types should have; ABI defines _how_ this data should be laid out in memory, and how a function call even works.
 
