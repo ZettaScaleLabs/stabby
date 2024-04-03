@@ -750,7 +750,7 @@ impl<'a> DynTraitDescription<'a> {
             }
             impl<
                 #(#trait_lts,)*
-                StabbyPtrProvider: #st::IPtrOwned,
+                StabbyPtrProvider: #st::IPtrOwned + #st::IPtr,
                 StabbyVtProvider: #st::vtable::HasDropVt + Copy + #st::vtable::TransitiveDeref<
                     #vt_signature,
                     StabbyTransitiveDerefN

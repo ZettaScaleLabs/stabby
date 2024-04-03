@@ -41,7 +41,7 @@ pub mod tuple;
 
 /// Futures can be ABI-stable if you wish hard enough
 #[cfg_attr(
-    feature = "unsafe_wakers",
+    unsafe_wakers = "true",
     deprecated = "Warning! you are using the `stabby/unsafe_wakers` feature. This could cause UB if you poll a future received from another shared library with mismatching ABI! (this API isn't actually deprecated)"
 )]
 pub mod future {
@@ -63,8 +63,10 @@ pub use crate::abi::{option, result, slice, str};
 
 pub use crate::abi::{vtable::Any, AccessAs, IStable, IntoSuperTrait};
 
-#[cfg(all(feature = "libloading", any(unix, windows)))]
-/// Integration with [`::libloading`], allowing symbol loads to be validated thanks to either reflection or canaries.
+#[cfg(all(feature = "libloading", any(unix, windows, doc)))]
+/// Integration with [`libloading`](::libloading), allowing symbol loads to be validated thanks to either reflection or canaries.
+///
+/// Requires the `libloading` feature to be enabled.
 pub mod libloading;
 
 /// ABI-stable representations of durations and instants.
@@ -79,3 +81,7 @@ macro_rules! format {
         ::core::write!(s, $($t)*).map(move |_| s)
     }};
 }
+
+#[cfg(doc)]
+#[doc = include_str!("../TUTORIAL.md")]
+pub mod _tutorial_ {}

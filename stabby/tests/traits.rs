@@ -14,7 +14,7 @@
 
 // MYTRAIT
 
-#![cfg_attr(feature = "unsafe_wakers", allow(deprecated))]
+#![cfg_attr(unsafe_wakers = "true", allow(deprecated))]
 
 use std::time::Duration;
 
