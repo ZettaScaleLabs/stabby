@@ -1,3 +1,6 @@
+# 4.0.5
+- Fix for 1.72: `AllocPtr::prefix` is `const fn` from 1.73 onwards rather than 1.72 onwards (@yellowhatter).
+
 # 4.0.4
 - Introduce a tutorial to help onboard new users.
 	- Available as `stabby/TUTORIAL.md` in sources.
