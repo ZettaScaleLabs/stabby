@@ -22,6 +22,7 @@ use typenames::*;
 
 use crate::{
     istable::{IBitMask, IForbiddenValues, ISaturatingAdd, ISingleForbiddenValue, Saturator},
+    vtable::{H, T},
     Array, End, IStable,
 };
 /// (unsigned)0
@@ -193,6 +194,8 @@ pub trait IUnsignedBase {
     type Bit: IBitBase;
     /// Support for [`IUnsigned`]
     type Msb: IUnsigned;
+    /// `T << Self`
+    type ShlBySelf<T: IUnsigned>: IUnsigned;
     /// Support for [`IUnsigned`]
     type _BitAndInner<T: IUnsigned>: IUnsigned;
     /// Support for [`IUnsigned`]
@@ -225,6 +228,8 @@ pub trait IUnsignedBase {
     type _NonZero: NonZero;
     /// Support for [`IUnsigned`]
     type _Mul<T: IUnsigned>: IUnsigned;
+    /// Largest `N` such that `T << (N-1) <= Self`
+    type _GreatestShiftToSelfHelper<T: IUnsigned>: IUnsigned;
 }
 /// A is smaller than B if `A::Cmp<B>` = Lesser.
 pub struct Lesser;
@@ -247,6 +252,10 @@ pub trait IUnsigned: IUnsignedBase {
     const U16: u16;
     /// Convert type to value
     const U8: u8;
+    /// Self != 0
+    type IsNonZero: IBit;
+    /// Self << T
+    type Shl<T: IUnsigned>: IUnsigned;
     /// Self & T
     type BitAnd<T: IUnsigned>: IUnsigned;
     /// Self | T
@@ -285,6 +294,55 @@ pub trait IUnsigned: IUnsignedBase {
     type Cmp<T: IUnsigned>;
     /// Self * T
     type Mul<T: IUnsigned>: IUnsigned;
+    /// Largest `N` such that `Self << N <= T`
+    type GreatestShiftTo<T: IUnsigned>: IUnsigned;
+    /// Self / T
+    type Div<T: NonZero>: IUnsigned
+    where
+        Self: Div<UInt<T::Msb, T::Bit>>;
+}
+
+/// Self / T
+pub trait Div<T> {
+    /// Self / T
+    type Output: IUnsigned;
+}
+impl<T> Div<T> for U0 {
+    type Output = Self;
+}
+type DivBudget = T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<T<H>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>;
+impl<NumM: IUnsigned, NumB: IBit, Den: NonZero> Div<Den> for UInt<NumM, NumB>
+where
+    Self: Div<(Den, DivBudget)>,
+{
+    type Output = <Self as Div<(Den, DivBudget)>>::Output;
+}
+impl<NumM: IUnsigned, NumB: IBit, Den: NonZero, Budget> Div<(Den, Budget)> for UInt<NumM, NumB>
+where
+    (Den::SmallerOrEq<UInt<NumM, NumB>>, Self): Div<(Den, Budget)>,
+{
+    type Output = <(Den::SmallerOrEq<UInt<NumM, NumB>>, Self) as Div<(Den, Budget)>>::Output;
+}
+impl<NumM: IUnsigned, NumB: IBit, Den: NonZero, B> Div<(Den, H)> for (B, UInt<NumM, NumB>) {
+    type Output = Saturator;
+}
+impl<NumM: IUnsigned, NumB: IBit, Den: NonZero, Budget> Div<(Den, T<Budget>)>
+    for (B0, UInt<NumM, NumB>)
+{
+    type Output = U0;
+}
+impl<NumM: IUnsigned, NumB: IBit, Den: NonZero, Budget> Div<(Den, T<Budget>)>
+    for (B1, UInt<NumM, NumB>)
+where
+    <UInt<NumM, NumB> as IUnsigned>::AbsSub<Den::Shl<Den::GreatestShiftTo<UInt<NumM, NumB>>>>:
+        Div<(Den, Budget)>,
+{
+    type Output =
+        <<U1 as IUnsigned>::Shl<Den::GreatestShiftTo<UInt<NumM, NumB>>> as IUnsigned>::Add<
+            <<UInt<NumM, NumB> as IUnsigned>::AbsSub<
+                Den::Shl<Den::GreatestShiftTo<UInt<NumM, NumB>>>,
+            > as Div<(Den, Budget)>>::Output,
+        >;
 }
 
 /// An unsigned number that's a power of 2
@@ -303,6 +361,8 @@ impl<U: IUnsignedBase> IUnsigned for U {
     const U32: u32 = Self::_U128 as u32;
     const U16: u16 = Self::_U128 as u16;
     const U8: u8 = Self::_U128 as u8;
+    type IsNonZero = <Self::_IsUTerm as IBit>::Not;
+    type Shl<T: IUnsigned> = T::ShlBySelf<Self>;
     type BitAnd<T: IUnsigned> = <Self::_BitAndInner<T> as IUnsignedBase>::_Simplified;
     type BitOr<T: IUnsigned> = <Self::_BitOrInner<T> as IUnsignedBase>::_Simplified;
     type Equal<T: IUnsigned> = Self::_Equals<T>;
@@ -329,11 +389,17 @@ impl<U: IUnsignedBase> IUnsigned for U {
         <Self::Greater<T> as IBit>::Ternary<Greater, Lesser>,
     >;
     type Mul<T: IUnsigned> = Self::_Mul<T>;
+    type GreatestShiftTo<T: IUnsigned> =
+        <T::_GreatestShiftToSelfHelper<Self> as IUnsignedBase>::_SatDecrement;
+    type Div<T: NonZero> = <Self as Div<UInt<T::Msb, T::Bit>>>::Output
+    where
+        Self: Div<UInt<T::Msb, T::Bit>>;
 }
 impl IUnsignedBase for UTerm {
     const _U128: u128 = 0;
     type Bit = B0;
     type Msb = UTerm;
+    type ShlBySelf<T: IUnsigned> = T;
     type _IsUTerm = B1;
     type _BitAndInner<T: IUnsignedBase> = UTerm;
     type _BitOrInner<T: IUnsigned> = T;
@@ -350,6 +416,7 @@ impl IUnsignedBase for UTerm {
     type _TruncateAtRightmostOne = Saturator;
     type _NonZero = Saturator;
     type _Mul<T: IUnsigned> = UTerm;
+    type _GreatestShiftToSelfHelper<T: IUnsigned> = UTerm;
 }
 impl IUnsignedBase for Saturator {
     #[cfg(not(doc))]
@@ -358,6 +425,7 @@ impl IUnsignedBase for Saturator {
     const _U128: u128 = u128::MAX;
     type Bit = B0;
     type Msb = Saturator;
+    type ShlBySelf<T: IUnsigned> = Saturator;
     type _IsUTerm = B1;
     type _BitAndInner<T: IUnsignedBase> = Saturator;
     type _BitOrInner<T: IUnsigned> = Saturator;
@@ -374,6 +442,7 @@ impl IUnsignedBase for Saturator {
     type _TruncateAtRightmostOne = Saturator;
     type _NonZero = Saturator;
     type _Mul<T: IUnsigned> = Saturator;
+    type _GreatestShiftToSelfHelper<T: IUnsigned> = Saturator;
 }
 
 /// A non-zero unsigned number.
@@ -412,6 +481,10 @@ impl<Msb: IUnsigned, Bit: IBit> IUnsignedBase for UInt<Msb, Bit> {
     const _U128: u128 = (Msb::_U128 << 1) | (<Self::Bit as IBit>::BOOL as u128);
     type Bit = Bit;
     type Msb = Msb;
+    type ShlBySelf<T: IUnsigned> = <Self::_IsUTerm as IBit>::UTernary<
+        T,
+        <Self::_SatDecrement as IUnsignedBase>::ShlBySelf<UInt<T, B0>>,
+    >;
     type _IsUTerm = <Bit::Not as IBit>::And<Msb::_IsUTerm>;
     type _Simplified = <Self::_IsUTerm as IBit>::UTernary<UTerm, UInt<Msb::_Simplified, Bit>>;
     type _BitAndInner<T: IUnsigned> = UInt<Msb::_BitAndInner<T::Msb>, Bit::And<T::Bit>>;
@@ -436,6 +509,10 @@ impl<Msb: IUnsigned, Bit: IBit> IUnsignedBase for UInt<Msb, Bit> {
     type _Mul<T: IUnsigned> = <Bit::UTernary<T, UTerm> as IUnsigned>::Add<
         <UInt<Msb::Mul<T>, B0> as IUnsignedBase>::_Simplified,
     >;
+    type _GreatestShiftToSelfHelper<T: IUnsigned> =
+        <Msb::_GreatestShiftToSelfHelper<T> as IUnsigned>::Add<
+            <T::SmallerOrEq<Self> as IBit>::UTernary<U1, U0>,
+        >;
 }
 impl<Msb: IUnsigned<_IsUTerm = B1>> IPowerOf2 for UInt<Msb, B1> {
     type Log2 = U0;
@@ -592,4 +669,15 @@ fn ops() {
     assert_eq!(U4::_U128, 4);
     assert_eq!(U5::_U128, 5);
     assert_eq!(U10::_U128, 10);
+    let _: U1 = <<Ub11 as IUnsigned>::GreatestShiftTo<Ub1001>>::default();
+    let _: U2 = <<Ub10 as IUnsigned>::GreatestShiftTo<Ub1001>>::default();
+    let _: U2 = <<Ub11 as IUnsigned>::GreatestShiftTo<Ub10010>>::default();
+    let _: U3 = <<Ub10 as IUnsigned>::GreatestShiftTo<Ub10010>>::default();
+    let _: U2 = <<Ub11 as IUnsigned>::GreatestShiftTo<Ub10011>>::default();
+    let _: U3 = <<Ub10 as IUnsigned>::GreatestShiftTo<Ub10011>>::default();
+    let _: U3 = <<U10 as IUnsigned>::Div<U3>>::default();
+    let _: U5 = <<U10 as IUnsigned>::Div<U2>>::default();
+    let _: U0 = <<U1 as IUnsigned>::Div<U3>>::default();
+    let _: U1 =
+        <<<U1 as IUnsigned>::Shl<U61> as IUnsigned>::Div<<U1 as IUnsigned>::Shl<U61>>>::default();
 }
