@@ -32,6 +32,7 @@ pub mod alloc;
 pub mod num;
 
 pub use stabby_macros::{canary_suffixes, dynptr, export, import, stabby, vtable as vtmacro};
+use typenum2::unsigned::Alignment;
 
 use core::fmt::{Debug, Display};
 
@@ -256,7 +257,7 @@ unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
 /// transitively containing the emulated type are indeed ABI-stable.
 pub struct NoNiches<
     Size: Unsigned,
-    Align: PowerOf2,
+    Align: Alignment,
     HasExactlyOneNiche: ISaturatingAdd = Saturator,
     ContainsIndirections: Bit = B0,
 >(
@@ -265,7 +266,7 @@ pub struct NoNiches<
 );
 unsafe impl<
         Size: Unsigned,
-        Align: PowerOf2,
+        Align: Alignment,
         HasExactlyOneNiche: ISaturatingAdd,
         ContainsIndirections: Bit,
     > IStable for NoNiches<Size, Align, HasExactlyOneNiche, ContainsIndirections>

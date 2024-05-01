@@ -14,28 +14,75 @@
 
 //! Stable results!
 
+use stabby_macros::tyeval;
+
 pub use crate::enums::IDeterminant;
 use crate::enums::IDeterminantProvider;
-use crate::padding::Padded;
-use crate::Union;
-use crate::{self as stabby, unreachable_unchecked, Bit, IStable};
+use crate::istable::IBitMask;
+use crate::report::FieldReport;
+use crate::str::Str;
+use crate::unsigned::IUnsignedBase;
+use crate::{self as stabby, unreachable_unchecked, Bit, IStable, B0};
+use crate::{Alignment, Tuple, Unsigned};
 
+#[repr(transparent)]
 /// An ABI-stable, niche optimizing equivalent of [`core::result::Result`]
-#[stabby::stabby]
 pub struct Result<Ok, Err>
 where
     Ok: IDeterminantProvider<Err>,
     Err: IStable,
 {
-    niche_exporter: <Ok as IDeterminantProvider<Err>>::NicheExporter,
-    determinant: <Ok as IDeterminantProvider<Err>>::Determinant,
-    #[allow(clippy::type_complexity)]
-    union: core::mem::MaybeUninit<
-        Union<
-            Padded<<Ok as IDeterminantProvider<Err>>::OkShift, Ok>,
-            Padded<<Ok as IDeterminantProvider<Err>>::ErrShift, Err>,
-        >,
-    >,
+    storage: Storage<<Self as IStable>::Size, <Self as IStable>::Align>,
+}
+impl<Ok: Unpin, Err: Unpin> Unpin for Result<Ok, Err>
+where
+    Ok: IDeterminantProvider<Err>,
+    Err: IStable,
+{
+}
+type Determinant<Ok, Err> = <Ok as IDeterminantProvider<Err>>::Determinant;
+unsafe impl<Ok, Err> IStable for Result<Ok, Err>
+where
+    Ok: IDeterminantProvider<Err>,
+    Err: IStable,
+{
+    type Size = tyeval!(<<Determinant<Ok, Err> as IStable>::Size as Unsigned>::NextMultipleOf<Self::Align> + <Ok::Size as Unsigned>::Max<Err::Size>);
+    type Align = <Ok::Align as Alignment>::Max<Err::Align>;
+    type ContainsIndirections = <Ok::ContainsIndirections as Bit>::Or<Err::ContainsIndirections>;
+    type ForbiddenValues =
+        <<Ok as IDeterminantProvider<Err>>::NicheExporter as IStable>::ForbiddenValues;
+    type UnusedBits = <<Tuple<Determinant<Ok, Err>, <Self::Align as Alignment>::AsUint> as IStable>::UnusedBits as IBitMask>::BitOr<<<<Ok as IDeterminantProvider<Err>>::NicheExporter as IStable>::UnusedBits as IBitMask>::Shift<<<Determinant<Ok, Err> as IStable>::Size as Unsigned>::NextMultipleOf<Self::Align>>>;
+    type HasExactlyOneNiche = B0;
+    const REPORT: &'static crate::report::TypeReport = &crate::report::TypeReport {
+        name: Str::new("Result"),
+        module: Str::new("stabby_abi::result"),
+        tyty: crate::report::TyTy::Enum(Str::new("stabby")),
+        version: 1,
+        fields: crate::StableLike::new(Some(&FieldReport {
+            name: Str::new("Ok"),
+            ty: Ok::REPORT,
+            next_field: crate::StableLike::new(Some(&FieldReport {
+                name: Str::new("Err"),
+                ty: Err::REPORT,
+                next_field: crate::StableLike::new(None),
+            })),
+        })),
+    };
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
+}
+
+#[stabby::stabby]
+struct Storage<Size: Unsigned, Align: Alignment + Alignment> {
+    inner: <Align::Divide<Size> as IUnsignedBase>::Array<Align::AsUint>,
+}
+
+impl<Size: Unsigned, Align: Alignment + Alignment> Storage<Size, Align> {
+    const fn as_ptr(&self) -> *const u8 {
+        self as *const Self as *const _
+    }
+    fn as_mut_ptr(&mut self) -> *mut u8 {
+        self as *mut Self as *mut _
+    }
 }
 
 impl<Ok: Clone, Err: Clone> Clone for Result<Ok, Err>
@@ -125,10 +172,11 @@ where
     Err: IStable,
 {
     fn drop(&mut self) {
-        if self.is_ok() {
-            unsafe { core::ptr::drop_in_place(&mut self.union.assume_init_mut().ok.value) }
-        } else {
-            unsafe { core::ptr::drop_in_place(&mut self.union.assume_init_mut().err.value) }
+        unsafe {
+            self.match_mut(
+                |mut ok| core::ptr::drop_in_place::<Ok>(&mut *ok),
+                |mut err| core::ptr::drop_in_place::<Err>(&mut *err),
+            )
         }
     }
 }
@@ -137,40 +185,67 @@ where
     Ok: IDeterminantProvider<Err>,
     Err: IStable,
 {
+    const DET_SIZE: usize = <<<Determinant<Ok, Err> as IStable>::Size as Unsigned>::NextMultipleOf<
+        <Self as IStable>::Align,
+    > as Unsigned>::USIZE;
+    const OK_OFFSET: usize =
+        <<Ok as IDeterminantProvider<Err>>::OkShift as Unsigned>::USIZE + Self::DET_SIZE;
+    const ERR_OFFSET: usize =
+        <<Ok as IDeterminantProvider<Err>>::ErrShift as Unsigned>::USIZE + Self::DET_SIZE;
+    const fn ok_ptr(
+        storage: *const Storage<<Self as IStable>::Size, <Self as IStable>::Align>,
+    ) -> *const Ok {
+        unsafe { storage.cast::<u8>().add(Self::OK_OFFSET).cast() }
+    }
+    const fn ok_ptr_mut(
+        storage: *mut Storage<<Self as IStable>::Size, <Self as IStable>::Align>,
+    ) -> *mut Ok {
+        unsafe { storage.cast::<u8>().add(Self::OK_OFFSET).cast() }
+    }
+    const fn err_ptr(
+        storage: *const Storage<<Self as IStable>::Size, <Self as IStable>::Align>,
+    ) -> *const Err {
+        unsafe { storage.cast::<u8>().add(Self::ERR_OFFSET).cast() }
+    }
+    const fn err_ptr_mut(
+        storage: *mut Storage<<Self as IStable>::Size, <Self as IStable>::Align>,
+    ) -> *mut Err {
+        unsafe { storage.cast::<u8>().add(Self::ERR_OFFSET).cast() }
+    }
+    const fn det_ptr(
+        storage: *const Storage<<Self as IStable>::Size, <Self as IStable>::Align>,
+    ) -> *const Determinant<Ok, Err> {
+        storage.cast()
+    }
+    const fn det_ptr_mut(
+        storage: *mut Storage<<Self as IStable>::Size, <Self as IStable>::Align>,
+    ) -> *mut Determinant<Ok, Err> {
+        storage.cast()
+    }
     /// Construct the `Ok` variant.
     #[allow(non_snake_case)]
     pub fn Ok(value: Ok) -> Self {
-        let mut union = core::mem::MaybeUninit::new(Union {
-            ok: core::mem::ManuallyDrop::new(Padded {
-                lpad: Default::default(),
-                value,
-            }),
-        });
-        let determinant = unsafe {
-            <Ok as IDeterminantProvider<Err>>::Determinant::ok(union.as_mut_ptr().cast())
-        };
-        Self {
-            niche_exporter: Default::default(),
-            determinant,
-            union,
+        let mut storage = core::mem::MaybeUninit::zeroed();
+        unsafe {
+            let storage_ptr = storage.as_mut_ptr();
+            Self::ok_ptr_mut(storage_ptr).write(value);
+            Self::det_ptr_mut(storage_ptr).write(Determinant::<Ok, Err>::ok(storage_ptr.cast()));
+            Self {
+                storage: storage.assume_init(),
+            }
         }
     }
     /// Construct the `Err` variant.
     #[allow(non_snake_case)]
     pub fn Err(value: Err) -> Self {
-        let mut union = core::mem::MaybeUninit::new(Union {
-            err: core::mem::ManuallyDrop::new(Padded {
-                lpad: Default::default(),
-                value,
-            }),
-        });
-        let determinant = unsafe {
-            <Ok as IDeterminantProvider<Err>>::Determinant::err(union.as_mut_ptr().cast())
-        };
-        Self {
-            niche_exporter: Default::default(),
-            determinant,
-            union,
+        let mut storage = core::mem::MaybeUninit::zeroed();
+        unsafe {
+            let storage_ptr = storage.as_mut_ptr();
+            Self::err_ptr_mut(storage_ptr).write(value);
+            Self::det_ptr_mut(storage_ptr).write(Determinant::<Ok, Err>::err(storage_ptr.cast()));
+            Self {
+                storage: storage.assume_init(),
+            }
         }
     }
     /// Converts to a standard [`Result`](core::result::Result) of immutable references to the variants.
@@ -262,12 +337,15 @@ where
         err: FnErr,
     ) -> U {
         let is_ok = self.is_ok();
-        let union = unsafe { self.union.assume_init_read() };
-        core::mem::forget(self);
+        let storage = &self.storage;
         if is_ok {
-            ok(core::mem::ManuallyDrop::into_inner(unsafe { union.ok }).value)
+            let t = unsafe { core::ptr::read(Self::ok_ptr(storage)) };
+            core::mem::forget(self);
+            ok(t)
         } else {
-            err(core::mem::ManuallyDrop::into_inner(unsafe { union.err }).value)
+            let t = unsafe { core::ptr::read(Self::err_ptr(storage)) };
+            core::mem::forget(self);
+            err(t)
         }
     }
     /// Equivalent to `match self`.
@@ -278,24 +356,20 @@ where
         err: FnErr,
     ) -> U {
         let is_ok = self.is_ok();
-        let union = unsafe { self.union.assume_init_read() };
-        core::mem::forget(self);
+        let storage = &self.storage;
         if is_ok {
-            ok(
-                ctx,
-                core::mem::ManuallyDrop::into_inner(unsafe { union.ok }).value,
-            )
+            let t = unsafe { core::ptr::read(Self::ok_ptr(storage)) };
+            core::mem::forget(self);
+            ok(ctx, t)
         } else {
-            err(
-                ctx,
-                core::mem::ManuallyDrop::into_inner(unsafe { union.err }).value,
-            )
+            let t = unsafe { core::ptr::read(Self::err_ptr(storage)) };
+            core::mem::forget(self);
+            err(ctx, t)
         }
     }
     /// Returns `true` if in the `Ok` variant.
     pub fn is_ok(&self) -> bool {
-        self.determinant
-            .is_det_ok(&self.union as *const _ as *const _)
+        unsafe { &*Self::det_ptr(&self.storage) }.is_det_ok(self.storage.as_ptr())
     }
     /// Returns `true` if in the `Err` variant.
     pub fn is_err(&self) -> bool {
@@ -373,11 +447,11 @@ where
     {
         self.unwrap_err_or_else(|e| panic!("Result::unwrap_err called on Ok variant: {e:?}"))
     }
-    unsafe fn ok_unchecked(&self) -> &Ok {
-        &self.union.assume_init_ref().ok.value
+    const unsafe fn ok_unchecked(&self) -> &Ok {
+        &*Self::ok_ptr(&self.storage)
     }
-    unsafe fn err_unchecked(&self) -> &Err {
-        &self.union.assume_init_ref().err.value
+    const unsafe fn err_unchecked(&self) -> &Err {
+        &*Self::err_ptr(&self.storage)
     }
     unsafe fn ok_mut_unchecked(&mut self) -> OkGuard<'_, Ok, Err> {
         OkGuard { inner: self }
@@ -405,7 +479,7 @@ where
 {
     type Target = Ok;
     fn deref(&self) -> &Self::Target {
-        unsafe { &self.inner.union.assume_init_ref().ok.value }
+        unsafe { self.inner.ok_unchecked() }
     }
 }
 impl<'a, Ok, Err> core::ops::DerefMut for OkGuard<'a, Ok, Err>
@@ -414,7 +488,7 @@ where
     Err: IStable,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut self.inner.union.assume_init_mut().ok.value }
+        unsafe { &mut *Result::<Ok, Err>::ok_ptr_mut(&mut self.inner.storage) }
     }
 }
 impl<'a, Ok, Err> Drop for OkGuard<'a, Ok, Err>
@@ -423,10 +497,8 @@ where
     Err: IStable,
 {
     fn drop(&mut self) {
-        if <<<Ok as IDeterminantProvider<Err>>::Determinant as IDeterminant>::IsNicheTrick as Bit>::BOOL {
-            unsafe {
-                <Ok as IDeterminantProvider<Err>>::Determinant::ok(self.inner.union.as_mut_ptr().cast())
-            };
+        if <<Determinant<Ok, Err> as IDeterminant>::IsNicheTrick as Bit>::BOOL {
+            unsafe { Determinant::<Ok, Err>::ok(self.inner.storage.as_mut_ptr()) };
         }
     }
 }
@@ -450,7 +522,7 @@ where
 {
     type Target = Err;
     fn deref(&self) -> &Self::Target {
-        unsafe { &self.inner.union.assume_init_ref().err.value }
+        unsafe { self.inner.err_unchecked() }
     }
 }
 impl<'a, Ok, Err> core::ops::DerefMut for ErrGuard<'a, Ok, Err>
@@ -459,7 +531,7 @@ where
     Err: IStable,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut self.inner.union.assume_init_mut().err.value }
+        unsafe { &mut *Result::<Ok, Err>::err_ptr_mut(&mut self.inner.storage) }
     }
 }
 impl<'a, Ok, Err> Drop for ErrGuard<'a, Ok, Err>
@@ -468,12 +540,8 @@ where
     Err: IStable,
 {
     fn drop(&mut self) {
-        if <<<Ok as IDeterminantProvider<Err>>::Determinant as IDeterminant>::IsNicheTrick as Bit>::BOOL {
-            unsafe {
-                <Ok as IDeterminantProvider<Err>>::Determinant::err(
-                    self.inner.union.as_mut_ptr().cast(),
-                )
-            };
+        if <<Determinant<Ok, Err> as IDeterminant>::IsNicheTrick as Bit>::BOOL {
+            unsafe { Determinant::<Ok, Err>::err(self.inner.storage.as_mut_ptr()) };
         }
     }
 }

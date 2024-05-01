@@ -14,7 +14,7 @@
 
 use crate::report::TypeReport;
 
-use self::unsigned::IUnsignedBase;
+use self::unsigned::{Alignment, IUnsignedBase};
 
 use super::typenum2::*;
 use super::unsigned::{IBitBase, NonZero};
@@ -42,7 +42,7 @@ pub unsafe trait IStable: Sized {
     /// The size of the annotated type in bytes.
     type Size: Unsigned;
     /// The alignment of the annotated type in bytes.
-    type Align: PowerOf2;
+    type Align: Alignment;
     /// The values that the annotated type cannot occupy.
     type ForbiddenValues: IForbiddenValues;
     /// The padding bits in the annotated types
@@ -344,7 +344,7 @@ unsafe impl<A: IStable, B: IStable> IStable for FieldPair<A, B> {
     type UnusedBits =
         <A::UnusedBits as IBitMask>::BitOr<<AlignedAfter<B, A::Size> as IStable>::UnusedBits>;
     type Size = <AlignedAfter<B, A::Size> as IStable>::Size;
-    type Align = <A::Align as PowerOf2>::Max<B::Align>;
+    type Align = <A::Align as Alignment>::Max<B::Align>;
     type HasExactlyOneNiche = <A::HasExactlyOneNiche as ISaturatingAdd>::SaturatingAdd<
         <AlignedAfter<B, A::Size> as IStable>::HasExactlyOneNiche,
     >;
@@ -482,7 +482,7 @@ unsafe impl<A: IStable, B: IStable> IStable for (Union<A, B>, B1) {
     type ForbiddenValues = End;
     type UnusedBits = End;
     type Size = <A::Size as Unsigned>::Max<B::Size>;
-    type Align = <A::Align as PowerOf2>::Max<B::Align>;
+    type Align = <A::Align as Alignment>::Max<B::Align>;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = <A::ContainsIndirections as Bit>::Or<B::ContainsIndirections>;
     primitive_report!("Union");

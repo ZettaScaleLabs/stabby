@@ -77,6 +77,8 @@ pub trait IBitBase {
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd>: ISaturatingAdd;
     /// Support for [`IBit`]
     type _StabTernary<A: IStable, B: IStable>: IStable;
+    /// Ternary for Aligments
+    type _ATernary<A: Alignment, B: Alignment>: Alignment;
     /// Support for [`IBit`]
     type AsForbiddenValue: ISingleForbiddenValue;
 }
@@ -98,6 +100,7 @@ impl IBitBase for B0 {
     type _UbTernary<A: IBitMask, B: IBitMask> = B;
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = B;
     type _StabTernary<A: IStable, B: IStable> = B;
+    type _ATernary<A: Alignment, B: Alignment> = B;
     type AsForbiddenValue = Saturator;
 }
 /// true
@@ -118,6 +121,7 @@ impl IBitBase for B1 {
     type _UbTernary<A: IBitMask, B: IBitMask> = A;
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = A;
     type _StabTernary<A: IStable, B: IStable> = A;
+    type _ATernary<A: Alignment, B: Alignment> = A;
     type AsForbiddenValue = End;
 }
 /// A boolean. [`B0`] and [`B1`] are the canonical members of this type-class
@@ -490,6 +494,34 @@ impl<Msb: IPowerOf2> IPowerOf2 for UInt<Msb, B0> {
     type Modulate<T: IUnsigned> =
         <UInt<Msb::Modulate<T::Msb>, T::Bit> as IUnsignedBase>::_Simplified;
     type Divide<T: IUnsigned> = Msb::Divide<T::Msb>;
+}
+
+/// An alignment that `stabby` can build an array arround.
+pub trait Alignment: IPowerOf2 {
+    /// max(Self, T)
+    type Max<T: Alignment>: Alignment;
+    /// A type with size and aligment equal to Self
+    type AsUint: Copy + Default + IStable;
+}
+impl Alignment for U1 {
+    type Max<T: Alignment> = <Self::Greater<T> as IBitBase>::_ATernary<Self, T>;
+    type AsUint = u8;
+}
+impl Alignment for U2 {
+    type Max<T: Alignment> = <Self::Greater<T> as IBitBase>::_ATernary<Self, T>;
+    type AsUint = u16;
+}
+impl Alignment for U4 {
+    type Max<T: Alignment> = <Self::Greater<T> as IBitBase>::_ATernary<Self, T>;
+    type AsUint = u32;
+}
+impl Alignment for U8 {
+    type Max<T: Alignment> = <Self::Greater<T> as IBitBase>::_ATernary<Self, T>;
+    type AsUint = u64;
+}
+impl Alignment for U16 {
+    type Max<T: Alignment> = <Self::Greater<T> as IBitBase>::_ATernary<Self, T>;
+    type AsUint = u128;
 }
 
 #[test]

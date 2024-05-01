@@ -207,9 +207,14 @@ impl<Head, Tail> From<crate::vtable::VtSync<VTable<Head, Tail>>> for VTable<Head
 pub trait Any {
     /// The report of the type.
     extern "C" fn report(&self) -> &'static crate::report::TypeReport;
+    /// The id of the type.
+    extern "C" fn id(&self) -> u64;
 }
 impl<T: crate::IStable> Any for T {
     extern "C" fn report(&self) -> &'static crate::report::TypeReport {
         Self::REPORT
+    }
+    extern "C" fn id(&self) -> u64 {
+        Self::ID
     }
 }

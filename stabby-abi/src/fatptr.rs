@@ -267,6 +267,12 @@ impl<'a, P: IPtrOwned + IPtr, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
     /// This implies that this downcast will always yield `None` when attempting to downcast
     /// values constructed accross an FFI.
     ///
+    /// Note that the compiler may chose to have multiple copies of the vtable, notably in optimized builds.
+    /// This means that even within a same compile unit, this function may fail to downcast a value even if
+    /// the type should have matched.
+    ///
+    /// In general, you should prefer [`Self::stable_downcast_ref`]
+    ///
     /// # Safety
     /// This may have false positives if all of the following applies:
     /// - `self` was built from `&U`, within the same FFI-boundary,
@@ -280,6 +286,7 @@ impl<'a, P: IPtrOwned + IPtr, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
     where
         Vt: PartialEq + Copy + IConstConstructor<'a, T>,
     {
+        eprintln!("{:p} vs {:p}", self.vtable(), Vt::VTABLE);
         (self.vtable == Vt::VTABLE).then(|| unsafe { self.ptr.as_ref() })
     }
     /// Downcasts the reference based on its reflection report.
@@ -287,12 +294,18 @@ impl<'a, P: IPtrOwned + IPtr, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
     where
         Vt: TransitiveDeref<crate::vtable::StabbyVtableAny, Path> + IConstConstructor<'a, T>,
     {
-        (self.report() == T::REPORT).then(|| unsafe { self.ptr.as_ref() })
+        (self.id() == T::ID && self.report() == T::REPORT).then(|| unsafe { self.ptr.as_ref() })
     }
     /// Downcasts the mutable reference based on vtable equality.
     ///
     /// This implies that this downcast will always yield `None` when attempting to downcast
     /// values constructed accross an FFI.
+    ///
+    /// Note that the compiler may chose to have multiple copies of the vtable, notably in optimized builds.
+    /// This means that even within a same compile unit, this function may fail to downcast a value even if
+    /// the type should have matched.
+    ///
+    /// In general, you should prefer [`Self::stable_downcast_mut`]
     ///
     /// # Safety
     /// This may have false positives if all of the following applies:
@@ -310,13 +323,13 @@ impl<'a, P: IPtrOwned + IPtr, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
     {
         (self.vtable == Vt::VTABLE).then(|| unsafe { self.ptr.as_mut() })
     }
-    /// Downcasts the reference based on its reflection report.
+    /// Downcasts the mutable reference based on its reflection report.
     pub fn stable_downcast_mut<T: crate::IStable, Path>(&mut self) -> Option<&mut T>
     where
         Vt: TransitiveDeref<crate::vtable::StabbyVtableAny, Path> + IConstConstructor<'a, T>,
         P: IPtrMut,
     {
-        (self.report() == T::REPORT).then(|| unsafe { self.ptr.as_mut() })
+        (self.id() == T::ID && self.report() == T::REPORT).then(|| unsafe { self.ptr.as_mut() })
     }
 }
 
