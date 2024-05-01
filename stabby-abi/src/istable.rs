@@ -14,6 +14,8 @@
 
 use crate::report::TypeReport;
 
+use self::unsigned::IUnsignedBase;
+
 use super::typenum2::*;
 use super::unsigned::{IBitBase, NonZero};
 use super::{FieldPair, Struct, Union};
@@ -37,9 +39,9 @@ macro_rules! same_as {
 /// # Safety
 /// Mis-implementing this trait can lead to memory corruption in sum tyoes
 pub unsafe trait IStable: Sized {
-    /// The size of the annotated type.
+    /// The size of the annotated type in bytes.
     type Size: Unsigned;
-    /// The alignment of the annotated type.
+    /// The alignment of the annotated type in bytes.
     type Align: PowerOf2;
     /// The values that the annotated type cannot occupy.
     type ForbiddenValues: IForbiddenValues;
@@ -336,10 +338,7 @@ impl<O: Unsigned, T, R: IBitMask> IsEnd for Array<O, T, R> {
     type Output = B0;
 }
 
-unsafe impl<A: IStable, B: IStable> IStable for FieldPair<A, B>
-where
-    AlignedAfter<B, A::Size>: IStable,
-{
+unsafe impl<A: IStable, B: IStable> IStable for FieldPair<A, B> {
     type ForbiddenValues =
         Or<A::ForbiddenValues, <AlignedAfter<B, A::Size> as IStable>::ForbiddenValues>;
     type UnusedBits =
@@ -499,106 +498,25 @@ where
 pub struct AlignedAfter<T, Start: Unsigned>(core::marker::PhantomData<(T, Start)>);
 
 // AlignedAfter a ZST
-unsafe impl<T: IStable> IStable for AlignedAfter<T, U0> {
-    same_as!(T);
-}
-// Aligned after a non-ZST
-unsafe impl<T: IStable, B: Unsigned, Int: Bit> IStable for AlignedAfter<T, UInt<B, Int>>
-where
-    (Self, T::Align): IStable,
-{
-    same_as!((Self, T::Align));
-}
-
-unsafe impl<T: IStable, Start: Unsigned> IStable for (AlignedAfter<T, Start>, U1) {
-    type Align = U1;
-    type Size = tyeval!(Start + T::Size);
-    type UnusedBits = <T::UnusedBits as IBitMask>::Shift<Start>;
-    type ForbiddenValues = <T::ForbiddenValues as IForbiddenValues>::Shift<Start>;
-    type HasExactlyOneNiche = T::HasExactlyOneNiche;
-    type ContainsIndirections = T::ContainsIndirections;
-    primitive_report!("FP");
-}
-// non-ZST aligned after a non-ZST
-unsafe impl<T: IStable, Start: Unsigned, TAlignB1: Bit, TAlignB2: Bit, TAlignInt: Unsigned> IStable
-    for (
-        AlignedAfter<T, Start>,
-        UInt<UInt<TAlignInt, TAlignB1>, TAlignB2>,
-    )
-where
-    UInt<UInt<TAlignInt, TAlignB1>, TAlignB2>: PowerOf2,
-    (
-        Self,
-        tyeval!(Start % UInt<UInt<TAlignInt, TAlignB1>, TAlignB2>),
-    ): IStable,
-{
-    same_as!((
-        Self,
-        tyeval!(Start % UInt<UInt<TAlignInt, TAlignB1>, TAlignB2>)
-    ));
-}
-// non-ZST already aligned
-unsafe impl<T: IStable, Start: Unsigned, TAlignB: Unsigned, TAlignInt: Bit> IStable
-    for ((AlignedAfter<T, Start>, UInt<TAlignB, TAlignInt>), U0)
-{
+unsafe impl<T: IStable, Start: Unsigned> IStable for AlignedAfter<T, Start> {
     type Align = T::Align;
-    type Size = tyeval!(Start + T::Size);
-    type UnusedBits = <T::UnusedBits as IBitMask>::Shift<Start>;
-    type ForbiddenValues = <T::ForbiddenValues as IForbiddenValues>::Shift<Start>;
-    type HasExactlyOneNiche = T::HasExactlyOneNiche;
-    type ContainsIndirections = T::ContainsIndirections;
-    primitive_report!("FP");
-}
-// non-ZST needs alignment
-unsafe impl<T: IStable, Start: Unsigned, TAlignB: Unsigned, TAlignInt: Bit, B: Unsigned, Int: Bit>
-    IStable
-    for (
-        (AlignedAfter<T, Start>, UInt<TAlignB, TAlignInt>),
-        UInt<B, Int>,
-    )
-where
-// <tyeval!(T::Align - UInt<B, Int>) as Unsigned>::Padding: IStable,
-{
-    type Align = T::Align;
-    type Size = tyeval!((Start + (T::Align - UInt<B, Int>)) + T::Size);
-    type UnusedBits = <<<<tyeval!(T::Align - UInt<B, Int>) as Unsigned>::Padding as IStable>::UnusedBits as IBitMask>::Shift<Start> as IBitMask>::BitOr<
-        <T::UnusedBits as IBitMask>::Shift<tyeval!(Start + (T::Align - UInt<B, Int>))>>;
+    type Size = <T::Size as Unsigned>::Add<Start::NextMultipleOf<T::Align>>;
     type ForbiddenValues =
-        <T::ForbiddenValues as IForbiddenValues>::Shift<tyeval!(Start + (T::Align - UInt<B, Int>))>;
-    type HasExactlyOneNiche = Saturator;
+        <T::ForbiddenValues as IForbiddenValues>::Shift<Start::NextMultipleOf<T::Align>>;
+    type UnusedBits = <<<tyeval!(Start::NextMultipleOf<T::Align> - Start) as IUnsignedBase>::PaddingBitMask as IBitMask>::Shift<Start> as IBitMask>::BitOr<
+        <T::UnusedBits as IBitMask>::Shift<Start::NextMultipleOf<T::Align>>,
+    >;
+    type HasExactlyOneNiche = T::HasExactlyOneNiche;
     type ContainsIndirections = T::ContainsIndirections;
     primitive_report!("FP");
 }
 
-unsafe impl<T: IStable> IStable for Struct<T>
-where
-    (Self, T::Align): IStable,
-{
-    same_as!((Self, T::Align));
-}
-unsafe impl<T: IStable> IStable for (Struct<T>, U0) {
-    same_as!(T);
-}
-unsafe impl<T: IStable, B: Bit, Int: Unsigned> IStable for (Struct<T>, UInt<Int, B>)
-where
-    UInt<Int, B>: PowerOf2,
-    (Self, tyeval!(T::Size % UInt<Int, B>)): IStable,
-{
-    same_as!((Self, tyeval!(T::Size % UInt<Int, B>)));
-}
-unsafe impl<T: IStable, Align> IStable for ((Struct<T>, Align), U0) {
-    same_as!(T);
-}
-unsafe impl<T: IStable, Align, RemU: Unsigned, RemB: Bit> IStable
-    for ((Struct<T>, Align), UInt<RemU, RemB>)
-where
-// <tyeval!(T::Align - UInt<RemU, RemB>) as Unsigned>::Padding: IStable,
-{
-    type Size = tyeval!(T::Size + (T::Align - UInt<RemU, RemB>));
+unsafe impl<T: IStable> IStable for Struct<T> {
+    type Size = <T::Size as Unsigned>::NextMultipleOf<T::Align>;
     type Align = T::Align;
     type ForbiddenValues = T::ForbiddenValues;
     type UnusedBits = <T::UnusedBits as IBitMask>::BitOr<
-        <<<tyeval!(T::Align - UInt<RemU, RemB>) as Unsigned>::Padding as IStable>::UnusedBits as IBitMask>::Shift<T::Size>>;
+        <<tyeval!(<T::Size as Unsigned>::NextMultipleOf<T::Align> - T::Size) as IUnsignedBase>::PaddingBitMask as IBitMask>::Shift<T::Size>>;
     type HasExactlyOneNiche = Saturator;
     type ContainsIndirections = T::ContainsIndirections;
     primitive_report!("FP");
