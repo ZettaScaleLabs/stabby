@@ -31,7 +31,9 @@ fn main() {
                     .map(|d| d.map(|f| f.unwrap().file_name()).collect::<Vec<_>>())
             )
         });
-        let stable_fn = lib.get_stabbied::<extern "C" fn(u8)>(b"stable_fn").unwrap();
+        let stable_fn = lib
+            .get_stabbied::<extern "C" fn(u8) -> stabby::option::Option<()>>(b"stable_fn")
+            .unwrap();
         let unstable_fn = lib
             .get_canaried::<extern "C" fn(&[u8])>(b"unstable_fn")
             .unwrap();
