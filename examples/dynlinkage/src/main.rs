@@ -14,7 +14,7 @@
 
 #[stabby::import(name = "library")]
 extern "C" {
-    pub fn stable_fn(v: u8);
+    pub fn stable_fn(v: u8) -> stabby::option::Option<()>;
 }
 
 #[stabby::import(canaries = "", name = "library")]

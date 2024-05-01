@@ -26,7 +26,7 @@ pub struct Layout<
     ErrFv: IForbiddenValues,
     ErrUb: IBitMask,
     ErrSize: Unsigned,
-    ErrAlign: PowerOf2,
+    ErrAlign: Alignment,
     ErrOffset: Unsigned,
 >(
     core::marker::PhantomData<(
@@ -89,7 +89,7 @@ impl<
         ErrFv: IForbiddenValues,
         ErrUb: IBitMask,
         ErrSize: Unsigned,
-        ErrAlign: PowerOf2,
+        ErrAlign: Alignment,
         ErrOffset: Unsigned,
     > IDeterminantProviderInner
     for Layout<UnionSize, H, OkFv, OkUb, ErrFv, ErrUb, ErrSize, ErrAlign, ErrOffset>
@@ -108,7 +108,7 @@ impl<
         ErrFv: IForbiddenValues,
         ErrUb: IBitMask,
         ErrSize: Unsigned,
-        ErrAlign: PowerOf2,
+        ErrAlign: Alignment,
         ErrOffset: Unsigned,
     > IDeterminantProviderInner
     for Layout<UnionSize, T<Budget>, OkFv, OkUb, ErrFv, ErrUb, ErrSize, ErrAlign, ErrOffset>
@@ -145,7 +145,7 @@ impl<
         ErrFv: IForbiddenValues,
         ErrUb: IBitMask,
         ErrSize: Unsigned,
-        ErrAlign: PowerOf2,
+        ErrAlign: Alignment,
         ErrOffset: Unsigned,
         Offset: Unsigned,
         V: Unsigned,
@@ -179,7 +179,7 @@ impl<
         ErrFv: IForbiddenValues,
         ErrUb: IBitMask,
         ErrSize: Unsigned,
-        ErrAlign: PowerOf2,
+        ErrAlign: Alignment,
         ErrOffset: Unsigned,
         Offset: Unsigned,
         V: Unsigned,
@@ -211,7 +211,7 @@ impl<
         ErrFv: IForbiddenValues,
         ErrUb: IBitMask,
         ErrSize: Unsigned,
-        ErrAlign: PowerOf2,
+        ErrAlign: Alignment,
         ErrOffset: Unsigned,
         Offset: Unsigned,
         V: NonZero,
@@ -242,7 +242,7 @@ impl<
         ErrFv: IForbiddenValues,
         ErrUb: IBitMask,
         ErrSize: Unsigned,
-        ErrAlign: PowerOf2,
+        ErrAlign: Alignment,
         ErrOffset: Unsigned,
     > IDeterminantProviderInner
     for DeterminantProvider<
@@ -271,7 +271,7 @@ impl<
         ErrFv: IForbiddenValues,
         ErrUb: IBitMask,
         ErrSize: Unsigned,
-        ErrAlign: PowerOf2,
+        ErrAlign: Alignment,
         ErrOffset: Unsigned,
     > IDeterminantProviderInner
     for (
@@ -291,7 +291,7 @@ impl<
         ErrFv: IForbiddenValues,
         ErrUb: IBitMask,
         ErrSize: Unsigned,
-        ErrAlign: PowerOf2,
+        ErrAlign: Alignment,
         ErrOffset: Unsigned,
     > IDeterminantProviderInner
     for (
