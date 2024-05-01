@@ -22,7 +22,7 @@ use typenames::*;
 
 use crate::{
     istable::{IBitMask, IForbiddenValues, ISaturatingAdd, ISingleForbiddenValue, Saturator},
-    Array, End, IStable,
+    Array, End, IStable, Tuple,
 };
 /// (unsigned)0
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -76,6 +76,8 @@ pub trait IBitBase {
     /// Support for [`IBit`]
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd>: ISaturatingAdd;
     /// Support for [`IBit`]
+    type _StabTernary<A: IStable, B: IStable>: IStable;
+    /// Support for [`IBit`]
     type AsForbiddenValue: ISingleForbiddenValue;
 }
 /// false
@@ -95,6 +97,7 @@ impl IBitBase for B0 {
     type _FvTernary<A: IForbiddenValues, B: IForbiddenValues> = B;
     type _UbTernary<A: IBitMask, B: IBitMask> = B;
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = B;
+    type _StabTernary<A: IStable, B: IStable> = B;
     type AsForbiddenValue = Saturator;
 }
 /// true
@@ -114,6 +117,7 @@ impl IBitBase for B1 {
     type _FvTernary<A: IForbiddenValues, B: IForbiddenValues> = A;
     type _UbTernary<A: IBitMask, B: IBitMask> = A;
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = A;
+    type _StabTernary<A: IStable, B: IStable> = A;
     type AsForbiddenValue = End;
 }
 /// A boolean. [`B0`] and [`B1`] are the canonical members of this type-class
@@ -144,6 +148,8 @@ pub trait IBit: IBitBase {
     type UbTernary<A: IBitMask, B: IBitMask>: IBitMask;
     /// Self ? A : B, preserving bounds.
     type SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd>: ISaturatingAdd;
+    /// Self ? A : B, preserving bounds.
+    type StabTernary<A: IStable, B: IStable>: IStable;
     /// !(Self & Other)
     type Nand<T: IBit>: IBit + Sized;
     /// Self ^ Other
@@ -173,6 +179,7 @@ impl<Bit: IBitBase> IBit for Bit {
     type FvTernary<A: IForbiddenValues, B: IForbiddenValues> = Self::_FvTernary<A, B>;
     type UbTernary<A: IBitMask, B: IBitMask> = Self::_UbTernary<A, B>;
     type SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = Self::_SaddTernary<A, B>;
+    type StabTernary<A: IStable, B: IStable> = Self::_StabTernary<A, B>;
     type Nand<T: IBit> = <Self::_And<T> as IBitBase>::_Not;
     type Xor<T: IBit> = <Self::_And<T::_Not> as IBitBase>::_Or<T::_And<Self::_Not>>;
     type Equals<T: IBit> = <Self::Xor<T> as IBitBase>::_Not;
@@ -227,6 +234,10 @@ pub trait IUnsignedBase {
     type _Mul<T: IUnsigned>: IUnsigned;
     /// Generates the bitmask for a Self bytes long padding.
     type PaddingBitMask: IBitMask;
+    /// Helper for [`IUnsignedBase::Array`]
+    type _AddToArray<LsbArray: IStable, ArrayStack: IStable>: IStable;
+    /// Generates a type that has the same layout as `[T; Self]`
+    type Array<T: IStable>: IStable;
 }
 /// A is smaller than B if `A::Cmp<B>` = Lesser.
 pub struct Lesser;
@@ -299,6 +310,8 @@ pub trait IPowerOf2: IUnsigned {
     type Max<T: IPowerOf2>: IPowerOf2;
     /// T % Self
     type Modulate<T: IUnsigned>: IUnsigned;
+    /// T / Self
+    type Divide<T: IUnsigned>: IUnsigned;
 }
 impl<U: IUnsignedBase> IUnsigned for U {
     const U128: u128 = Self::_U128;
@@ -355,6 +368,8 @@ impl IUnsignedBase for UTerm {
     type _NonZero = Saturator;
     type _Mul<T: IUnsigned> = UTerm;
     type PaddingBitMask = End;
+    type _AddToArray<LsbArray: IStable, ArrayStack: IStable> = LsbArray;
+    type Array<T: IStable> = ();
 }
 impl IUnsignedBase for Saturator {
     #[cfg(not(doc))]
@@ -380,6 +395,8 @@ impl IUnsignedBase for Saturator {
     type _NonZero = Saturator;
     type _Mul<T: IUnsigned> = Saturator;
     type PaddingBitMask = End;
+    type _AddToArray<LsbArray: IStable, ArrayStack: IStable> = ();
+    type Array<T: IStable> = ();
 }
 
 /// A non-zero unsigned number.
@@ -447,12 +464,24 @@ impl<Msb: IUnsigned, Bit: IBit> IUnsignedBase for UInt<Msb, Bit> {
         U255,
         <<Self::_SatDecrement as IUnsignedBase>::PaddingBitMask as IBitMask>::Shift<U1>,
     >;
+    type _AddToArray<LsbArray: IStable, ArrayStack: IStable> = Msb::_AddToArray<
+        Bit::StabTernary<
+            <<LsbArray::Size as IUnsignedBase>::_IsUTerm as IBit>::StabTernary<
+                ArrayStack,
+                Tuple<ArrayStack, LsbArray>,
+            >,
+            LsbArray,
+        >,
+        Tuple<ArrayStack, ArrayStack>,
+    >;
+    type Array<T: IStable> = Self::_AddToArray<(), T>;
 }
 impl<Msb: IUnsigned<_IsUTerm = B1>> IPowerOf2 for UInt<Msb, B1> {
     type Log2 = U0;
     type Min<T: IPowerOf2> = <Self::Greater<T> as IBit>::PTernary<T, Self>;
     type Max<T: IPowerOf2> = <Self::Greater<T> as IBit>::PTernary<Self, T>;
     type Modulate<T: IUnsigned> = UTerm;
+    type Divide<T: IUnsigned> = T;
 }
 impl<Msb: IPowerOf2> IPowerOf2 for UInt<Msb, B0> {
     type Log2 = <Msb::Log2 as IUnsignedBase>::Increment;
@@ -460,6 +489,7 @@ impl<Msb: IPowerOf2> IPowerOf2 for UInt<Msb, B0> {
     type Max<T: IPowerOf2> = <Self::Greater<T> as IBit>::PTernary<Self, T>;
     type Modulate<T: IUnsigned> =
         <UInt<Msb::Modulate<T::Msb>, T::Bit> as IUnsignedBase>::_Simplified;
+    type Divide<T: IUnsigned> = Msb::Divide<T::Msb>;
 }
 
 #[test]
@@ -612,4 +642,7 @@ fn ops() {
     assert_eq!(U4::_U128, 4);
     assert_eq!(U5::_U128, 5);
     assert_eq!(U10::_U128, 10);
+    unsafe { core::mem::transmute::<_, <U22 as IUnsignedBase>::Array<u8>>([0u8; 22]) };
+    unsafe { core::mem::transmute::<_, <U122 as IUnsignedBase>::Array<u16>>([0u16; 122]) };
+    unsafe { core::mem::transmute::<[u8; 0], <U0 as IUnsignedBase>::Array<u8>>([]) };
 }
