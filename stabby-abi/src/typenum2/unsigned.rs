@@ -591,6 +591,11 @@ fn ops() {
     let _: U0 = <<U10 as IUnsigned>::Mod<U1>>::default();
     let _: U255 = UxFF::default();
     let _: Ub111100 = <<Ub11111100 as IUnsigned>::BitAnd<Ub111111>>::default();
+    let _: U0 = <<U0 as IUnsigned>::NextMultipleOf<U8>>::default();
+    let _: U16 = <<U10 as IUnsigned>::NextMultipleOf<U8>>::default();
+    let _: U16 = <<U16 as IUnsigned>::NextMultipleOf<U8>>::default();
+    let _: U32 = <<U26 as IUnsigned>::NextMultipleOf<U8>>::default();
+    let _: U32 = <<U26 as IUnsigned>::NextMultipleOf<U32>>::default();
     assert_eq!(U0::_U128, 0);
     assert_eq!(U1::_U128, 1);
     assert_eq!(U2::_U128, 2);
