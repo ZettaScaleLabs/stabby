@@ -295,6 +295,8 @@ pub trait IPowerOf2: IUnsigned {
     type Min<T: IPowerOf2>: IPowerOf2;
     /// max(Self, T)
     type Max<T: IPowerOf2>: IPowerOf2;
+    /// T % Self
+    type Modulate<T: IUnsigned>: IUnsigned;
 }
 impl<U: IUnsignedBase> IUnsigned for U {
     const U128: u128 = Self::_U128;
@@ -319,7 +321,7 @@ impl<U: IUnsignedBase> IUnsigned for U {
     type Min<T: IUnsigned> = <Self::Greater<T> as IBit>::UTernary<T, Self>;
     type Max<T: IUnsigned> = <Self::Greater<T> as IBit>::UTernary<Self, T>;
     type Truncate<T: IUnsigned> = <Self::_Truncate<T> as IUnsignedBase>::_Simplified;
-    type Mod<T: IPowerOf2> = Self::Truncate<T::Log2>;
+    type Mod<T: IPowerOf2> = T::Modulate<Self>;
     type Padding = Self::_Padding;
     type NonZero = Self::_NonZero;
     type NextMultipleOf<T: IPowerOf2> =
@@ -441,11 +443,14 @@ impl<Msb: IUnsigned<_IsUTerm = B1>> IPowerOf2 for UInt<Msb, B1> {
     type Log2 = U0;
     type Min<T: IPowerOf2> = <Self::Greater<T> as IBit>::PTernary<T, Self>;
     type Max<T: IPowerOf2> = <Self::Greater<T> as IBit>::PTernary<Self, T>;
+    type Modulate<T: IUnsigned> = UTerm;
 }
 impl<Msb: IPowerOf2> IPowerOf2 for UInt<Msb, B0> {
     type Log2 = <Msb::Log2 as IUnsignedBase>::Increment;
     type Min<T: IPowerOf2> = <Self::Greater<T> as IBit>::PTernary<T, Self>;
     type Max<T: IPowerOf2> = <Self::Greater<T> as IBit>::PTernary<Self, T>;
+    type Modulate<T: IUnsigned> =
+        <UInt<Msb::Modulate<T::Msb>, T::Bit> as IUnsignedBase>::_Simplified;
 }
 
 #[test]
@@ -574,6 +579,7 @@ fn ops() {
     let _: U2 = <<U10 as IUnsigned>::BitAnd<U6>>::default();
     let _: B1 = <<U2 as IUnsigned>::Equal<<U10 as IUnsigned>::BitAnd<U6>>>::default();
     let _: B0 = <<U3 as IUnsigned>::Equal<<U10 as IUnsigned>::BitAnd<U6>>>::default();
+    let _: U11 = <<U16 as IPowerOf2>::Modulate<U11>>::default();
     let _: U11 = <<U11 as IUnsigned>::Mod<U16>>::default();
     let _: U10 = <<U10 as IUnsigned>::Mod<U16>>::default();
     let _: U3 = <<U11 as IUnsigned>::Mod<U8>>::default();
