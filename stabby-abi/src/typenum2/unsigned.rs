@@ -225,6 +225,8 @@ pub trait IUnsignedBase {
     type _NonZero: NonZero;
     /// Support for [`IUnsigned`]
     type _Mul<T: IUnsigned>: IUnsigned;
+    /// Generates the bitmask for a Self bytes long padding.
+    type PaddingBitMask: IBitMask;
 }
 /// A is smaller than B if `A::Cmp<B>` = Lesser.
 pub struct Lesser;
@@ -352,6 +354,7 @@ impl IUnsignedBase for UTerm {
     type _TruncateAtRightmostOne = Saturator;
     type _NonZero = Saturator;
     type _Mul<T: IUnsigned> = UTerm;
+    type PaddingBitMask = End;
 }
 impl IUnsignedBase for Saturator {
     #[cfg(not(doc))]
@@ -376,6 +379,7 @@ impl IUnsignedBase for Saturator {
     type _TruncateAtRightmostOne = Saturator;
     type _NonZero = Saturator;
     type _Mul<T: IUnsigned> = Saturator;
+    type PaddingBitMask = End;
 }
 
 /// A non-zero unsigned number.
@@ -437,6 +441,11 @@ impl<Msb: IUnsigned, Bit: IBit> IUnsignedBase for UInt<Msb, Bit> {
     type _NonZero = Self;
     type _Mul<T: IUnsigned> = <Bit::UTernary<T, UTerm> as IUnsigned>::Add<
         <UInt<Msb::Mul<T>, B0> as IUnsignedBase>::_Simplified,
+    >;
+    type PaddingBitMask = Array<
+        U0,
+        U255,
+        <<Self::_SatDecrement as IUnsignedBase>::PaddingBitMask as IBitMask>::Shift<U1>,
     >;
 }
 impl<Msb: IUnsigned<_IsUTerm = B1>> IPowerOf2 for UInt<Msb, B1> {
