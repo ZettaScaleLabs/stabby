@@ -654,6 +654,8 @@ impl<'a> DynTraitDescription<'a> {
                 )*
             }
         };
+        let vtid_str = vtid.to_string();
+        let all_fn_ids_str = all_fn_ids.iter().map(|id| id.to_string());
         vtable_decl = crate::stabby(proc_macro::TokenStream::new(), vtable_decl.into()).into();
         quote! {
             #[doc = #vt_doc]
@@ -667,6 +669,18 @@ impl<'a> DynTraitDescription<'a> {
             impl< #vt_generics > core::cmp::PartialEq for #vtid < #nbvt_generics > where #(#vt_bounds)*{
                 fn eq(&self, other: &Self) -> bool {
                     #(core::ptr::eq((*unsafe{self.#all_fn_ids.as_ref_unchecked()}) as *const (), (*unsafe{other.#all_fn_ids.as_ref_unchecked()}) as *const _) &&)* true
+                }
+            }
+            impl< #vt_generics > core::hash::Hash for #vtid < #nbvt_generics > where #(#vt_bounds)*{
+                fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+                    #(self.#all_fn_ids.hash(state);)*
+                }
+            }
+            impl< #vt_generics > core::fmt::Debug for #vtid < #nbvt_generics > where #(#vt_bounds)*{
+                fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                    let mut s = f.debug_struct(#vtid_str);
+                    #(s.field(#all_fn_ids_str, &core::format_args!("{:p}", unsafe{self.#all_fn_ids.as_ref_unchecked()}));)*
+                    s.finish()
                 }
             }
 
@@ -683,7 +697,7 @@ impl<'a> DynTraitDescription<'a> {
                 #(#unbound_trait_types: 'stabby_vt_lt,)*
                 #(#dyntrait_types: 'stabby_vt_lt,)* {
                 #[doc = #vt_doc]
-                const VTABLE: &'stabby_vt_lt #vt_signature = & #vtid {
+                const VTABLE: #vt_signature =  #vtid {
                     #(#all_fn_ids: unsafe {core::mem::transmute(#self_as_trait::#all_fn_ids as #fn_ptrs)},)*
                 };
             }

@@ -264,6 +264,13 @@ impl<T, Alloc> AllocPtr<T, Alloc> {
             marker: PhantomData,
         }
     }
+    /// Casts an allocated pointer.
+    pub const fn cast<U>(self) -> AllocPtr<U, Alloc> {
+        AllocPtr {
+            ptr: self.ptr.cast(),
+            marker: PhantomData,
+        }
+    }
     /// The offset between `self.ptr` and the prefix.
     pub const fn prefix_skip() -> usize {
         AllocPrefix::<Alloc>::skip_to::<T>()

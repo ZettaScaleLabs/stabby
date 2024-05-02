@@ -140,7 +140,7 @@ impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
     where
         Vt: PartialEq + IConstConstructor<'a, T>,
     {
-        (self.vtable == Vt::VTABLE).then(|| unsafe { self.ptr.as_ref() })
+        (self.vtable == Vt::vtable()).then(|| unsafe { self.ptr.as_ref() })
     }
     /// Downcasts the reference based on its reflection report.
     pub fn stable_downcast<T: crate::IStable, Path>(&self) -> Option<&T>
@@ -286,8 +286,7 @@ impl<'a, P: IPtrOwned + IPtr, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
     where
         Vt: PartialEq + Copy + IConstConstructor<'a, T>,
     {
-        eprintln!("{:p} vs {:p}", self.vtable(), Vt::VTABLE);
-        (self.vtable == Vt::VTABLE).then(|| unsafe { self.ptr.as_ref() })
+        (self.vtable == Vt::vtable()).then(|| unsafe { self.ptr.as_ref() })
     }
     /// Downcasts the reference based on its reflection report.
     pub fn stable_downcast_ref<T: crate::IStable, Path>(&self) -> Option<&T>
@@ -321,7 +320,7 @@ impl<'a, P: IPtrOwned + IPtr, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
         Vt: PartialEq + Copy + IConstConstructor<'a, T>,
         P: IPtrMut,
     {
-        (self.vtable == Vt::VTABLE).then(|| unsafe { self.ptr.as_mut() })
+        (self.vtable == Vt::vtable()).then(|| unsafe { self.ptr.as_mut() })
     }
     /// Downcasts the mutable reference based on its reflection report.
     pub fn stable_downcast_mut<T: crate::IStable, Path>(&mut self) -> Option<&mut T>
@@ -344,7 +343,7 @@ where
     fn from(value: P) -> Self {
         Self {
             ptr: core::mem::ManuallyDrop::new(value.anonimize()),
-            vtable: Vt::VTABLE,
+            vtable: Vt::vtable(),
             unsend: core::marker::PhantomData,
         }
     }
@@ -363,7 +362,7 @@ impl<'a, T, Vt: Copy + IConstConstructor<'a, T>> From<&'a T> for DynRef<'a, Vt> 
         unsafe {
             DynRef {
                 ptr: core::mem::transmute(value),
-                vtable: Vt::VTABLE,
+                vtable: Vt::vtable(),
                 unsend: core::marker::PhantomData,
             }
         }
