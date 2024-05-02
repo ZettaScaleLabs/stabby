@@ -12,21 +12,140 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use crate as stabby;
+use crate::{self as stabby};
+use core::{
+    hash::{Hash, Hasher},
+    marker::PhantomData,
+    ptr::NonNull,
+};
 
 #[rustversion::nightly]
 /// Implementation detail for stabby's version of dyn traits.
 /// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
 pub trait IConstConstructor<'a, Source>: 'a + Copy + core::marker::Freeze {
     /// The vtable.
-    const VTABLE: &'a Self;
+    const VTABLE: Self;
+    /// A reference to the vtable
+    const VTABLE_REF: &'a Self = &Self::VTABLE;
+    /// Returns the reference to the vtable
+    fn vtable() -> &'a Self {
+        Self::VTABLE_REF
+    }
 }
-#[rustversion::not(nightly)]
+
+#[rustversion::before(1.78.0)]
 /// Implementation detail for stabby's version of dyn traits.
 /// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
 pub trait IConstConstructor<'a, Source>: 'a + Copy {
     /// The vtable.
-    const VTABLE: &'a Self;
+    const VTABLE: Self;
+    /// A reference to the vtable
+    const VTABLE_REF: &'a Self = &Self::VTABLE;
+    /// Returns the reference to the vtable
+    fn vtable() -> &'a Self {
+        Self::VTABLE_REF
+    }
+}
+
+#[cfg(feature = "libc")]
+#[rustversion::all(since(1.78.0), not(nightly))]
+static VTABLES: core::sync::atomic::AtomicPtr<
+    crate::alloc::vec::Vec<(
+        u64,
+        crate::alloc::AllocPtr<*const (), crate::alloc::DefaultAllocator>,
+    )>,
+> = core::sync::atomic::AtomicPtr::new(core::ptr::null_mut());
+#[cfg(feature = "libc")]
+#[rustversion::all(since(1.78.0), not(nightly))]
+/// Implementation detail for stabby's version of dyn traits.
+/// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
+pub trait IConstConstructor<'a, Source>: 'a + Copy + core::hash::Hash + core::fmt::Debug {
+    /// The vtable.
+    const VTABLE: Self;
+    /// Returns the reference to the vtable
+    fn vtable() -> &'a Self {
+        use crate::alloc::{boxed::Box, vec::Vec, AllocPtr, DefaultAllocator};
+        let vtable = Self::VTABLE;
+        #[allow(deprecated)]
+        let hash = {
+            let mut hasher = core::hash::SipHasher::new();
+            vtable.hash(&mut hasher);
+            hasher.finish()
+        };
+        fn insert_vtable(hash: u64, vtable: &[*const ()]) -> AllocPtr<*const (), DefaultAllocator> {
+            let mut search_start = 0;
+            let mut allocated_vt = None;
+            let mut vtables = VTABLES.load(core::sync::atomic::Ordering::SeqCst);
+            loop {
+                let vts = match unsafe { vtables.as_ref() } {
+                    None => [].as_slice(),
+                    Some(vts) => match vts[search_start..]
+                        .iter()
+                        .find_map(|e| (e.0 == hash).then_some(e.1))
+                    {
+                        Some(vt) => return vt,
+                        None => vts,
+                    },
+                };
+                let vt = allocated_vt.unwrap_or_else(|| {
+                    let mut ptr =
+                        AllocPtr::alloc_array(&mut DefaultAllocator::new(), vtable.len()).unwrap();
+                    unsafe {
+                        core::ptr::copy_nonoverlapping(vtable.as_ptr(), ptr.as_mut(), vtable.len())
+                    };
+                    ptr
+                });
+                allocated_vt = Some(vt);
+                let updated = VTABLES.load(core::sync::atomic::Ordering::SeqCst);
+                if !core::ptr::eq(vtables, updated) {
+                    vtables = updated;
+                    continue;
+                }
+                let mut vec = Vec::with_capacity(vts.len() + 1);
+                vec.copy_extend(vts);
+                vec.push((hash, vt));
+                let mut vec = Box::into_raw(Box::new(vec));
+                match VTABLES.compare_exchange(
+                    updated,
+                    unsafe { vec.as_mut() },
+                    core::sync::atomic::Ordering::SeqCst,
+                    core::sync::atomic::Ordering::SeqCst,
+                ) {
+                    Ok(updated) => {
+                        if let Some(updated) = NonNull::new(updated) {
+                            unsafe {
+                                Box::from_raw(AllocPtr {
+                                    ptr: updated,
+                                    marker: PhantomData::<DefaultAllocator>,
+                                })
+                            };
+                        }
+                        return vt;
+                    }
+                    Err(new_vtables) => {
+                        search_start = vts.len();
+                        vtables = new_vtables;
+                        unsafe { Box::from_raw(vec) };
+                    }
+                }
+            }
+        }
+        unsafe {
+            let vtable = core::slice::from_raw_parts(
+                (&vtable as *const Self).cast(),
+                core::mem::size_of::<Self>() / core::mem::size_of::<*const ()>(),
+            );
+            let vt = insert_vtable(hash, vtable).cast().as_ref();
+            debug_assert_eq!(
+                core::slice::from_raw_parts(
+                    (vt as *const Self).cast::<*const ()>(),
+                    core::mem::size_of::<Self>() / core::mem::size_of::<*const ()>(),
+                ),
+                vtable
+            );
+            vt
+        }
+    }
 }
 
 /// Implementation detail for stabby's version of dyn traits.
@@ -42,7 +161,7 @@ pub struct T<T>(T);
 /// You should _always_ use `stabby::vtable!(Trait1 + Trait2 + ...)` to generate this type,
 /// as this macro will ensure that traits are ordered consistently in the vtable.
 #[stabby::stabby]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct VTable<Head, Tail = VtDrop> {
     /// The rest of the vtable.
     ///
@@ -63,13 +182,13 @@ where
     Head: IConstConstructor<'a, T>,
     Tail: IConstConstructor<'a, T>,
 {
-    const VTABLE: &'a VTable<Head, Tail> = &VTable {
-        head: *Head::VTABLE,
-        tail: *Tail::VTABLE,
+    const VTABLE: VTable<Head, Tail> = VTable {
+        head: Head::VTABLE,
+        tail: Tail::VTABLE,
     };
 }
 impl<'a, T> IConstConstructor<'a, T> for () {
-    const VTABLE: &'a () = &();
+    const VTABLE: () = ();
 }
 impl<Head, Tail> TransitiveDeref<Head, H> for VTable<Head, Tail> {
     fn tderef(&self) -> &Head {
@@ -122,10 +241,20 @@ impl<Head, Tail: HasSyncVt> HasSyncVt for VTable<Head, Tail> {}
 // DROP
 /// The vtable to drop a value in place
 #[stabby::stabby]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq)]
 pub struct VtDrop {
     /// The [`Drop::drop`] function, shimmed with the C calling convention.
     pub drop: crate::StableLike<unsafe extern "C" fn(&mut ()), core::num::NonZeroUsize>,
+}
+impl core::fmt::Debug for VtDrop {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "VtDrop({:p})", unsafe { self.drop.as_ref_unchecked() })
+    }
+}
+impl Hash for VtDrop {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.drop.hash(state)
+    }
 }
 impl PartialEq for VtDrop {
     fn eq(&self, other: &Self) -> bool {
@@ -136,7 +265,7 @@ impl PartialEq for VtDrop {
     }
 }
 impl<'a, T> IConstConstructor<'a, T> for VtDrop {
-    const VTABLE: &'a VtDrop = &VtDrop {
+    const VTABLE: VtDrop = VtDrop {
         drop: unsafe {
             core::mem::transmute({
                 unsafe extern "C" fn drop<T>(this: &mut T) {
@@ -150,7 +279,7 @@ impl<'a, T> IConstConstructor<'a, T> for VtDrop {
 
 /// A marker for vtables for types that are `Send`
 #[stabby::stabby]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct VtSend<T>(pub T);
 impl CompoundVt for dyn Send {
     type Vt<T> = VtSend<T>;
@@ -166,18 +295,18 @@ impl<Head, Tail> From<crate::vtable::VtSend<VTable<Head, Tail>>> for VTable<Head
     }
 }
 impl<'a, T: Send, Vt: IConstConstructor<'a, T>> IConstConstructor<'a, T> for VtSend<Vt> {
-    const VTABLE: &'a VtSend<Vt> = &VtSend(*Vt::VTABLE);
+    const VTABLE: VtSend<Vt> = VtSend(Vt::VTABLE);
 }
 
 /// A marker for vtables for types that are `Sync`
 #[stabby::stabby]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct VtSync<T>(pub T);
 impl CompoundVt for dyn Sync {
     type Vt<T> = VtSync<T>;
 }
 impl<'a, T: Sync, Vt: IConstConstructor<'a, T>> IConstConstructor<'a, T> for VtSync<Vt> {
-    const VTABLE: &'a VtSync<Vt> = &VtSync(*Vt::VTABLE);
+    const VTABLE: VtSync<Vt> = VtSync(Vt::VTABLE);
 }
 impl<Tail: TransitiveDeref<Vt, N>, Vt, N> TransitiveDeref<Vt, N> for VtSync<Tail> {
     fn tderef(&self) -> &Vt {
