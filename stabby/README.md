@@ -1,12 +1,23 @@
 [![Crates.io (latest)](https://img.shields.io/crates/v/stabby)](https://lib.rs/crates/stabby)
 [![docs.rs](https://img.shields.io/docsrs/stabby)](https://docs.rs/stabby/latest/stabby/)
 
+> [!WARNING]  
+> Due to a breaking change in Rust 1.78, `stabby`'s implementation of trait objects may raise performance issues:
+> - __Only non-nightly, >= 1.78 versions of Rust are affected__
+> - The v-tables backing trait objects are now inserted in a global lock-free set.
+> - This set is leaked: `valgrind` _will_ be angry at you.
+> - This set grows with the number of distinct `(type, trait-set)` pairs. Its current implementation is a vector:
+>   - Lookup is done through linear search (O(n)), which stays the fastest for <100 number of elements.
+>   - Insertion is done by cloning the vector (O(n)) and replacing it atomically, repeating the operation in case of collision.
+>   - Efforts to replace this implementation with immutable b-tree maps are ongoing (they will be scrapped if found to be much slower than the current implementation).
+>
+> This note will be updated as the situation evolves. In the meantime, if your project uses many `stabby`-defined trait objects,
+> I suggest using either `nightly` or a `< 1.78` version of the compiler.
+
 # A Stable ABI for Rust with compact sum-types
 `stabby` is your one-stop-shop to create stable binary interfaces for your shared libraries easily, without having your sum-types (enums) explode in size.
 
 Your main vector of interraction with `stabby` will be the `#[stabby::stabby]` proc-macro, with which you can annotate a lot of things.
-
-While this readme is mostly centered around listing `stabby`'s feature, stabby also has a [tutorial in its docs](https://docs.rs/stabby/latest/stabby/_tutorial_/index.html).
 
 ## Why would I _want_ a stable ABI? And what even _is_ an ABI?
 ABI stands for _Application Binary Interface_, and is like API's more detail focused sibbling. While an API defines what type of data a function expects, and what properties these types should have; ABI defines _how_ this data should be laid out in memory, and how a function call even works.
