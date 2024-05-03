@@ -1,3 +1,14 @@
+# 5.0.0
+- BREAKING CHANGE:
+	- Due to a soundness hole in the previous implementation of `stabby::result::Result`, its representation was overhauled. While it's still technically compatible binary-wise (meaning it still follows the original spec), the soundness hole could possibly lead to UB, so `stabby` will treat them as incompatible.
+- Add support for Rust 1.78:
+	- With 1.78, [Rust merged a breaking change](https://github.com/rust-lang/rust/issues/123281) which impacts `stabby`. This change prevents consts from refering to generics entirely, which was key to `stabby`'s implementation of vtables.
+	- More accurately, it prevents consts from refering to generics that aren't bound by `core::marker::Freeze`, but that trait hasn't been stabilized at the same time as the new error has.
+	- While the team was aware that this would be a breaking change, `crater` failed to report that `stabby` was impacted by the regression, as it tried compiling an obsolete version of `stabby` that could only build with pre-1.77 versions of Rust due to the `u128` ABI-break on x86. This led them to judge that the breaking change was acceptable.
+	- To compensate for this, `stabby` will (for non-nighly `>=1.78` versions of Rust) draw its vtable references from a heap-allocated, lazily populated, global set of vtables. This is in opposition to the `<1.78` and `nightly` behaviour where it'll keep on drawing these vtable references straight from the binary.
+		- From this release onwards, a new priority for `stabby` will be to improve the performance of this behaviour; or better yet find a new way to obtain the previous behaviour that compiles.
+	- While I can't hide that I am very annoyed at this development, I must also state that I understand the Rust Team's choice to ship this breaking change: they considered this potential window for a soundness hole a bug, and even though `crater` didn't report any use of this bug that was unsound, it also failed to report `stabby` as a legitimate user of it. I do wish they'd have waited for `Freeze`'s stabilization to make the breaking change however, as the sound pattern it would prevent, as well as the fact that it couldn't be replicated without `Freeze`, _was_ known.
+
 # 4.0.5
 - Fix for 1.72: `AllocPtr::prefix` is `const fn` from 1.73 onwards rather than 1.72 onwards (@yellowhatter).
 
