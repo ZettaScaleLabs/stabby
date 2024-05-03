@@ -49,14 +49,6 @@ pub trait IConstConstructor<'a, Source>: 'a + Copy {
 
 #[cfg(feature = "libc")]
 #[rustversion::all(since(1.78.0), not(nightly))]
-static VTABLES: core::sync::atomic::AtomicPtr<
-    crate::alloc::vec::Vec<(
-        u64,
-        crate::alloc::AllocPtr<*const (), crate::alloc::DefaultAllocator>,
-    )>,
-> = core::sync::atomic::AtomicPtr::new(core::ptr::null_mut());
-#[cfg(feature = "libc")]
-#[rustversion::all(since(1.78.0), not(nightly))]
 /// Implementation detail for stabby's version of dyn traits.
 /// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
 pub trait IConstConstructor<'a, Source>: 'a + Copy + core::hash::Hash + core::fmt::Debug {
@@ -64,6 +56,12 @@ pub trait IConstConstructor<'a, Source>: 'a + Copy + core::hash::Hash + core::fm
     const VTABLE: Self;
     /// Returns the reference to the vtable
     fn vtable() -> &'a Self {
+        static VTABLES: core::sync::atomic::AtomicPtr<
+            crate::alloc::vec::Vec<(
+                u64,
+                crate::alloc::AllocPtr<*const (), crate::alloc::DefaultAllocator>,
+            )>,
+        > = core::sync::atomic::AtomicPtr::new(core::ptr::null_mut());
         use crate::alloc::{boxed::Box, vec::Vec, AllocPtr, DefaultAllocator};
         let vtable = Self::VTABLE;
         #[allow(deprecated)]
