@@ -33,22 +33,8 @@ pub trait IConstConstructor<'a, Source>: 'a + Copy + core::marker::Freeze {
     }
 }
 
-#[rustversion::before(1.78.0)]
-/// Implementation detail for stabby's version of dyn traits.
-/// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
-pub trait IConstConstructor<'a, Source>: 'a + Copy {
-    /// The vtable.
-    const VTABLE: Self;
-    /// A reference to the vtable
-    const VTABLE_REF: &'a Self = &Self::VTABLE;
-    /// Returns the reference to the vtable
-    fn vtable() -> &'a Self {
-        Self::VTABLE_REF
-    }
-}
-
 #[cfg(feature = "libc")]
-#[rustversion::all(since(1.78.0), not(nightly))]
+#[rustversion::all(not(nightly))]
 /// Implementation detail for stabby's version of dyn traits.
 /// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
 pub trait IConstConstructor<'a, Source>: 'a + Copy + core::hash::Hash + core::fmt::Debug {
