@@ -55,7 +55,7 @@ jobs:
           command: clean
 
   check-1-72:
-    name: Run checks on ${{ matrix.os }}
+    name: Run 1.72 checks on ${{ matrix.os }}
     runs-on: [self-hosted, "${{ matrix.os }}"]
     strategy:
       fail-fast: false
