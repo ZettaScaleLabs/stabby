@@ -1,3 +1,6 @@
+# 5.0.1
+- Fix a regression in MSRV
+
 # 5.0.0
 - BREAKING CHANGE:
 	- Due to a soundness hole in the previous implementation of `stabby::result::Result`, its representation was overhauled. While it's still technically compatible binary-wise (meaning it still follows the original spec), the soundness hole could possibly lead to UB, so `stabby` will treat them as incompatible.

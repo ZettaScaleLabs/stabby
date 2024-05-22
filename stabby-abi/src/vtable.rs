@@ -13,11 +13,7 @@
 //
 
 use crate::{self as stabby};
-use core::{
-    hash::{Hash, Hasher},
-    marker::PhantomData,
-    ptr::NonNull,
-};
+use core::hash::Hash;
 
 #[rustversion::nightly]
 /// Implementation detail for stabby's version of dyn traits.
@@ -37,10 +33,8 @@ pub trait IConstConstructor<'a, Source>: 'a + Copy + core::marker::Freeze {
 /// Implementation detail for stabby's version of dyn traits.
 /// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
 pub trait IConstConstructor<'a, Source>: 'a + Copy {
-    /// The vtable.
-    const VTABLE: Self;
     /// A reference to the vtable
-    const VTABLE_REF: &'a Self = &Self::VTABLE;
+    const VTABLE_REF: &'a Self;
     /// Returns the reference to the vtable
     fn vtable() -> &'a Self {
         Self::VTABLE_REF
@@ -56,6 +50,7 @@ pub trait IConstConstructor<'a, Source>: 'a + Copy + core::hash::Hash + core::fm
     const VTABLE: Self;
     /// Returns the reference to the vtable
     fn vtable() -> &'a Self {
+        use core::{hash::Hasher, marker::PhantomData, ptr::NonNull};
         static VTABLES: core::sync::atomic::AtomicPtr<
             crate::alloc::vec::Vec<(
                 u64,
@@ -180,13 +175,21 @@ where
     Head: IConstConstructor<'a, T>,
     Tail: IConstConstructor<'a, T>,
 {
-    const VTABLE: VTable<Head, Tail> = VTable {
-        head: Head::VTABLE,
-        tail: Tail::VTABLE,
-    };
+    impl_vtable_constructor!(
+        const VTABLE_REF: &'a VTable<Head, Tail> = &VTable {
+            head: *Head::VTABLE_REF,
+            tail: *Tail::VTABLE_REF,
+        }; =>
+        const VTABLE: VTable<Head, Tail> = VTable {
+            head: Head::VTABLE,
+            tail: Tail::VTABLE,
+        };
+    );
 }
 impl<'a, T> IConstConstructor<'a, T> for () {
-    const VTABLE: () = ();
+    impl_vtable_constructor!(
+        const VTABLE_REF: &'a () = &();=>
+        const VTABLE: () = (););
 }
 impl<Head, Tail> TransitiveDeref<Head, H> for VTable<Head, Tail> {
     fn tderef(&self) -> &Head {
@@ -263,16 +266,28 @@ impl PartialEq for VtDrop {
     }
 }
 impl<'a, T> IConstConstructor<'a, T> for VtDrop {
-    const VTABLE: VtDrop = VtDrop {
-        drop: unsafe {
-            core::mem::transmute({
-                unsafe extern "C" fn drop<T>(this: &mut T) {
-                    core::ptr::drop_in_place(this)
-                }
-                drop::<T>
-            } as unsafe extern "C" fn(&mut T))
-        },
-    };
+    impl_vtable_constructor!(
+        const VTABLE_REF: &'a VtDrop = &VtDrop {
+            drop: unsafe {
+                core::mem::transmute({
+                    unsafe extern "C" fn drop<T>(this: &mut T) {
+                        core::ptr::drop_in_place(this)
+                    }
+                    drop::<T>
+                } as unsafe extern "C" fn(&mut T))
+            },
+        }; =>
+        const VTABLE: VtDrop = VtDrop {
+            drop: unsafe {
+                core::mem::transmute({
+                    unsafe extern "C" fn drop<T>(this: &mut T) {
+                        core::ptr::drop_in_place(this)
+                    }
+                    drop::<T>
+                } as unsafe extern "C" fn(&mut T))
+            },
+        };
+    );
 }
 
 /// A marker for vtables for types that are `Send`
@@ -293,7 +308,10 @@ impl<Head, Tail> From<crate::vtable::VtSend<VTable<Head, Tail>>> for VTable<Head
     }
 }
 impl<'a, T: Send, Vt: IConstConstructor<'a, T>> IConstConstructor<'a, T> for VtSend<Vt> {
-    const VTABLE: VtSend<Vt> = VtSend(Vt::VTABLE);
+    impl_vtable_constructor!(
+        const VTABLE_REF: &'a VtSend<Vt> = &VtSend(*Vt::VTABLE_REF);=>
+        const VTABLE: VtSend<Vt> = VtSend(Vt::VTABLE);
+    );
 }
 
 /// A marker for vtables for types that are `Sync`
@@ -304,7 +322,10 @@ impl CompoundVt for dyn Sync {
     type Vt<T> = VtSync<T>;
 }
 impl<'a, T: Sync, Vt: IConstConstructor<'a, T>> IConstConstructor<'a, T> for VtSync<Vt> {
-    const VTABLE: VtSync<Vt> = VtSync(Vt::VTABLE);
+    impl_vtable_constructor!(
+        const VTABLE_REF: &'a VtSync<Vt> = &VtSync(*Vt::VTABLE_REF);=>
+        const VTABLE: VtSync<Vt> = VtSync(Vt::VTABLE);
+    );
 }
 impl<Tail: TransitiveDeref<Vt, N>, Vt, N> TransitiveDeref<Vt, N> for VtSync<Tail> {
     fn tderef(&self) -> &Vt {
