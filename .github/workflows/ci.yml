@@ -54,6 +54,32 @@ jobs:
         with:
           command: clean
 
+  check-1-72:
+    name: Run checks on ${{ matrix.os }}
+    runs-on: [self-hosted, "${{ matrix.os }}"]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust toolchain 1.72
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.72.0
+          components: clippy
+
+      - name: Clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets -- -D warnings
+      - name: Clean artifacts
+        uses: actions-rs/cargo@v1
+        with:
+          command: clean
+
   test:
     name: Run tests on ${{ matrix.os }}
     runs-on: [self-hosted, "${{ matrix.os }}"]

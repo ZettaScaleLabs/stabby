@@ -82,6 +82,24 @@ use istable::{ISaturatingAdd, Saturator};
 #[doc(hidden)]
 pub use typenum2::*;
 
+/// A re-export of `rustversion` used in macros for dark magic.
+///
+/// Its API is subject to un-anounced changes.
+pub use rustversion as __rustversion;
+
+/// A support macro for stabby's dark magic.
+///
+/// Its API is subject to un-anounced changes.
+#[macro_export]
+macro_rules! impl_vtable_constructor {
+    ($pre178: item => $post178: item) => {
+        #[$crate::__rustversion::before(1.78.0)]
+        $pre178
+        #[$crate::__rustversion::since(1.78.0)]
+        $post178
+    };
+}
+
 /// Fires a compile error if the layout of a type is deemed sub-optimal.
 #[macro_export]
 macro_rules! assert_optimal_layout {

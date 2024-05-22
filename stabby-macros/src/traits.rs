@@ -641,7 +641,8 @@ impl<'a> DynTraitDescription<'a> {
             .functions
             .iter()
             .chain(&self.mut_functions)
-            .map(|f| f.ptr_signature(&self_as_trait));
+            .map(|f| f.ptr_signature(&self_as_trait))
+            .collect::<Vec<_>>();
         let traitid_dyn = quote::format_ident!("{}Dyn", trait_id);
         let traitid_dynmut = quote::format_ident!("{}DynMut", trait_id);
 
@@ -655,7 +656,10 @@ impl<'a> DynTraitDescription<'a> {
             }
         };
         let vtid_str = vtid.to_string();
-        let all_fn_ids_str = all_fn_ids.iter().map(|id| id.to_string());
+        let all_fn_ids_str = all_fn_ids
+            .iter()
+            .map(|id| id.to_string())
+            .collect::<Vec<_>>();
         vtable_decl = crate::stabby(proc_macro::TokenStream::new(), vtable_decl.into()).into();
         quote! {
             #[doc = #vt_doc]
@@ -697,9 +701,14 @@ impl<'a> DynTraitDescription<'a> {
                 #(#unbound_trait_types: 'stabby_vt_lt,)*
                 #(#dyntrait_types: 'stabby_vt_lt,)* {
                 #[doc = #vt_doc]
-                const VTABLE: #vt_signature =  #vtid {
-                    #(#all_fn_ids: unsafe {core::mem::transmute(#self_as_trait::#all_fn_ids as #fn_ptrs)},)*
-                };
+                #st::impl_vtable_constructor!(
+                    const VTABLE_REF: &'stabby_vt_lt #vt_signature =  &#vtid {
+                        #(#all_fn_ids: unsafe {core::mem::transmute(#self_as_trait::#all_fn_ids as #fn_ptrs)},)*
+                    };=>
+                    const VTABLE: #vt_signature =  #vtid {
+                        #(#all_fn_ids: unsafe {core::mem::transmute(#self_as_trait::#all_fn_ids as #fn_ptrs)},)*
+                    };
+                );
             }
 
             impl<
