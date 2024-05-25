@@ -27,6 +27,7 @@ description = "stabby's core ABI, you shouldn't add this crate to your dependenc
 default = ["std"]
 std = ["libc"]
 libc = ["dep:libc"]
+test = []
 
 abi_stable = ["dep:abi_stable"]
 abi_stable-channels = ["abi_stable", "abi_stable/channels"]

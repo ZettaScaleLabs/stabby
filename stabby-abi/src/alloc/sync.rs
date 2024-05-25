@@ -15,9 +15,10 @@
 use core::{
     fmt::Debug,
     hash::Hash,
+    marker::PhantomData,
     mem::ManuallyDrop,
     ptr::NonNull,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::atomic::{AtomicPtr, AtomicUsize, Ordering},
 };
 
 use crate::{vtable::HasDropVt, Dyn, IStable, IntoDyn};
@@ -59,7 +60,7 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     /// Attempts to allocate [`Self`], initializing it with `constructor`.
     ///
     /// # Errors
-    /// Returns the constructor and the allocator in case of failure.
+    /// Returns the constructor and the allocator in case of allocation failure.
     ///
     /// # Notes
     /// Note that the allocation may or may not be zeroed.
@@ -75,11 +76,13 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
             None => return Err((constructor, alloc)),
         };
         unsafe {
-            constructor(core::mem::transmute::<&mut T, _>(ptr.as_mut()));
+            constructor(ptr.as_mut());
             ptr.prefix_mut().strong = AtomicUsize::new(1);
             ptr.prefix_mut().weak = AtomicUsize::new(1)
         }
-        Ok(Self { ptr })
+        Ok(Self {
+            ptr: unsafe { ptr.assume_init() },
+        })
     }
     /// Attempts to allocate a [`Self`] and store `value` in it
     /// # Errors
@@ -114,11 +117,13 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
             None => panic!("Allocation failed"),
         };
         unsafe {
-            constructor(core::mem::transmute::<&mut T, _>(ptr.as_mut()));
+            constructor(ptr.as_mut());
             ptr.prefix_mut().strong = AtomicUsize::new(1);
             ptr.prefix_mut().weak = AtomicUsize::new(1)
         }
-        Self { ptr }
+        Self {
+            ptr: unsafe { ptr.assume_init() },
+        }
     }
     /// Attempts to allocate [`Self`] and store `value` in it.
     ///
@@ -171,7 +176,7 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     }
     /// Increments the strong count.
     /// # Safety
-    /// `this` MUST be a pointer derived from `Self`
+    /// `this` MUST be a valid pointer derived from `Self`
     pub unsafe fn increment_strong_count(this: *const T) -> usize {
         let ptr: AllocPtr<T, Alloc> = AllocPtr {
             ptr: NonNull::new_unchecked(this.cast_mut()),
@@ -224,6 +229,10 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     /// Constructs an additional [`Weak`] pointer to `this`.
     pub fn downgrade(this: &Self) -> Weak<T, Alloc> {
         this.into()
+    }
+    /// Returns a reference to the allocator used to construct `this`
+    pub const fn allocator(this: &Self) -> &Alloc {
+        unsafe { &this.ptr.prefix().alloc }
     }
 }
 impl<T, Alloc: IAlloc> Drop for Arc<T, Alloc> {
@@ -423,7 +432,7 @@ impl<T, Alloc: IAlloc> From<Vec<T, Alloc>> for ArcSlice<T, Alloc> {
                     AtomicUsize::new(0)
                 } else {
                     AtomicUsize::new(ptr_diff(
-                        core::mem::transmute(usize::MAX),
+                        core::mem::transmute::<usize, NonNull<u8>>(usize::MAX),
                         start.ptr.cast::<u8>(),
                     ))
                 };
@@ -622,7 +631,7 @@ impl<T, Alloc: IAlloc> crate::IPtrClone for Arc<T, Alloc> {
 
 impl<T, Alloc: IAlloc> crate::IPtrTryAsMut for Arc<T, Alloc> {
     unsafe fn try_as_mut<U: Sized>(&mut self) -> Option<&mut U> {
-        Self::get_mut(self).map(|r| unsafe { core::mem::transmute(r) })
+        Self::get_mut(self).map(|r| unsafe { core::mem::transmute::<&mut T, &mut U>(r) })
     }
 }
 impl<T, Alloc: IAlloc> crate::IPtrOwned for Arc<T, Alloc> {
@@ -646,7 +655,7 @@ impl<T, Alloc: IAlloc> IntoDyn for Arc<T, Alloc> {
     type Target = T;
     fn anonimize(self) -> Self::Anonymized {
         let original_prefix = self.ptr.prefix_ptr();
-        let anonymized = unsafe { core::mem::transmute::<_, Self::Anonymized>(self) };
+        let anonymized = unsafe { core::mem::transmute::<Self, Self::Anonymized>(self) };
         let anonymized_prefix = anonymized.ptr.prefix_ptr();
         assert_eq!(anonymized_prefix, original_prefix, "The allocation prefix was lost in anonimization, this is definitely a bug, please report it.");
         anonymized
@@ -680,7 +689,7 @@ impl<T, Alloc: IAlloc> IntoDyn for Weak<T, Alloc> {
     type Target = T;
     fn anonimize(self) -> Self::Anonymized {
         let original_prefix = self.ptr.prefix_ptr();
-        let anonymized = unsafe { core::mem::transmute::<_, Self::Anonymized>(self) };
+        let anonymized = unsafe { core::mem::transmute::<Self, Self::Anonymized>(self) };
         let anonymized_prefix = anonymized.ptr.prefix_ptr();
         assert_eq!(anonymized_prefix, original_prefix, "The allocation prefix was lost in anonimization, this is definitely a bug, please report it.");
         anonymized
@@ -709,5 +718,109 @@ impl<'a, Vt: HasDropVt + IStable, Alloc: IAlloc> Dyn<'a, Weak<(), Alloc>, Vt> {
             vtable: self.vtable,
             unsend: core::marker::PhantomData,
         })
+    }
+}
+
+#[crate::stabby]
+/// An owner of an [`Arc<T, Alloc>`] whose pointee can be atomically changed.
+pub struct AtomicArc<T, Alloc: IAlloc> {
+    ptr: AtomicPtr<T>,
+    alloc: core::marker::PhantomData<*const Alloc>,
+}
+unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Send for AtomicArc<T, Alloc> {}
+unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Sync for AtomicArc<T, Alloc> {}
+
+impl<T, Alloc: IAlloc> Drop for AtomicArc<T, Alloc> {
+    fn drop(&mut self) {
+        let ptr = self.ptr.load(Ordering::Relaxed);
+        if let Some(ptr) = NonNull::new(ptr) {
+            unsafe {
+                Arc::<T, Alloc>::from_raw(AllocPtr {
+                    ptr,
+                    marker: PhantomData,
+                })
+            };
+        }
+    }
+}
+
+type MaybeArc<T, Alloc> = Option<Arc<T, Alloc>>;
+impl<T, Alloc: IAlloc> AtomicArc<T, Alloc> {
+    /// Constructs a new [`AtomicArc`] set to the provided value.
+    pub const fn new(value: MaybeArc<T, Alloc>) -> Self {
+        Self {
+            ptr: AtomicPtr::new(unsafe {
+                core::mem::transmute::<Option<Arc<T, Alloc>>, *mut T>(value)
+            }),
+            alloc: PhantomData,
+        }
+    }
+    /// Atomically load the current value.
+    pub fn load(&self, order: Ordering) -> MaybeArc<T, Alloc> {
+        let ptr = NonNull::new(self.ptr.load(order))?;
+        unsafe {
+            Arc::<T, Alloc>::increment_strong_count(ptr.as_ptr());
+            Some(Arc::from_raw(AllocPtr {
+                ptr,
+                marker: PhantomData,
+            }))
+        }
+    }
+    /// Atomically store a new value.
+    pub fn store(&self, value: MaybeArc<T, Alloc>, order: Ordering) {
+        let ptr = value.map_or(core::ptr::null_mut(), |value| Arc::into_raw(value).as_ptr());
+        self.ptr.store(ptr, order)
+    }
+    /// Compares `self` with `current` by pointer.
+    /// # Errors
+    /// Returns the new value of `self` if it differs from `current`.
+    pub fn is(
+        &self,
+        current: Option<&Arc<T, Alloc>>,
+        order: Ordering,
+    ) -> Result<(), MaybeArc<T, Alloc>> {
+        let ptr = NonNull::new(self.ptr.load(order));
+        match (ptr, current) {
+            (None, None) => Ok(()),
+            (None, _) => Err(None),
+            (Some(ptr), Some(current)) if core::ptr::eq(ptr.as_ptr(), current.ptr.as_ptr()) => {
+                Ok(())
+            }
+            (Some(ptr), _) => unsafe {
+                Arc::<T, Alloc>::increment_strong_count(ptr.as_ptr());
+                Err(Some(Arc::from_raw(AllocPtr {
+                    ptr,
+                    marker: PhantomData,
+                })))
+            },
+        }
+    }
+    /// Replace the current value with the new value.
+    /// # Errors
+    /// If `current` no longer points to the same value as `self`, it
+    pub fn compare_exchange(
+        &self,
+        current: Option<&Arc<T, Alloc>>,
+        new: MaybeArc<T, Alloc>,
+        success: Ordering,
+        failure: Ordering,
+    ) -> Result<MaybeArc<T, Alloc>, MaybeArc<T, Alloc>> {
+        let current = current.map_or(core::ptr::null_mut(), |value| value.ptr.ptr.as_ptr());
+        let new = new.map_or(core::ptr::null_mut(), |value| Arc::into_raw(value).as_ptr());
+        match self.ptr.compare_exchange(current, new, success, failure) {
+            Ok(ptr) => Ok(NonNull::new(ptr).map(|ptr| unsafe {
+                Arc::from_raw(AllocPtr {
+                    ptr,
+                    marker: PhantomData,
+                })
+            })),
+            Err(ptr) => Err(NonNull::new(ptr).map(|ptr| unsafe {
+                Arc::<T, Alloc>::increment_strong_count(ptr.as_ptr());
+                Arc::from_raw(AllocPtr {
+                    ptr,
+                    marker: PhantomData,
+                })
+            })),
+        }
     }
 }

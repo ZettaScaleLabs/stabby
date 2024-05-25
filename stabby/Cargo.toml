@@ -25,7 +25,7 @@ description = "A Stable ABI for Rust with compact sum-types."
 
 [features]
 default = ["std", "libc"]
-std = ["libc"]
+std = ["libc", "stabby-abi/std"]
 libloading = ["dep:libloading", "std"]
 libc = ["stabby-abi/libc"]
 
@@ -40,6 +40,7 @@ rustversion = { workspace = true }
 smol = { workspace = true }
 criterion = { workspace = true }
 rand = { workspace = true }
+stabby-abi = { path = "../stabby-abi/", version = "5.0.1", features = ["test"] }
 
 [package.metadata.docs.rs]
 all-features = true

@@ -25,9 +25,12 @@ fn bench_slices(c: &mut Criterion) {
     c.bench_function("stabby_box_big_make", |b| {
         b.iter(|| {
             stabby::boxed::Box::<[usize; 10000]>::make(|slot| {
-                for slot in
-                    unsafe { core::mem::transmute::<_, &mut [MaybeUninit<usize>; 10000]>(slot) }
-                {
+                for slot in unsafe {
+                    core::mem::transmute::<
+                        &mut MaybeUninit<[usize; 10000]>,
+                        &mut [MaybeUninit<usize>; 10000],
+                    >(slot)
+                } {
                     slot.write(15);
                 }
             })

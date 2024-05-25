@@ -12,7 +12,7 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use core::{marker::PhantomData, ptr::NonNull, sync::atomic::AtomicUsize};
+use core::{marker::PhantomData, mem::MaybeUninit, ptr::NonNull, sync::atomic::AtomicUsize};
 
 use self::vec::ptr_diff;
 
@@ -34,6 +34,8 @@ impl std::error::Error for AllocationError {}
 
 /// [`alloc::boxed`](https://doc.rust-lang.org/stable/alloc/boxed/), but ABI-stable.
 pub mod boxed;
+/// Allocated collections, including immutable ones.
+pub mod collections;
 /// A vector that stores a single element on the stack until allocation is necessary.
 pub mod single_or_vec;
 /// [`alloc::string`](https://doc.rust-lang.org/stable/alloc/string/), but ABI-stable
@@ -256,6 +258,14 @@ impl<T, Alloc> core::ops::DerefMut for AllocPtr<T, Alloc> {
         &mut self.ptr
     }
 }
+impl<T, Alloc> AllocPtr<MaybeUninit<T>, Alloc> {
+    /// Assumes the internals of the pointer have been initialized.
+    /// # Safety
+    /// The internals of the pointer must have been initialized.
+    pub const unsafe fn assume_init(self) -> AllocPtr<T, Alloc> {
+        unsafe { core::mem::transmute::<Self, AllocPtr<T, Alloc>>(self) }
+    }
+}
 impl<T, Alloc> AllocPtr<T, Alloc> {
     /// Constructs a dangling pointer.
     pub const fn dangling() -> Self {
@@ -383,6 +393,12 @@ impl<T, Alloc> AllocSlice<T, Alloc> {
     /// Returns `true` if the slice is empty.
     pub const fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+    /// Returns this slice.
+    /// # Safety
+    /// `self` must be valid.
+    pub const unsafe fn as_slice(&self) -> &[T] {
+        core::slice::from_raw_parts(self.start.ptr.as_ptr(), ptr_diff(self.end, self.start.ptr))
     }
 }
 impl<T, Alloc> Copy for AllocSlice<T, Alloc> {}

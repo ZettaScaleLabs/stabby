@@ -524,6 +524,8 @@ impl Alignment for U16 {
     type AsUint = u128;
 }
 
+#[allow(unknown_lints)]
+#[allow(clippy::missing_transmute_annotations)]
 #[test]
 fn ops() {
     fn test_pair<A: IUnsigned, B: IUnsigned>() {

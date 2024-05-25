@@ -361,7 +361,7 @@ impl<'a, T, Vt: Copy + IConstConstructor<'a, T>> From<&'a T> for DynRef<'a, Vt> 
     fn from(value: &'a T) -> Self {
         unsafe {
             DynRef {
-                ptr: core::mem::transmute(value),
+                ptr: core::mem::transmute::<&'a T, &'a ()>(value),
                 vtable: Vt::vtable(),
                 unsend: core::marker::PhantomData,
             }

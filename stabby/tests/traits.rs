@@ -118,7 +118,7 @@ impl<'b> AsyncRead for stabby::slice::Slice<'b, u8> {
         Box::new(async move {
             let len = self.len().min(buffer.len());
             let (l, r) = self.split_at(len);
-            let r = unsafe { core::mem::transmute::<_, &[u8]>(r) };
+            let r = unsafe { core::mem::transmute::<&[u8], &[u8]>(r) };
             buffer[..len].copy_from_slice(l);
             *self = r.into();
             len
