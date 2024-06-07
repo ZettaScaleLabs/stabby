@@ -389,7 +389,7 @@ impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
     /// Returns the slice's raw representation, without altering the associated reference counts.
     ///
     /// Failing to reconstruct the `this` using [`Self::from_raw`] will result in the associated `this` being effectively leaked.
-    pub fn into_raw(this: Self) -> AllocSlice<T, Alloc> {
+    pub const fn into_raw(this: Self) -> AllocSlice<T, Alloc> {
         let inner = this.inner;
         core::mem::forget(this);
         inner
@@ -398,7 +398,7 @@ impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
     ///
     /// # Safety
     /// `this` MUST have been obtained using [`Self::into_raw`], and not have been previously used to reconstruct an [`ArcSlice`].
-    pub unsafe fn from_raw(this: AllocSlice<T, Alloc>) -> Self {
+    pub const unsafe fn from_raw(this: AllocSlice<T, Alloc>) -> Self {
         Self { inner: this }
     }
 }

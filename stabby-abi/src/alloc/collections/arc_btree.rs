@@ -1,5 +1,3 @@
-#![allow(missing_docs, clippy::missing_panics_doc)]
-
 use core::{
     borrow::Borrow, marker::PhantomData, mem::MaybeUninit, ptr::NonNull, sync::atomic::AtomicPtr,
 };
@@ -9,6 +7,7 @@ use crate::{
     IStable,
 };
 
+/// An [`ArcBTreeSet`] that can be atomically modified.
 #[cfg(feature = "libc")]
 pub struct AtomicArcBTreeSet<T: Ord, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize>(
     AtomicPtr<ArcBTreeSetNodeInner<T, DefaultAllocator, REPLACE_ON_INSERT, SPLIT_LIMIT>>,
@@ -25,6 +24,7 @@ impl<T: Ord + Clone, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize> De
 impl<T: Ord + Clone, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize>
     AtomicArcBTreeSet<T, REPLACE_ON_INSERT, SPLIT_LIMIT>
 {
+    /// Constructs a new, empty set.
     pub const fn new() -> Self {
         Self(AtomicPtr::new(unsafe {
             core::mem::transmute::<
@@ -38,6 +38,9 @@ impl<T: Ord + Clone, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize>
             >::new_in(DefaultAllocator::new()))
         }))
     }
+    /// Applies `f` to the current value, swapping the current value for the one returned by `f`.
+    ///
+    /// If the value has changed in the meantime, the result of `f` is discarded and `f` is called again on the new value.
     pub fn edit(
         &self,
         mut f: impl FnMut(
@@ -68,6 +71,7 @@ impl<T: Ord + Clone, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize>
             }
         }
     }
+    /// Calls `f` with the current value of in the set associated with `value`.
     pub fn get<K>(&self, value: &K, f: impl FnOnce(Option<&T>))
     where
         T: PartialOrd<K>,
@@ -76,6 +80,8 @@ impl<T: Ord + Clone, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize>
         f(set.get(value))
     }
 }
+
+/// Used to turn [`ArcBTreeSet`] into [`ArcBTreeMap`]: an entry appears as its key to comparison operations.
 #[crate::stabby]
 #[derive(Debug, Clone)]
 pub struct Entry<K, V> {
@@ -109,18 +115,32 @@ impl<K: Ord, V> Ord for Entry<K, V> {
         self.key.cmp(&other.key)
     }
 }
+/// A shareable BTree Map based on copy-on-write semantics.
+///
+/// When inserting a value, all shared nodes on the path to the value's slot will be cloned if shared before being mutated.
 #[crate::stabby]
 #[derive(Clone)]
 pub struct ArcBTreeMap<K, V, Alloc: IAlloc = DefaultAllocator, const SPLIT_LIMIT: usize = { 5 }>(
     ArcBTreeSet<Entry<K, V>, Alloc, true, SPLIT_LIMIT>,
 );
 impl<K: Ord, V, Alloc: IAlloc, const SPLIT_LIMIT: usize> ArcBTreeMap<K, V, Alloc, SPLIT_LIMIT> {
+    /// Constructs a new map, using the provided allocator.
+    ///
+    /// This operation does not allocate.
     pub const fn new_in(alloc: Alloc) -> Self {
         Self(ArcBTreeSet::new_in(alloc))
     }
+    /// Returns the value associated to `key`
     pub fn get<Q: Borrow<K>>(&self, key: &Q) -> Option<&V> {
         self.0.get(key.borrow()).map(|entry| &entry.value)
     }
+    /// Associates `value` to `key`,
+    ///
+    /// If some nodes on the way to the slot for `key` are shared, they will be shallowly cloned,
+    /// calling [`Clone::clone`] on the key-value pairs they contain.
+    ///
+    /// # Panics
+    /// In case of allocation failure.
     pub fn insert(&mut self, key: K, value: V) -> Option<V>
     where
         K: Clone,
@@ -131,6 +151,9 @@ impl<K: Ord, V, Alloc: IAlloc, const SPLIT_LIMIT: usize> ArcBTreeMap<K, V, Alloc
     }
 }
 
+/// A shareable BTree Map based on copy-on-write semantics.
+///
+/// When inserting a value that's not currently present in the set, all shared nodes on the path to the value's slot will be cloned if shared before being mutated.
 #[derive(Clone)]
 #[repr(C)]
 pub struct ArcBTreeSet<
@@ -178,6 +201,7 @@ impl<T: Ord> Default for ArcBTreeSet<T> {
 }
 #[cfg(feature = "libc")]
 impl<T: Ord> ArcBTreeSet<T> {
+    /// Constructs an empty set in the [`DefaultAllocator`]
     pub const fn new() -> Self {
         Self::new_in(DefaultAllocator::new())
     }
@@ -246,17 +270,26 @@ impl<T: Ord, Alloc: IAlloc, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: us
     const CHECK: () = if SPLIT_LIMIT % 2 == 0 {
         panic!("SPLIT_LIMIT on BTreeSet/BTreeMap must be odd (it is the number of elements at which a node will split)");
     };
+    /// Constructs a new set in the provided allocator.
+    ///
+    /// Note that this doesn't actually allocate.
     #[allow(clippy::let_unit_value)]
     pub const fn new_in(alloc: Alloc) -> Self {
         _ = Self::CHECK;
         Self(Err(alloc))
     }
+    /// Retrieves the value associated to `key` if it exists.
     pub fn get<K>(&self, key: &K) -> Option<&T>
     where
         T: PartialOrd<K>,
     {
         self.0.as_ref().ok().and_then(|set| set.get(key))
     }
+    /// Inserts a value into the set.
+    ///
+    /// `REPLACE_ON_INSERT` changes the behaviour of this operation slightly when the value is already present in the set:
+    /// - If `false`, the instance provided as argument is returned, leaving the set unmodified, and guaranteeing that no clone operation is made.
+    /// - If `true`, the instance in the set is replaced by the provided value (using copy on write semantics), and returned. This is useful when `T`'s implementation of [`core::cmp::PartialEq`] only compares a projection of `T`, as is the case with [`Entry`] to implement [`ArcBTreeMap`].
     pub fn insert(&mut self, value: T) -> Option<T>
     where
         T: Clone,
@@ -285,12 +318,14 @@ impl<T: Ord, Alloc: IAlloc, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: us
             this.for_each(&mut f)
         }
     }
+    /// Returns the number of elements in the set.
     pub fn len(&self) -> usize {
         match &self.0 {
             Err(_) => 0,
             Ok(node) => node.len(),
         }
     }
+    /// Return `true` iff the set is empty.
     pub const fn is_empty(&self) -> bool {
         self.0.is_err()
     }
