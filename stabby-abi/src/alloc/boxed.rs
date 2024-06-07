@@ -15,7 +15,7 @@
 use crate::IntoDyn;
 
 use super::{vec::*, AllocPtr, AllocSlice, IAlloc};
-use core::fmt::Debug;
+use core::{fmt::Debug, ptr::NonNull};
 
 /// An ABI-stable Box, provided `Alloc` is ABI-stable.
 #[crate::stabby]
@@ -24,6 +24,8 @@ pub struct Box<T, Alloc: IAlloc = super::DefaultAllocator> {
 }
 unsafe impl<T: Send, Alloc: IAlloc + Send> Send for Box<T, Alloc> {}
 unsafe impl<T: Sync, Alloc: IAlloc> Sync for Box<T, Alloc> {}
+unsafe impl<T: Send, Alloc: IAlloc + Send> Send for BoxedSlice<T, Alloc> {}
+unsafe impl<T: Sync, Alloc: IAlloc> Sync for BoxedSlice<T, Alloc> {}
 #[cfg(feature = "libc")]
 impl<T> Box<T> {
     /// Attempts to allocate [`Self`], initializing it with `constructor`.
@@ -71,9 +73,11 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
             None => return Err((constructor, alloc)),
         };
         unsafe {
-            constructor(core::mem::transmute::<&mut T, _>(ptr.as_mut()));
+            constructor(ptr.as_mut());
         }
-        Ok(Self { ptr })
+        Ok(Self {
+            ptr: unsafe { ptr.assume_init() },
+        })
     }
     /// Attempts to allocate a [`Self`] and store `value` in it
     /// # Errors
@@ -108,9 +112,11 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
             None => panic!("Allocation failed"),
         };
         unsafe {
-            constructor(core::mem::transmute::<&mut T, _>(ptr.as_mut()));
+            constructor(ptr.as_mut());
         }
-        Self { ptr }
+        Self {
+            ptr: unsafe { ptr.assume_init() },
+        }
     }
     /// Attempts to allocate [`Self`] and store `value` in it.
     ///
@@ -185,7 +191,7 @@ impl<T, Alloc: IAlloc> crate::IPtrOwned for Box<T, Alloc> {
     fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ())) {
         let rthis = &mut ***this;
         unsafe {
-            drop(core::mem::transmute(rthis));
+            drop(core::mem::transmute::<&mut T, &mut ()>(rthis));
         }
         this.free();
     }
@@ -203,7 +209,7 @@ impl<T, Alloc: IAlloc> IntoDyn for Box<T, Alloc> {
     type Target = T;
     fn anonimize(self) -> Self::Anonymized {
         let original_prefix = self.ptr.prefix_ptr();
-        let anonymized = unsafe { core::mem::transmute::<_, Self::Anonymized>(self) };
+        let anonymized = unsafe { core::mem::transmute::<Self, Self::Anonymized>(self) };
         let anonymized_prefix = anonymized.ptr.prefix_ptr();
         assert_eq!(anonymized_prefix, original_prefix, "The allocation prefix was lost in anonimization, this is definitely a bug, please report it.");
         anonymized
@@ -223,6 +229,10 @@ pub struct BoxedSlice<T, Alloc: IAlloc = super::DefaultAllocator> {
     pub(crate) alloc: Alloc,
 }
 impl<T, Alloc: IAlloc> BoxedSlice<T, Alloc> {
+    /// Constructs an empty boxed slice with a given capacity.
+    pub fn with_capacity_in(capacity: usize, alloc: Alloc) -> Self {
+        Vec::with_capacity_in(capacity, alloc).into()
+    }
     /// The number of elements in the boxed slice.
     pub const fn len(&self) -> usize {
         ptr_diff(self.slice.end, self.slice.start.ptr)
@@ -238,6 +248,23 @@ impl<T, Alloc: IAlloc> BoxedSlice<T, Alloc> {
     /// Cast into a standard mutable slice.
     pub fn as_slice_mut(&mut self) -> &mut [T] {
         unsafe { core::slice::from_raw_parts_mut(self.slice.start.as_ptr(), self.len()) }
+    }
+    /// Attempts to add an element to the boxed slice without reallocating.
+    /// # Errors
+    /// Returns the value if pushing would require reallocating.
+    pub fn try_push(&mut self, value: T) -> Result<(), T> {
+        if self.slice.len()
+            >= unsafe { self.slice.start.prefix() }
+                .capacity
+                .load(core::sync::atomic::Ordering::Relaxed)
+        {
+            return Err(value);
+        }
+        unsafe {
+            core::ptr::write(self.slice.end.as_ptr(), value);
+            self.slice.end = NonNull::new_unchecked(self.slice.end.as_ptr().add(1));
+        }
+        Ok(())
     }
     pub(crate) fn into_raw_components(self) -> (AllocSlice<T, Alloc>, usize, Alloc) {
         let slice = self.slice;
@@ -315,7 +342,7 @@ impl<T, Alloc: IAlloc> From<BoxedSlice<T, Alloc>> for Vec<T, Alloc> {
                     start: slice.start,
                     end: slice.end,
                     capacity: if core::mem::size_of::<T>() == 0 {
-                        unsafe { core::mem::transmute(usize::MAX) }
+                        unsafe { core::mem::transmute::<usize, NonNull<T>>(usize::MAX) }
                     } else {
                         slice.start.ptr
                     },

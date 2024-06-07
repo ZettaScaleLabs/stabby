@@ -30,7 +30,7 @@ pub use stabby_abi::{
 
 pub use stabby_abi as abi;
 
-pub use stabby_abi::alloc::{self, boxed, string, sync, vec};
+pub use stabby_abi::alloc::{self, boxed, collections, string, sync, vec};
 
 pub use stabby_abi::{Dyn, DynRef};
 

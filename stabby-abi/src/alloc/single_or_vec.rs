@@ -252,7 +252,9 @@ where
         self.inner.match_mut(
             |value| SliceGuardMut { inner: Ok(value) },
             |mut vec| SliceGuardMut {
-                inner: Err(unsafe { core::mem::transmute(vec.as_slice_mut()) }),
+                inner: Err(unsafe {
+                    core::mem::transmute::<&mut [T], &mut [T]>(vec.as_slice_mut())
+                }),
             },
         )
     }
@@ -474,7 +476,9 @@ where
     type Item = &'a mut T;
     fn next(&mut self) -> Option<Self::Item> {
         if self.start < self.end {
-            let r = unsafe { core::mem::transmute(self.inner.get_unchecked_mut(self.start)) };
+            let r = unsafe {
+                core::mem::transmute::<&mut T, &mut T>(self.inner.get_unchecked_mut(self.start))
+            };
             self.start += 1;
             Some(r)
         } else {
@@ -516,7 +520,9 @@ where
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.start < self.end {
             self.end -= 1;
-            let r = unsafe { core::mem::transmute(self.inner.get_unchecked_mut(self.end)) };
+            let r = unsafe {
+                core::mem::transmute::<&mut T, &mut T>(self.inner.get_unchecked_mut(self.end))
+            };
             Some(r)
         } else {
             None

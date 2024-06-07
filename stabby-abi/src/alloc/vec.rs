@@ -27,6 +27,8 @@ mod seal {
         pub(crate) capacity: NonNull<T>,
         pub(crate) alloc: Alloc,
     }
+    unsafe impl<T: Send, Alloc: IAlloc + Send> Send for VecInner<T, Alloc> {}
+    unsafe impl<T: Sync, Alloc: IAlloc + Sync> Sync for VecInner<T, Alloc> {}
 }
 pub(crate) use seal::*;
 
@@ -70,7 +72,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
                 start,
                 end: start.ptr,
                 capacity: if Self::zst_mode() {
-                    unsafe { core::mem::transmute(usize::MAX) }
+                    unsafe { core::mem::transmute::<usize, NonNull<T>>(usize::MAX) }
                 } else {
                     start.ptr
                 },
@@ -423,6 +425,14 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         }
         self.swap(index, self.len() - 1);
         self.pop()
+    }
+    /// Returns a reference to the vector's allocator.
+    pub const fn allocator(&self) -> &Alloc {
+        &self.inner.alloc
+    }
+    /// Returns a mutable reference to the vector's allocator.
+    pub fn allocator_mut(&mut self) -> &mut Alloc {
+        &mut self.inner.alloc
     }
 }
 

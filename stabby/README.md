@@ -17,16 +17,16 @@
 # A Stable ABI for Rust with compact sum-types
 `stabby` is your one-stop-shop to create stable binary interfaces for your shared libraries easily, without having your sum-types (enums) explode in size.
 
-Your main vector of interraction with `stabby` will be the `#[stabby::stabby]` proc-macro, with which you can annotate a lot of things.
+Your main vector of interaction with `stabby` will be the `#[stabby::stabby]` proc-macro, with which you can annotate a lot of things.
 
 ## Why would I _want_ a stable ABI? And what even _is_ an ABI?
-ABI stands for _Application Binary Interface_, and is like API's more detail focused sibbling. While an API defines what type of data a function expects, and what properties these types should have; ABI defines _how_ this data should be laid out in memory, and how a function call even works.
+ABI stands for _Application Binary Interface_, and is like API's more detail focused sibling. While an API defines what type of data a function expects, and what properties these types should have; ABI defines _how_ this data should be laid out in memory, and how a function call even works.
 
 How data is laid out in memory is often called "representation": field ordering, how variants of enums are distinguished, padding, size... In order to communicate using certain types, two software units _must_ agree on what these types look like in memory.
 
 Function calls are also highly complex under the hood (although it's rare for developers to need to think about them): is the callee or caller responsible for protecting the caller's register from callee's operations? In which registers / order on the stack should arguments be passed? What CPU instruction is used to actually trigger the call? A set of replies to these questions (and a few more) is called "calling convention".
 
-In Rust, unless you explicitly select a known representation for your types through `#[repr(_)]`, or an explicit calling convention for your functions with `extern "_"`, the compiler is free to do whatever it pleases with these aspects of your software: the process by which it does that is explicitly unstable, and depends on your compiler version, the optimization level you selected, some llama's mood in a whool farm near Berkshire... who knows?
+In Rust, unless you explicitly select a known representation for your types through `#[repr(_)]`, or an explicit calling convention for your functions with `extern "_"`, the compiler is free to do whatever it pleases with these aspects of your software: the process by which it does that is explicitly unstable, and depends on your compiler version, the optimization level you selected, some llama's mood in a wool farm near Berkshire... who knows?
 
 The problem with that comes when dynamic linkage is involved: since the ABI for most things in Rust is unstable, software units (such as a dynamic library and the executable that requires it) that have been built through different compiler calls may disagree on these decisions about ABI, even though there's no way for the linker to know that they did.
 
@@ -44,7 +44,7 @@ When you annotate an enum with `#[stabby::stabby]`, you may select an existing s
 
 Note that `#[repr(stabby)]` does lose you the ability to pattern-match.
 
-Due to limitations of the trait solver, `#[repr(stabby)]` enums have a few papercuts:
+Due to limitations of the trait solver, `#[repr(stabby)]` enums have a few paper-cuts:
 - Compilation times suffer from `#[repr(stabby)]` enums.
 - Additional trait bounds are required when writing `impl`-blocks for generic enums. They will always be of the form of one or multiple `A: stabby::abi::IDeterminantProvider<B>` bounds (although `rustc`'s error may suggest more complex bounds, the bounds should always be of this `IDeterminantProvider` shape).
 
@@ -58,7 +58,7 @@ Due to limitations of the trait solver, `#[repr(stabby)]` enums have a few paper
 If you want to make your own internally tagged unions, you can tag them with `#[stabby::stabby]` to let `stabby` check that you only used stable variants, and let it know the size and alignment of your unions. Note that `stabby` will always consider that unions have no niches.
 
 ## Traits
-When you annotate a trait with `#[stabby::stabby]`, an ABI-stable vtable is generated for it. You can then use any of the following type equivalence:
+When you annotate a trait with `#[stabby::stabby]`, an ABI-stable v-table is generated for it. You can then use any of the following type equivalence:
 - `&'a dyn Traits` → `DynRef<'a, vtable!(Traits)>` __or__ `dynptr!(&'a dyn Trait)`
 - `&'a mut dyn Traits` → `Dyn<&'a mut (), vtable!(Traits)>` __or__ `dynptr!(&'a mut dyn Traits)`
 - `Box<dyn Traits + 'a>` → `Dyn<'a, Box<()>, vtable!(Traits)>` __or__ `dynptr!(Box<dyn Traits + 'a>)`
@@ -66,7 +66,7 @@ When you annotate a trait with `#[stabby::stabby]`, an ABI-stable vtable is gene
 
 Note that `vtable!(Traits)` and `dynptr!(..dyn Traits..)` support any number of traits: `vtable!(TraitA + TraitB<Output = u8>)` or `dynptr!(Box<dyn TraitA + TraitB<Output = u8>>)` are perfectly valid, but ordering must remain consistent.
 
-However, the vtables generated by stabby will not take supertraits into account.
+However, the v-tables generated by stabby will not take super-traits into account.
 
 In order for `stabby::dynptr!(Box<dyn Traits + 'a>)` to have `Trait`'s methods, you will need to `use trait::{TraitDyn, TraitDynMut};`, so make sure you don't accidentally seal these traits which are automatically declared with the same visibility as your `Trait`.
 
@@ -149,10 +149,9 @@ However, our experience in software engineering has shown that type-size matters
 
 My hope with `stabby` comes in two flavors:
 - Adoption in the Rust ecosystem: this is my least favorite option, but this would at least let people have a better time with Rust in situations where they need dynamic linkage.
-- Triggering a discussion about providing not a stable, but versioned ABI for Rust: `stabby` essentially provides a versioned ABI already through the selected version of the `stabby-abi` crate. However, having a library implement type-layout, which is normally the compiler's job, forces abi-stability to be per-type explicit, instead of applicable to a whole compilation unit. In my opinion, a `abi = "<stabby/crabi/c>"` key in the cargo manifest would be a much better way to do this. Better yet, merging that idea with [RFC 3435](https://github.com/rust-lang/rfcs/pull/3435) to allow selecting an ABI on a per-function basis, and letting the compiler contaminate the types at the annotated functions' interfaces with the selected stable ABI, would be much more granular, but would still allow end users to become ABI-stable by commiting to a single version of their dependencies. 
+- Triggering a discussion about providing not a stable, but versioned ABI for Rust: `stabby` essentially provides a versioned ABI already through the selected version of the `stabby-abi` crate. However, having a library implement type-layout, which is normally the compiler's job, forces abi-stability to be per-type explicit, instead of applicable to a whole compilation unit. In my opinion, a `abi = "<stabby/crabi/c>"` key in the cargo manifest would be a much better way to do this. Better yet, merging that idea with [RFC 3435](https://github.com/rust-lang/rfcs/pull/3435) to allow selecting an ABI on a per-function basis, and letting the compiler contaminate the types at the annotated functions' interfaces with the selected stable ABI, would be much more granular, but would still allow end users to become ABI-stable by committing to a single version of their dependencies. 
 
-# `stabby`'s semver policy
-Stabby's semver policy is built as such:
-- patch: `stabby` will never break your builds _or_ your ABI, whatever sections of it you are using, through a patch update. New APIs may be added, and implementations may be refined, provided those refinements don't break ABI, including implicit invariants.
-- minor: `stabby` reserves the right to break API _and_ ABI for a small set of types on minor releases. These breaks shall be clearly highlighted in the CHANGELOG, and will be avoided unless they provide major benefits (extreme performance increase, important new feature, or vulnerability fix).
-- major: these releases indicate that `stabby`'s ABI has changed in a global way: binaries that use different major releases of `stabby` are unlikely to be able to interact correctly. For examples, if `#[repr(stabby)]`'s implementation for enums was to change, this would be a major release. Note that if `stabby` is unable to detect such a change at runtime through its reflection system, this shall be explicitly stated in the changelog. Note that this applies to bugfixes: if a widely used type from `stabby` needs to have its layout or invariants changed in order to fix a bug, the fix will still be a major release.
+# `stabby`'s SemVer policy
+Stabby includes all of its `stabby_abi::IStable` implementation in its public API: any change to an `IStable` type's memory representation is a breaking change which will lead to a `MAJOR` version change.
+
+Stabby follows [Humane SemVer](https://p-avital.github.io/humane-semver): small major bumps should require no thinking to perform (they may break binary compatibility, though); while large major bump indicate that you may have to think a bit before upgrading.

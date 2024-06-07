@@ -41,106 +41,192 @@ pub trait IConstConstructor<'a, Source>: 'a + Copy {
     }
 }
 
+#[cfg(all(feature = "libc", feature = "test"))]
+pub use internal::{VTableRegistry, VtBtree, VtVec};
+
 #[cfg(feature = "libc")]
-#[rustversion::all(since(1.78.0), not(nightly))]
-/// Implementation detail for stabby's version of dyn traits.
-/// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
-pub trait IConstConstructor<'a, Source>: 'a + Copy + core::hash::Hash + core::fmt::Debug {
-    /// The vtable.
-    const VTABLE: Self;
-    /// Returns the reference to the vtable
-    fn vtable() -> &'a Self {
-        use core::{hash::Hasher, marker::PhantomData, ptr::NonNull};
-        static VTABLES: core::sync::atomic::AtomicPtr<
-            crate::alloc::vec::Vec<(
-                u64,
-                crate::alloc::AllocPtr<*const (), crate::alloc::DefaultAllocator>,
-            )>,
-        > = core::sync::atomic::AtomicPtr::new(core::ptr::null_mut());
-        use crate::alloc::{boxed::Box, vec::Vec, AllocPtr, DefaultAllocator};
-        let vtable = Self::VTABLE;
-        #[allow(deprecated)]
-        let hash = {
-            let mut hasher = core::hash::SipHasher::new();
-            vtable.hash(&mut hasher);
-            hasher.finish()
-        };
-        fn insert_vtable(hash: u64, vtable: &[*const ()]) -> AllocPtr<*const (), DefaultAllocator> {
+pub(crate) mod internal {
+    use crate::alloc::{boxed::BoxedSlice, collections::arc_btree::AtomicArcBTreeSet};
+    use core::ptr::NonNull;
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct VTable(&'static [*const ()]);
+    impl PartialOrd<&[*const ()]> for VTable {
+        fn partial_cmp(&self, other: &&[*const ()]) -> Option<core::cmp::Ordering> {
+            Some(self.0.cmp(*other))
+        }
+    }
+    impl PartialEq<&[*const ()]> for VTable {
+        fn eq(&self, other: &&[*const ()]) -> bool {
+            self.0.eq(*other)
+        }
+    }
+    unsafe impl Send for VTable {}
+    unsafe impl Sync for VTable {}
+    use crate::alloc::{vec::Vec, DefaultAllocator};
+    /// A BTree used to store VTables.
+    ///
+    /// This is an internal API, only publically exposed for benchmarking purposes. It may change arbitrarily without warning.
+    pub type VtBtree<const SIZE: usize> = AtomicArcBTreeSet<VTable, false, SIZE>;
+    /// A Vec used to store VTables
+    ///
+    /// This is an internal API, only publically exposed for benchmarking purposes. It may change arbitrarily without warning.
+    pub type VtVec =
+        crate::alloc::sync::AtomicArc<crate::alloc::vec::Vec<VTable>, DefaultAllocator>;
+    /// A registry where VTables can be inserted via interior mutability.
+    ///
+    /// This is an internal API, only publically exposed for benchmarking purposes. It may change arbitrarily without warning.
+    pub trait VTableRegistry {
+        /// Inserts a raw vtable in the registry.
+        fn insert(&self, vtable: &[*const ()]) -> NonNull<*const ()>;
+        /// Inserts a vtable in the registry.
+        fn insert_typed<'a, Vt: Copy>(&self, vtable: &Vt) -> &'a Vt {
+            unsafe {
+                let vtable = core::slice::from_raw_parts(
+                    (vtable as *const Vt).cast(),
+                    core::mem::size_of::<Vt>() / core::mem::size_of::<*const ()>(),
+                );
+                let vt = self.insert(vtable).cast().as_ref();
+                debug_assert_eq!(
+                    core::slice::from_raw_parts(
+                        (vt as *const Vt).cast::<*const ()>(),
+                        core::mem::size_of::<Vt>() / core::mem::size_of::<*const ()>(),
+                    ),
+                    vtable
+                );
+                vt
+            }
+        }
+    }
+    impl VTableRegistry for VtVec {
+        fn insert(&self, vtable: &[*const ()]) -> NonNull<*const ()> {
             let mut search_start = 0;
-            let mut allocated_vt = None;
-            let mut vtables = VTABLES.load(core::sync::atomic::Ordering::SeqCst);
+            let mut allocated_slice: Option<BoxedSlice<_, DefaultAllocator>> = None;
+            let mut vtables = self.load(core::sync::atomic::Ordering::SeqCst);
             loop {
-                let vts = match unsafe { vtables.as_ref() } {
+                let vts = match vtables.as_ref() {
                     None => [].as_slice(),
-                    Some(vts) => match vts[search_start..]
-                        .iter()
-                        .find_map(|e| (e.0 == hash).then_some(e.1))
-                    {
-                        Some(vt) => return vt,
+                    Some(vts) => match vts[search_start..].iter().find(|e| **e == vtable) {
+                        Some(vt) => {
+                            // SAFETY: since `vt.0` is a reference, it is guaranteed to be non-null.
+                            return unsafe { NonNull::new_unchecked(vt.0.as_ptr().cast_mut()) };
+                        }
                         None => vts,
                     },
                 };
-                let vt = allocated_vt.unwrap_or_else(|| {
-                    let mut ptr =
-                        AllocPtr::alloc_array(&mut DefaultAllocator::new(), vtable.len()).unwrap();
-                    unsafe {
-                        core::ptr::copy_nonoverlapping(vtable.as_ptr(), ptr.as_mut(), vtable.len())
-                    };
-                    ptr
-                });
-                allocated_vt = Some(vt);
-                let updated = VTABLES.load(core::sync::atomic::Ordering::SeqCst);
-                if !core::ptr::eq(vtables, updated) {
+                let avt = allocated_slice.unwrap_or_else(|| BoxedSlice::from(vtable));
+                // SAFETY::`avt` will be leaked if inserting `vt` succeeds.
+                let vt = unsafe { core::mem::transmute::<&[_], &'static [_]>(avt.as_slice()) };
+                allocated_slice = Some(avt);
+                if let Err(updated) =
+                    self.is(vtables.as_ref(), core::sync::atomic::Ordering::SeqCst)
+                {
                     vtables = updated;
                     continue;
                 }
                 let mut vec = Vec::with_capacity(vts.len() + 1);
                 vec.copy_extend(vts);
-                vec.push((hash, vt));
-                let mut vec = Box::into_raw(Box::new(vec));
-                match VTABLES.compare_exchange(
-                    updated,
-                    unsafe { vec.as_mut() },
+                vec.push(VTable(vt));
+                if let Err(updated) =
+                    self.is(vtables.as_ref(), core::sync::atomic::Ordering::SeqCst)
+                {
+                    vtables = updated;
+                    continue;
+                }
+                let vec = Some(crate::alloc::sync::Arc::new(vec));
+                match self.compare_exchange(
+                    vtables.as_ref(),
+                    vec,
                     core::sync::atomic::Ordering::SeqCst,
                     core::sync::atomic::Ordering::SeqCst,
                 ) {
-                    Ok(updated) => {
-                        if let Some(updated) = NonNull::new(updated) {
-                            unsafe {
-                                Box::from_raw(AllocPtr {
-                                    ptr: updated,
-                                    marker: PhantomData::<DefaultAllocator>,
-                                })
-                            };
-                        }
-                        return vt;
+                    Ok(_) => {
+                        core::mem::forget(allocated_slice);
+                        return unsafe { NonNull::new_unchecked(vt.as_ptr().cast_mut()) };
                     }
                     Err(new_vtables) => {
                         search_start = vts.len();
                         vtables = new_vtables;
-                        unsafe { Box::from_raw(vec) };
                     }
                 }
             }
         }
-        unsafe {
-            let vtable = core::slice::from_raw_parts(
-                (&vtable as *const Self).cast(),
-                core::mem::size_of::<Self>() / core::mem::size_of::<*const ()>(),
-            );
-            let vt = insert_vtable(hash, vtable).cast().as_ref();
-            debug_assert_eq!(
-                core::slice::from_raw_parts(
-                    (vt as *const Self).cast::<*const ()>(),
-                    core::mem::size_of::<Self>() / core::mem::size_of::<*const ()>(),
-                ),
-                vtable
-            );
-            vt
+    }
+    #[allow(unknown_lints)]
+    #[allow(clippy::missing_transmute_annotations)]
+    impl<const SIZE: usize> VTableRegistry for VtBtree<SIZE> {
+        fn insert(&self, vtable: &[*const ()]) -> NonNull<*const ()> {
+            let mut ret = None;
+            let mut allocated_slice: Option<BoxedSlice<_, DefaultAllocator>> = None;
+            self.edit(|tree| {
+                let mut tree = tree.clone();
+                if let Some(vt) = tree.get(&vtable) {
+                    ret = unsafe { Some(NonNull::new_unchecked(vt.0.as_ptr().cast_mut())) };
+                    return tree;
+                }
+                let vt = match &allocated_slice {
+                    Some(vt) => unsafe { core::mem::transmute(vt.as_slice()) },
+                    None => {
+                        let vt = BoxedSlice::from(vtable);
+                        let slice = unsafe { core::mem::transmute(vt.as_slice()) };
+                        allocated_slice = Some(vt);
+                        slice
+                    }
+                };
+                tree.insert(vt);
+                tree
+            });
+            if ret.is_none() {
+                let ret = &mut ret;
+                self.get(&vtable, move |vt| {
+                    let start = unsafe {
+                        NonNull::new_unchecked(
+                            vt.expect("VTable should've been inserted by now")
+                                .0
+                                .as_ptr()
+                                .cast_mut(),
+                        )
+                    };
+                    if let Some(allocated) = allocated_slice {
+                        if allocated.slice.start.ptr == start {
+                            core::mem::forget(allocated);
+                        }
+                    }
+                    *ret = Some(start);
+                });
+            }
+            unsafe { ret.unwrap_unchecked() }
         }
     }
+    #[cfg(stabby_vtables = "vec")]
+    #[rustversion::all(not(nightly), since(1.78.0))]
+    pub(crate) static VTABLES: crate::alloc::sync::AtomicArc<
+        crate::alloc::vec::Vec<VTable>,
+        DefaultAllocator,
+    > = crate::alloc::sync::AtomicArc::new(None);
+    #[cfg(any(stabby_vtables = "btree", not(stabby_vtables)))]
+    #[rustversion::all(not(nightly), since(1.78.0))]
+    pub(crate) static VTABLES: AtomicArcBTreeSet<VTable, false, 5> = AtomicArcBTreeSet::new();
+    #[rustversion::nightly]
+    #[cfg(stabby_vtables = "btree")]
+    pub(crate) static VTABLES: AtomicArcBTreeSet<VTable, false, 5> = AtomicArcBTreeSet::new();
 }
 
+#[cfg(all(
+    feature = "libc",
+    any(stabby_vtables = "vec", stabby_vtables = "btree", not(stabby_vtables))
+))]
+#[rustversion::all(not(nightly), since(1.78.0))]
+/// Implementation detail for stabby's version of dyn traits.
+/// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
+pub trait IConstConstructor<'a, Source>: 'a + Copy {
+    /// The vtable.
+    const VTABLE: Self;
+    /// Returns the reference to the vtable
+    fn vtable() -> &'a Self {
+        use internal::VTableRegistry;
+        internal::VTABLES.insert_typed(&Self::VTABLE)
+    }
+}
 /// Implementation detail for stabby's version of dyn traits.
 pub trait TransitiveDeref<Head, N> {
     /// Deref transitiverly.
@@ -265,26 +351,21 @@ impl PartialEq for VtDrop {
         )
     }
 }
+unsafe extern "C" fn drop<T>(this: &mut T) {
+    core::ptr::drop_in_place(this)
+}
+#[allow(unknown_lints)]
+#[allow(clippy::missing_transmute_annotations)]
 impl<'a, T> IConstConstructor<'a, T> for VtDrop {
     impl_vtable_constructor!(
         const VTABLE_REF: &'a VtDrop = &VtDrop {
             drop: unsafe {
-                core::mem::transmute({
-                    unsafe extern "C" fn drop<T>(this: &mut T) {
-                        core::ptr::drop_in_place(this)
-                    }
-                    drop::<T>
-                } as unsafe extern "C" fn(&mut T))
+                core::mem::transmute(drop::<T> as unsafe extern "C" fn(&mut T))
             },
         }; =>
         const VTABLE: VtDrop = VtDrop {
             drop: unsafe {
-                core::mem::transmute({
-                    unsafe extern "C" fn drop<T>(this: &mut T) {
-                        core::ptr::drop_in_place(this)
-                    }
-                    drop::<T>
-                } as unsafe extern "C" fn(&mut T))
+                core::mem::transmute(drop::<T> as unsafe extern "C" fn(&mut T))
             },
         };
     );
