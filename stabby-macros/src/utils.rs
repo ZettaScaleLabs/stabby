@@ -61,7 +61,9 @@ pub(crate) fn generics_without_defaults<'a>(
             GenericParam::Lifetime(LifetimeDef {
                 lifetime, bounds, ..
             }) => this.lifetimes.push(quote!(#lifetime: #bounds)),
-            GenericParam::Const(ConstParam { ident, .. }) => this.consts.push(quote!(#ident)),
+            GenericParam::Const(ConstParam { ident, ty, .. }) => {
+                this.consts.push(quote!(const #ident: #ty))
+            }
         }
     }
     this

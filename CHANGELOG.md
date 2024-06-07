@@ -1,3 +1,15 @@
+# 5.1.0
+- Introducing `stabby::collections::arc_btree`, a set of copy-on-write btrees:
+	- `ArcBtreeSet` and `ArcBtreeMap` behave like you would expect, but share nodes with their clones.
+	- When mutating one of their nodes (either because an entry is changed, or because a child node required a carry-over operation to complete its own mutation), one of two cases will happen:
+		- The node wasn't shared: it is mutated in place.
+		- The node was shared: it is copied (increasing its children's reference counts), mutated, and the parent node is mutated to replace the shared node by its mutated copy. This behaviour keeps recursing until the root if necessary.
+	- `AtomicArcBtreeSet` is a lock-free set based on `ArcBtreeSet`: when a node is inserted, the root pointer is cloned, the clone is mutated (causing its root pointer to change), and replaced. If the root pointer changed since reading it, the process is tried again.
+		- This is notably how `stabby` global set of vtables is implemented to support stable Rust from version 1.78 onward, until the [static-promotion regression](https://github.com/rust-lang/rust/issues/123281) is [fixed](https://github.com/rust-lang/rfcs/pull/3633), and this global set can be removed.
+- Add some missing `Send` and `Sync` implementations for container types.
+- Fix a lot of nightly lints.
+- Officially switch to [Humane SemVer](https://p-avital.github.io/humane-semver)
+
 # 5.0.1
 - Fix a regression in MSRV
 

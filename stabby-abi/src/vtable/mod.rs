@@ -198,12 +198,13 @@ pub(crate) mod internal {
         }
     }
     #[cfg(stabby_vtables = "vec")]
+    #[rustversion::all(not(nightly), since(1.78.0))]
     pub(crate) static VTABLES: crate::alloc::sync::AtomicArc<
         crate::alloc::vec::Vec<VTable>,
         DefaultAllocator,
     > = crate::alloc::sync::AtomicArc::new(None);
     #[cfg(any(stabby_vtables = "btree", not(stabby_vtables)))]
-    #[rustversion::not(nightly)]
+    #[rustversion::all(not(nightly), since(1.78.0))]
     pub(crate) static VTABLES: AtomicArcBTreeSet<VTable, false, 5> = AtomicArcBTreeSet::new();
     #[rustversion::nightly]
     #[cfg(stabby_vtables = "btree")]

@@ -4,7 +4,10 @@ use core::{
     borrow::Borrow, marker::PhantomData, mem::MaybeUninit, ptr::NonNull, sync::atomic::AtomicPtr,
 };
 
-use crate::alloc::{sync::Arc, AllocPtr, DefaultAllocator, IAlloc};
+use crate::{
+    alloc::{sync::Arc, AllocPtr, DefaultAllocator, IAlloc},
+    IStable,
+};
 
 #[cfg(feature = "libc")]
 pub struct AtomicArcBTreeSet<T: Ord, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize>(
@@ -73,8 +76,9 @@ impl<T: Ord + Clone, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize>
         f(set.get(value))
     }
 }
+#[crate::stabby]
 #[derive(Debug, Clone)]
-struct Entry<K, V> {
+pub struct Entry<K, V> {
     key: K,
     value: V,
 }
@@ -105,6 +109,7 @@ impl<K: Ord, V> Ord for Entry<K, V> {
         self.key.cmp(&other.key)
     }
 }
+#[crate::stabby]
 #[derive(Clone)]
 pub struct ArcBTreeMap<K, V, Alloc: IAlloc = DefaultAllocator, const SPLIT_LIMIT: usize = { 5 }>(
     ArcBTreeSet<Entry<K, V>, Alloc, true, SPLIT_LIMIT>,
@@ -127,12 +132,44 @@ impl<K: Ord, V, Alloc: IAlloc, const SPLIT_LIMIT: usize> ArcBTreeMap<K, V, Alloc
 }
 
 #[derive(Clone)]
+#[repr(C)]
 pub struct ArcBTreeSet<
     T,
     Alloc: IAlloc = DefaultAllocator,
     const REPLACE_ON_INSERT: bool = { false },
     const SPLIT_LIMIT: usize = { 5 },
 >(Result<ArcBTreeSetNode<T, Alloc, REPLACE_ON_INSERT, SPLIT_LIMIT>, Alloc>);
+
+unsafe impl<T: IStable, Alloc: IAlloc, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize>
+    IStable for ArcBTreeSet<T, Alloc, REPLACE_ON_INSERT, SPLIT_LIMIT>
+where
+    Alloc: IStable<Size = crate::U0>,
+    Arc<T, Alloc>: IStable<HasExactlyOneNiche = crate::B1>,
+{
+    type Size = <*const T as IStable>::Size;
+    type Align = <*const T as IStable>::Align;
+    type ForbiddenValues = <*const T as IStable>::ForbiddenValues;
+    type UnusedBits = <*const T as IStable>::UnusedBits;
+    type HasExactlyOneNiche = crate::B0;
+    type ContainsIndirections = crate::B1;
+    const REPORT: &'static crate::report::TypeReport = &crate::report::TypeReport {
+        name: crate::str::Str::new("ArcBTreeSet"),
+        module: crate::str::Str::new("stabby_abi::alloc::collections::arc_btree"),
+        fields: crate::StableLike::new(Some(&crate::report::FieldReport {
+            name: crate::str::Str::new("T"),
+            ty: T::REPORT,
+            next_field: crate::StableLike::new(Some(&crate::report::FieldReport {
+                name: crate::str::Str::new("Alloc"),
+                ty: Alloc::REPORT,
+                next_field: crate::StableLike::new(None),
+            })),
+        })),
+        tyty: crate::report::TyTy::Struct,
+        version: 0,
+    };
+    const ID: u64 = crate::report::gen_id(Self::REPORT);
+}
+
 #[cfg(feature = "libc")]
 impl<T: Ord> Default for ArcBTreeSet<T> {
     fn default() -> Self {

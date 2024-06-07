@@ -343,6 +343,10 @@ impl<T, Alloc: IAlloc> Drop for Weak<T, Alloc> {
 pub struct ArcSlice<T, Alloc: IAlloc = super::DefaultAllocator> {
     pub(crate) inner: AllocSlice<T, Alloc>,
 }
+unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Send for ArcSlice<T, Alloc> {}
+unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Sync for ArcSlice<T, Alloc> {}
+unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Send for WeakSlice<T, Alloc> {}
+unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Sync for WeakSlice<T, Alloc> {}
 
 impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
     /// Returns the number of elements in the slice.
@@ -381,6 +385,27 @@ impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
     /// Whether or not `this` is the sole owner of its data, including weak owners.
     pub fn is_unique(this: &Self) -> bool {
         Self::strong_count(this) == 1 && Self::weak_count(this) == 1
+    }
+    /// Returns the slice's raw representation, without altering the associated reference counts.
+    ///
+    /// Failing to reconstruct the `this` using [`Self::from_raw`] will result in the associated `this` being effectively leaked.
+    pub fn into_raw(this: Self) -> AllocSlice<T, Alloc> {
+        let inner = this.inner;
+        core::mem::forget(this);
+        inner
+    }
+    /// Reconstructs an [`ArcSlice`] from its raw representation, without altering the associated reference counts.
+    ///
+    /// # Safety
+    /// `this` MUST have been obtained using [`Self::into_raw`], and not have been previously used to reconstruct an [`ArcSlice`].
+    pub unsafe fn from_raw(this: AllocSlice<T, Alloc>) -> Self {
+        Self { inner: this }
+    }
+}
+impl<T, Alloc: IAlloc> core::ops::Deref for ArcSlice<T, Alloc> {
+    type Target = [T];
+    fn deref(&self) -> &Self::Target {
+        self.as_slice()
     }
 }
 impl<T, Alloc: IAlloc> Clone for ArcSlice<T, Alloc> {

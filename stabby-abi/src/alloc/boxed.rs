@@ -24,6 +24,8 @@ pub struct Box<T, Alloc: IAlloc = super::DefaultAllocator> {
 }
 unsafe impl<T: Send, Alloc: IAlloc + Send> Send for Box<T, Alloc> {}
 unsafe impl<T: Sync, Alloc: IAlloc> Sync for Box<T, Alloc> {}
+unsafe impl<T: Send, Alloc: IAlloc + Send> Send for BoxedSlice<T, Alloc> {}
+unsafe impl<T: Sync, Alloc: IAlloc> Sync for BoxedSlice<T, Alloc> {}
 #[cfg(feature = "libc")]
 impl<T> Box<T> {
     /// Attempts to allocate [`Self`], initializing it with `constructor`.
