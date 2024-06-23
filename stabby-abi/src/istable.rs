@@ -69,6 +69,17 @@ pub unsafe trait IStable: Sized {
     fn align() -> usize {
         Self::Align::USIZE
     }
+    /// Returns `true` if `ptr` points to memory that cannot be a valid value of `Self`.
+    ///
+    /// Note that this function returning `false` is not a guarantee that the value is valid,
+    /// as no heuristic can guarantee that. Notably, this heuristic will generally not look
+    /// through indirections.
+    ///
+    /// # Safety
+    /// Calling this may result in UB if `ptr` points to uninitialized memory at offsets where a forbidden value in `Self` exists.
+    unsafe fn is_invalid(ptr: *const u8) -> bool {
+        Self::ForbiddenValues::is_invalid(ptr)
+    }
 }
 
 /// A static proof that a type is "Plain Old Data".
@@ -270,6 +281,11 @@ pub trait IForbiddenValues {
     type SelectFrom<Mask: IBitMask>: ISingleForbiddenValue;
     /// Extract the first available forbidden value.
     type SelectOne: ISingleForbiddenValue;
+    /// Returns `true` if `ptr` points to a forbidden value.
+    ///
+    /// # Safety
+    /// Calling this on uninitialized memory is UB.
+    unsafe fn is_invalid(ptr: *const u8) -> bool;
 }
 /// A single multi-byte forbidden value.
 pub trait ISingleForbiddenValue {
@@ -287,6 +303,9 @@ impl IForbiddenValues for End {
     type Or<T: IForbiddenValues> = T;
     type SelectFrom<Mask: IBitMask> = End;
     type SelectOne = End;
+    unsafe fn is_invalid(_: *const u8) -> bool {
+        false
+    }
 }
 impl ISingleForbiddenValue for Saturator {
     type Push<O: Unsigned, T> = Saturator;
@@ -308,7 +327,9 @@ impl<Offset: Unsigned, T, Rest: ISingleForbiddenValue> ISingleForbiddenValue
     type And<V: ISingleForbiddenValue> = V;
     type Resolve = Self;
 }
-impl<Offset: Unsigned, T, Rest: IForbiddenValues> IForbiddenValues for Array<Offset, T, Rest> {
+impl<Offset: Unsigned, T: Unsigned, Rest: IForbiddenValues> IForbiddenValues
+    for Array<Offset, T, Rest>
+{
     type Shift<O: Unsigned> = Array<Offset::Add<O>, T, Rest::Shift<O>>;
     type Or<O: IForbiddenValues> = Or<O, Self>;
     type SelectFrom<Mask: IBitMask> =
@@ -316,6 +337,9 @@ impl<Offset: Unsigned, T, Rest: IForbiddenValues> IForbiddenValues for Array<Off
             <Rest::SelectFrom<Mask> as ISingleForbiddenValue>::Push<Offset, T>,
         >;
     type SelectOne = Array<Offset, T, Rest::SelectOne>;
+    unsafe fn is_invalid(ptr: *const u8) -> bool {
+        ptr.add(Offset::USIZE).read() == T::U8 && Rest::is_invalid(ptr)
+    }
 }
 impl<A: IForbiddenValues, B: IForbiddenValues> IForbiddenValues for Or<A, B> {
     type Shift<O: Unsigned> = Or<A::Shift<O>, B::Shift<O>>;
@@ -323,6 +347,26 @@ impl<A: IForbiddenValues, B: IForbiddenValues> IForbiddenValues for Or<A, B> {
     type SelectFrom<Mask: IBitMask> =
         <A::SelectFrom<Mask> as ISingleForbiddenValue>::Or<B::SelectFrom<Mask>>;
     type SelectOne = A::SelectOne;
+    unsafe fn is_invalid(ptr: *const u8) -> bool {
+        A::is_invalid(ptr) || B::is_invalid(ptr)
+    }
+}
+/// An inclusive range of forbidden values for a single byte.
+pub struct ForbiddenRange<Min: Unsigned, Max: Unsigned<Greater<Min> = B1>, Offset: Unsigned>(
+    core::marker::PhantomData<(Min, Max, Offset)>,
+);
+impl<Min: Unsigned, Max: Unsigned<Greater<Min> = B1>, Offset: Unsigned> IForbiddenValues
+    for ForbiddenRange<Min, Max, Offset>
+{
+    type Shift<O: Unsigned> = ForbiddenRange<Min, Max, Offset::Add<O>>;
+    type Or<T: IForbiddenValues> = Or<Self, T>;
+    type SelectFrom<Mask: IBitMask> =
+        <Mask::HasFreeByteAt<Offset> as IBitBase>::_SfvTernary<Self::SelectOne, End>;
+    type SelectOne = Array<Offset, Min, End>;
+    unsafe fn is_invalid(ptr: *const u8) -> bool {
+        let v = ptr.add(Offset::USIZE).read();
+        Min::U8 <= v && v <= Max::U8
+    }
 }
 /// The union of 2 sets.
 pub struct Or<A, B>(core::marker::PhantomData<(A, B)>);

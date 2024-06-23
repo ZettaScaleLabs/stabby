@@ -390,6 +390,10 @@ pub mod report;
 pub mod slice;
 /// ABI-stable strs.
 pub mod str;
+/// ABI-stable tuples.
+pub mod tuples {
+    include!(concat!(env!("OUT_DIR"), "/tuples.rs"));
+}
 
 pub use istable::{Array, End, IStable};
 

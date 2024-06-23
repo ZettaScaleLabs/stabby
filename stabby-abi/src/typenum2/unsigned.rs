@@ -72,6 +72,8 @@ pub trait IBitBase {
     /// Support for [`IBit`]
     type _FvTernary<A: IForbiddenValues, B: IForbiddenValues>: IForbiddenValues;
     /// Support for [`IBit`]
+    type _SfvTernary<A: ISingleForbiddenValue, B: ISingleForbiddenValue>: ISingleForbiddenValue;
+    /// Support for [`IBit`]
     type _UbTernary<A: IBitMask, B: IBitMask>: IBitMask;
     /// Support for [`IBit`]
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd>: ISaturatingAdd;
@@ -97,6 +99,7 @@ impl IBitBase for B0 {
     type _BmTernary<A: IBitMask, B: IBitMask> = B;
     type _PTernary<A: IPowerOf2, B: IPowerOf2> = B;
     type _FvTernary<A: IForbiddenValues, B: IForbiddenValues> = B;
+    type _SfvTernary<A: ISingleForbiddenValue, B: ISingleForbiddenValue> = B;
     type _UbTernary<A: IBitMask, B: IBitMask> = B;
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = B;
     type _StabTernary<A: IStable, B: IStable> = B;
@@ -118,6 +121,7 @@ impl IBitBase for B1 {
     type _BmTernary<A: IBitMask, B: IBitMask> = A;
     type _PTernary<A: IPowerOf2, B: IPowerOf2> = A;
     type _FvTernary<A: IForbiddenValues, B: IForbiddenValues> = A;
+    type _SfvTernary<A: ISingleForbiddenValue, B: ISingleForbiddenValue> = A;
     type _UbTernary<A: IBitMask, B: IBitMask> = A;
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = A;
     type _StabTernary<A: IStable, B: IStable> = A;
