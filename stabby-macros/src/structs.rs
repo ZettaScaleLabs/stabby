@@ -85,10 +85,10 @@ pub fn stabby(
     let layout = layout.map_or_else(|| quote!(()), |layout| quote!(#st::Struct<#layout>));
     let opt_id = quote::format_ident!("OptimizedLayoutFor{ident}");
     let size_bug = format!(
-        "{ident}'s size was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please file an issue"
+        "{ident}'s size was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
     );
     let align_bug = format!(
-        "{ident}'s align was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please file an issue"
+        "{ident}'s align was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
     );
     let assertion = opt.then(|| {
         let sub_optimal_message = format!(

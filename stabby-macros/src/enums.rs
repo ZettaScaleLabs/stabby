@@ -210,10 +210,10 @@ pub fn stabby(
     report.tyty = quote!(#st::report::TyTy::Enum(#st::str::Str::new(#reprstr)));
     let report_bounds = report.bounds();
     let size_bug = format!(
-        "{ident}'s size was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please file an issue"
+        "{ident}'s size was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
     );
     let align_bug = format!(
-        "{ident}'s align was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please file an issue"
+        "{ident}'s align was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
     );
     quote! {
         #(#new_attrs)*
@@ -335,7 +335,7 @@ impl Variants {
     }
 }
 
-pub fn repr_stabby(
+pub(crate) fn repr_stabby(
     attrs: &Vec<Attribute>,
     vis: &Visibility,
     ident: &Ident,
@@ -487,10 +487,10 @@ pub fn repr_stabby(
                 })
         });
         let size_bug = format!(
-            "{ident}'s size was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please fill an issue"
+            "{ident}'s size was mis-evaluated by stabby, this is definitely a bug and may cause UB, please fill an issue"
         );
         let align_bug = format!(
-            "{ident}'s align was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please fill an issue"
+            "{ident}'s align was mis-evaluated by stabby, this is definitely a bug and may cause UB, please fill an issue"
         );
         quote! {
             const _: () = {
