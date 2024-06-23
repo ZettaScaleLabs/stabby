@@ -120,39 +120,56 @@ pub fn stabby(
     let DataEnum { variants, .. } = &data;
     let mut has_non_empty_fields = false;
     let unit = syn::parse2(quote!(())).unwrap();
-    let mut report = Vec::new();
+    let mut report = crate::Report::r#enum(ident.to_string(), 0);
     for variant in variants {
         match &variant.fields {
             syn::Fields::Named(f) if matches!(repr, Some(FullRepr { is_c: true, .. })) => {
-                todo!("stabby support for named fields is undergoing implementation...")
+                has_non_empty_fields = true;
+                let mut variant_report = crate::Report::r#struct(variant.ident.to_string(), 0);
+                let mut variant_layout = quote!(());
+                for f in &f.named {
+                    let ty = &f.ty;
+                    variant_layout = quote!(#st::FieldPair<#variant_layout, #ty>);
+                    variant_report.add_field(f.ident.as_ref().unwrap().to_string(), ty);
+                }
+                variant_layout = quote!(#st::Struct<#variant_layout>);
+                layout = quote!(#st::Union<#layout, core::mem::ManuallyDrop<#variant_layout>>);
+                report.add_field(variant.ident.to_string(), variant_report);
             }
             syn::Fields::Named(_) => {
-                panic!("stabby only supports named fields in #[repr(C, uX)] enums");
+                panic!("stabby only supports named fields in #[repr(C, u*)] enums");
             }
             syn::Fields::Unnamed(f) => {
                 if f.unnamed.len() != 1 && matches!(repr, Some(FullRepr { is_c: true, .. })) {
-                    todo!(
-                        "stabby support for multiple fields per enum is restricted to named fields"
-                    )
+                    has_non_empty_fields = true;
+                    let mut variant_report = crate::Report::r#struct(variant.ident.to_string(), 0);
+                    let mut variant_layout = quote!(());
+                    for (n, f) in f.unnamed.iter().enumerate() {
+                        let ty = &f.ty;
+                        variant_layout = quote!(#st::FieldPair<#variant_layout, #ty>);
+                        variant_report.add_field(n.to_string(), ty);
+                    }
+                    variant_layout = quote!(#st::Struct<#variant_layout>);
+                    layout = quote!(#st::Union<#layout, core::mem::ManuallyDrop<#variant_layout>>);
+                    report.add_field(variant.ident.to_string(), variant_report);
                 } else {
                     assert_eq!(
                         f.unnamed.len(),
                         1,
-                        "stabby only supports multiple fields per enum variant in #[repr(C, uX)] enums"
+                        "stabby only supports multiple fields per enum variant in #[repr(C, u*)] enums"
                     );
                     has_non_empty_fields = true;
                     let f = f.unnamed.first().unwrap();
                     let ty = &f.ty;
                     layout = quote!(#st::Union<#layout, core::mem::ManuallyDrop<#ty>>);
-                    report.push((variant.ident.to_string(), ty));
+                    report.add_field(variant.ident.to_string(), ty);
                 }
             }
             syn::Fields::Unit => {
-                report.push((variant.ident.to_string(), &unit));
+                report.add_field(variant.ident.to_string(), &unit);
             }
         }
     }
-    let report = crate::report(&report);
     let reprstr = match repr
         .as_ref()
         .and_then(|r| if r.is_c { Some(Repr::C) } else { r.repr })
@@ -166,12 +183,12 @@ pub fn stabby(
                 &vis,
                 &ident,
                 &generics,
-                data,
+                data.clone(),
                 report,
                 repr.is_none(),
             );
         }
-        Some(Repr::C) => "u8",
+        Some(Repr::C) => "u8", // TODO: Remove support for `#[repr(C)]` alone on the next API-breaking release
         Some(Repr::U8) => "u8",
         Some(Repr::U16) => "u16",
         Some(Repr::U32) => "u32",
@@ -190,8 +207,14 @@ pub fn stabby(
         quote!(#[repr(#reprid)])
     };
     layout = quote!(#st::Tuple<#reprid, #layout>);
-    let sident = format!("{ident}");
-    let (report, report_bounds) = report;
+    report.tyty = quote!(#st::report::TyTy::Enum(#st::str::Str::new(#reprstr)));
+    let report_bounds = report.bounds();
+    let size_bug = format!(
+        "{ident}'s size was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please file an issue"
+    );
+    let align_bug = format!(
+        "{ident}'s align was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please file an issue"
+    );
     quote! {
         #(#new_attrs)*
         #reprattr
@@ -207,14 +230,16 @@ pub fn stabby(
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
             type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
-            const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
-                name: #st::str::Str::new(#sident),
-                module: #st::str::Str::new(core::module_path!()),
-                fields: unsafe {#st::StableLike::new(#report)},
-                version: 0,
-                tyty: #st::report::TyTy::Enum(#st::str::Str::new(#reprstr)),
+            const REPORT: &'static #st::report::TypeReport = & #report;
+            const ID: u64 ={
+                if core::mem::size_of::<Self>() != <<Self as #st::IStable>::Size as #st::Unsigned>::USIZE {
+                    panic!(#size_bug)
+                }
+                if core::mem::align_of::<Self>() != <<Self as #st::IStable>::Align as #st::Unsigned>::USIZE {
+                    panic!(#align_bug)
+                }
+                #st::report::gen_id(Self::REPORT)
             };
-            const ID: u64 = #st::report::gen_id(Self::REPORT);
         }
     }
 }
@@ -316,7 +341,7 @@ pub fn repr_stabby(
     ident: &Ident,
     generics: &Generics,
     data: DataEnum,
-    report: (TokenStream, TokenStream),
+    mut report: crate::Report,
     check: bool,
 ) -> TokenStream {
     let st = crate::tl_mod();
@@ -428,8 +453,8 @@ pub fn repr_stabby(
     let bounds2 = generics.where_clause.as_ref().map(|c| &c.predicates);
     let bounds = quote!(#bounds #bounds2);
 
-    let sident = format!("{ident}");
-    let (report, report_bounds) = report;
+    report.tyty = quote!(#st::report::TyTy::Enum(#st::str::Str::new("stabby")));
+    let report_bounds = report.bounds();
     let enum_as_struct = quote! {
         #(#attrs)*
         #vis struct #ident #generics (#result) where #report_bounds #bounds;
@@ -491,13 +516,7 @@ pub fn repr_stabby(
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
             type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
-            const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
-                name: #st::str::Str::new(#sident),
-                module: #st::str::Str::new(core::module_path!()),
-                fields: unsafe {#st::StableLike::new(#report)},
-                version: 0,
-                tyty: #st::report::TyTy::Enum(#st::str::Str::new("stabby")),
-            };
+            const REPORT: &'static #st::report::TypeReport = & #report;
             const ID: u64 = #st::report::gen_id(Self::REPORT);
         }
         #[automatically_derived]

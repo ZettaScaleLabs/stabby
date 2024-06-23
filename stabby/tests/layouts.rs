@@ -56,6 +56,16 @@ pub enum MultiFieldsC {
     D(u8),
     E,
 }
+#[stabby::stabby]
+#[repr(C, u8)]
+#[allow(dead_code)]
+pub enum MultipleFieldsPerVariant {
+    A(NonZeroU16, u8),
+    B,
+    C { c1: u8, c2: u16 },
+    D(u8),
+    E,
+}
 
 #[stabby::stabby]
 #[repr(stabby)]

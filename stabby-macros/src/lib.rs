@@ -16,7 +16,7 @@ use std::collections::HashSet;
 
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{parse::Parser, DeriveInput, TypeParamBound};
 
 #[allow(dead_code)]
@@ -251,6 +251,112 @@ mod gen_closures;
 #[proc_macro]
 pub fn gen_closures_impl(_: TokenStream) -> TokenStream {
     gen_closures::gen_closures().into()
+}
+
+enum Type<'a> {
+    Syn(&'a syn::Type),
+    Report(Report<'a>),
+}
+impl<'a> From<&'a syn::Type> for Type<'a> {
+    fn from(value: &'a syn::Type) -> Self {
+        Self::Syn(value)
+    }
+}
+impl<'a> From<Report<'a>> for Type<'a> {
+    fn from(value: Report<'a>) -> Self {
+        Self::Report(value)
+    }
+}
+pub(crate) struct Report<'a> {
+    name: String,
+    fields: Vec<(String, Type<'a>)>,
+    version: u32,
+    pub tyty: proc_macro2::TokenStream,
+}
+impl<'a> Report<'a> {
+    pub fn r#struct(name: impl Into<String>, version: u32) -> Self {
+        let st = crate::tl_mod();
+        Self {
+            name: name.into(),
+            fields: Vec::new(),
+            version,
+            tyty: quote!(#st::report::TyTy::Struct),
+        }
+    }
+    pub fn r#enum(name: impl Into<String>, version: u32) -> Self {
+        let st = crate::tl_mod();
+        Self {
+            name: name.into(),
+            fields: Vec::new(),
+            version,
+            tyty: quote!(#st::report::TyTy::Struct),
+        }
+    }
+    pub fn add_field(&mut self, name: String, ty: impl Into<Type<'a>>) {
+        self.fields.push((name, ty.into()));
+    }
+    fn __bounds(
+        &self,
+        bounded_types: &mut HashSet<&'a syn::Type>,
+        mut report_bounds: proc_macro2::TokenStream,
+        st: &proc_macro2::TokenStream,
+    ) -> proc_macro2::TokenStream {
+        for (_, ty) in self.fields.iter() {
+            match ty {
+                Type::Syn(ty) => {
+                    if bounded_types.insert(*ty) {
+                        report_bounds = quote!(#ty: #st::IStable, #report_bounds);
+                    }
+                }
+                Type::Report(report) => {
+                    report_bounds = report.__bounds(bounded_types, report_bounds, st)
+                }
+            }
+        }
+        report_bounds
+    }
+    pub fn bounds(&self) -> proc_macro2::TokenStream {
+        let st = crate::tl_mod();
+        let mut bounded_types = HashSet::new();
+        self.__bounds(&mut bounded_types, quote!(), &st)
+    }
+}
+impl ToTokens for Report<'_> {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        let st = crate::tl_mod();
+        let mut fields = quote!(None);
+        for (name, ty) in &self.fields {
+            fields = match ty {
+                Type::Syn(ty) => quote! {
+                    Some(& #st::report::FieldReport {
+                        name: #st::str::Str::new(#name),
+                        ty: <#ty as #st::IStable>::REPORT,
+                        next_field: #st::StableLike::new(#fields)
+                    })
+                },
+                Type::Report(re) => quote! {
+                    Some(& #st::report::FieldReport {
+                        name: #st::str::Str::new(#name),
+                        ty: &#re,
+                        next_field: #st::StableLike::new(#fields)
+                    })
+                },
+            }
+        }
+        let Self {
+            name,
+            version,
+            tyty,
+            ..
+        } = self;
+        tokens.extend(quote!(#st::report::TypeReport {
+            name: #st::str::Str::new(#name),
+            module: #st::str::Str::new(core::module_path!()),
+            fields: unsafe{#st::StableLike::new(#fields)},
+            version: #version,
+            tyty: #tyty,
+        }));
+    }
 }
 
 pub(crate) fn report(
