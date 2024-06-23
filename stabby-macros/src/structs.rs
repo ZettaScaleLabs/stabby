@@ -38,7 +38,7 @@ pub fn stabby(
     let where_clause = &generics.where_clause;
     let clauses = where_clause.as_ref().map(|w| &w.predicates);
     let mut layout = None;
-    let mut report = Vec::new();
+    let mut report = crate::Report::r#struct(ident.to_string(), 0);
     let struct_code = match &fields {
         syn::Fields::Named(fields) => {
             let fields = &fields.named;
@@ -48,7 +48,7 @@ pub fn stabby(
                     || quote!(#ty),
                     |layout| quote!(#st::FieldPair<#layout, #ty>),
                 ));
-                report.push((field.ident.as_ref().unwrap().to_string(), ty));
+                report.add_field(field.ident.as_ref().unwrap().to_string(), ty);
             }
             quote! {
                 #(#attrs)*
@@ -66,7 +66,7 @@ pub fn stabby(
                     || quote!(#ty),
                     |layout| quote!(#st::FieldPair<#layout, #ty>),
                 ));
-                report.push((i.to_string(), ty));
+                report.add_field(i.to_string(), ty);
             }
             quote! {
                 #(#attrs)*
@@ -84,32 +84,25 @@ pub fn stabby(
     };
     let layout = layout.map_or_else(|| quote!(()), |layout| quote!(#st::Struct<#layout>));
     let opt_id = quote::format_ident!("OptimizedLayoutFor{ident}");
+    let size_bug = format!(
+        "{ident}'s size was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please file an issue"
+    );
+    let align_bug = format!(
+        "{ident}'s align was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please file an issue"
+    );
     let assertion = opt.then(|| {
         let sub_optimal_message = format!(
             "{ident}'s layout is sub-optimal, reorder fields or use `#[stabby::stabby(no_opt)]`"
-        );
-        let size_bug = format!(
-            "{ident}'s size was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please fill an issue"
-        );
-        let align_bug = format!(
-            "{ident}'s align was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please fill an issue"
         );
         quote! {
             const _: () = {
                 if !<#ident>::has_optimal_layout() {
                     panic!(#sub_optimal_message)
                 }
-                if core::mem::size_of::<#ident>() != <<#ident as #st::IStable>::Size as #st::Unsigned>::USIZE {
-                    panic!(#size_bug)
-                }
-                if core::mem::align_of::<#ident>() != <<#ident as #st::IStable>::Align as #st::Unsigned>::USIZE {
-                    panic!(#align_bug)
-                }
             };
         }
     });
-    let (report, report_bounds) = crate::report(&report);
-    let sident = format!("{ident}");
+    let report_bounds = report.bounds();
     let optdoc = format!("Returns true if the layout for [`{ident}`] is smaller or equal to that Rust would have generated for it.");
     quote! {
         #struct_code
@@ -122,14 +115,16 @@ pub fn stabby(
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = <#layout as #st::IStable>::HasExactlyOneNiche;
             type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
-            const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
-                name: #st::str::Str::new(#sident),
-                module: #st::str::Str::new(core::module_path!()),
-                fields: unsafe{#st::StableLike::new(#report)},
-                version: 0,
-                tyty: #st::report::TyTy::Struct,
+            const REPORT: &'static #st::report::TypeReport = &#report;
+            const ID: u64 = {
+                if core::mem::size_of::<Self>() != <<Self as #st::IStable>::Size as #st::Unsigned>::USIZE {
+                    panic!(#size_bug)
+                }
+                if core::mem::align_of::<Self>() != <<Self as #st::IStable>::Align as #st::Unsigned>::USIZE {
+                    panic!(#align_bug)
+                }
+                #st::report::gen_id(Self::REPORT)
             };
-            const ID: u64 = #st::report::gen_id(Self::REPORT);
         }
         #[allow(dead_code, missing_docs)]
         struct #opt_id #generics #where_clause #fields #semi_token
