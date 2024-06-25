@@ -230,8 +230,14 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     pub fn downgrade(this: &Self) -> Weak<T, Alloc> {
         this.into()
     }
+    #[rustversion::since(1.73)]
     /// Returns a reference to the allocator used to construct `this`
     pub const fn allocator(this: &Self) -> &Alloc {
+        unsafe { &this.ptr.prefix().alloc }
+    }
+    #[rustversion::before(1.73)]
+    /// Returns a reference to the allocator used to construct `this`
+    pub fn allocator(this: &Self) -> &Alloc {
         unsafe { &this.ptr.prefix().alloc }
     }
 }

@@ -60,10 +60,10 @@ fn typenum_unsigned() -> std::io::Result<()> {
     Ok(())
 }
 
-fn tuples() -> std::io::Result<()> {
+fn tuples(max_tuple: usize) -> std::io::Result<()> {
     let filename = PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("tuples.rs");
     let mut file = BufWriter::new(File::create(filename).unwrap());
-    for i in 0..128 {
+    for i in 0..=max_tuple {
         writeln!(
             file,
             r##"/// An ABI stable tuple of {i} elements.
@@ -103,7 +103,11 @@ impl<{generics}> From<Tuple{i}<{generics}>> for ({generics}) {{
 
 fn main() {
     typenum_unsigned().unwrap();
-    tuples().unwrap();
+    println!("cargo:rustc-check-cfg=cfg(stabby_max_tuple, values(any()))");
+    let max_tuple = std::env::var("CARGO_CFG_STABBY_MAX_TUPLE")
+        .map_or(32, |s| s.parse().unwrap_or(32))
+        .max(10);
+    tuples(max_tuple).unwrap();
     println!("cargo:rustc-check-cfg=cfg(stabby_nightly, values(none()))");
     println!(
         r#"cargo:rustc-check-cfg=cfg(stabby_check_unreachable, values(none(), "true", "false"))"#

@@ -34,10 +34,8 @@ pub use stabby_abi::alloc::{self, boxed, collections, string, sync, vec};
 
 pub use stabby_abi::{Dyn, DynRef};
 
-pub mod compiler_version;
-
 /// ABI-stable tuples
-pub use crate::abi::tuples as tuple;
+pub use stabby_abi::tuple;
 
 /// Futures can be ABI-stable if you wish hard enough
 #[cfg_attr(

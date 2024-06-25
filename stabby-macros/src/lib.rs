@@ -253,6 +253,7 @@ pub fn gen_closures_impl(_: TokenStream) -> TokenStream {
     gen_closures::gen_closures().into()
 }
 
+#[derive(Clone)]
 enum Type<'a> {
     Syn(&'a syn::Type),
     Report(Report<'a>),
@@ -267,29 +268,49 @@ impl<'a> From<Report<'a>> for Type<'a> {
         Self::Report(value)
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Tyty {
+    Struct,
+    Union,
+    Enum(enums::Repr),
+}
+impl ToTokens for Tyty {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        let st = crate::tl_mod();
+        let tyty = match self {
+            Tyty::Struct => quote!(#st::report::TyTy::Struct),
+            Tyty::Union => quote!(#st::report::TyTy::Union),
+            Tyty::Enum(r) => {
+                let s = format!("{r:?}");
+                quote!(#st::report::TyTy::Enum(#st::str::Str::new(#s)))
+            }
+        };
+        tokens.extend(tyty);
+    }
+}
+#[derive(Clone)]
 pub(crate) struct Report<'a> {
     name: String,
     fields: Vec<(String, Type<'a>)>,
     version: u32,
-    pub tyty: proc_macro2::TokenStream,
+    pub tyty: Tyty,
 }
 impl<'a> Report<'a> {
     pub fn r#struct(name: impl Into<String>, version: u32) -> Self {
-        let st = crate::tl_mod();
         Self {
             name: name.into(),
             fields: Vec::new(),
             version,
-            tyty: quote!(#st::report::TyTy::Struct),
+            tyty: Tyty::Struct,
         }
     }
     pub fn r#enum(name: impl Into<String>, version: u32) -> Self {
-        let st = crate::tl_mod();
         Self {
             name: name.into(),
             fields: Vec::new(),
             version,
-            tyty: quote!(#st::report::TyTy::Struct),
+            tyty: Tyty::Enum(enums::Repr::Stabby),
         }
     }
     pub fn add_field(&mut self, name: String, ty: impl Into<Type<'a>>) {
@@ -319,6 +340,50 @@ impl<'a> Report<'a> {
         let st = crate::tl_mod();
         let mut bounded_types = HashSet::new();
         self.__bounds(&mut bounded_types, quote!(), &st)
+    }
+
+    pub fn crepr(&self) -> proc_macro2::TokenStream {
+        let st = crate::tl_mod();
+        match self.tyty {
+            Tyty::Struct => {
+                // TODO: For user comfort, having this would be better, but reading from env vars doesn't work in proc-macros.
+                // let max_tuple = std::env::var("CARGO_CFG_STABBY_MAX_TUPLE")
+                //     .map_or(32, |s| s.parse().unwrap_or(32))
+                //     .max(10);
+                // panic!("{max_tuple}");
+                // if self.fields.len() > max_tuple {
+                //     panic!("stabby doesn't support structures with more than {max_tuple} direct fields, you should probably split it at that point; or you can also raise this limit using `--cfg stabby_max_tuple=N` to your RUSTFLAGS at the cost of higher compile times")
+                // }
+                let tuple = quote::format_ident!("Tuple{}", self.fields.len());
+                let fields = self.fields.iter().map(|f| match &f.1 {
+                    Type::Syn(ty) => quote! (<#ty as #st::IStable>::CType),
+                    Type::Report(r) => r.crepr(),
+                });
+                quote! {
+                    #st::tuple::#tuple <#(#fields,)*>
+                }
+            }
+            Tyty::Union => {
+                let mut crepr = quote!(());
+                for f in &self.fields {
+                    let ty = match &f.1 {
+                        Type::Syn(ty) => quote! (#ty),
+                        Type::Report(r) => r.crepr(),
+                    };
+                    crepr = quote!(#st::Union<#ty, #crepr>);
+                }
+                quote! {<#crepr as #st::IStable>::CType}
+            }
+            Tyty::Enum(r) => {
+                let mut clone = self.clone();
+                clone.tyty = Tyty::Union;
+                let crepr = clone.crepr();
+                let determinant = quote::format_ident!("{r:?}");
+                quote! {
+                    #st::tuple::Tuple2<#determinant, #crepr>
+                }
+            }
+        }
     }
 }
 impl ToTokens for Report<'_> {

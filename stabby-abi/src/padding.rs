@@ -35,6 +35,7 @@ unsafe impl<Left: Unsigned, T: IStable> IStable for Padded<Left, T> {
     >;
     type HasExactlyOneNiche = Saturator;
     type ContainsIndirections = T::ContainsIndirections;
+    type CType = Tuple<<Left::Padding as IStable>::CType, T::CType>;
     const REPORT: &'static report::TypeReport = T::REPORT;
     const ID: u64 = crate::report::gen_id(Self::REPORT);
 }

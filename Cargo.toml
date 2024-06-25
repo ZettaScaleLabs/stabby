@@ -33,8 +33,13 @@ license = " EPL-2.0 OR Apache-2.0"
 categories = ["development-tools::ffi", "no-std::no-alloc"]
 repository = "https://github.com/ZettaScaleLabs/stabby"
 readme = "stabby/README.md"
+version = "6.1.1"
 
 [workspace.dependencies]
+stabby-macros = { path = "./stabby-macros/", version = "6.1.1", default-features = false }
+stabby-abi = { path = "./stabby-abi/", version = "6.1.1", default-features = false }
+stabby = { path = "./stabby/", version = "6.1.1", default-features = false }
+
 abi_stable = "0.11.2"
 criterion = "0.5.1"
 lazy_static = "1.4.0"

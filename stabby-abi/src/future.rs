@@ -114,7 +114,7 @@ mod stable_waker {
     ///
     /// While this is the only way to guarantee ABI-stability when interacting with futures, this does add
     /// a layer of indirection, and cloning this waker will cause an allocation. To bench the performance cost
-    /// of this wrapper and decide if you want to risk ABI-unstability on wakers, you may use `RUST_FLAGS='--cfg stabby_unsafe_wakers="true"'`, which will turn [`StableWaker`] into a newtype of [`core::task::Waker`].
+    /// of this wrapper and decide if you want to risk ABI-unstability on wakers, you may use `RUSTFLAGS='--cfg stabby_unsafe_wakers="true"'`, which will turn [`StableWaker`] into a newtype of [`core::task::Waker`].
     #[crate::stabby]
     pub struct StableWaker<'a, Alloc: IAlloc = crate::alloc::DefaultAllocator> {
         waker: StableLike<&'a Waker, &'a ()>,

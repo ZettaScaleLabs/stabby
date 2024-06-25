@@ -40,9 +40,7 @@ use core::fmt::{Debug, Display};
 pub const fn assert_stable<T: IStable>() {}
 
 /// An ABI-stable tuple.
-#[crate::stabby]
-#[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct Tuple<A, B>(pub A, pub B);
+pub use tuple::Tuple2 as Tuple;
 
 /// Generate the [`IStable::REPORT`] and [`IStable::ID`] fields for an implementation of [`IStable`].
 #[macro_export]
@@ -263,6 +261,7 @@ unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
     type UnusedBits = As::UnusedBits;
     type HasExactlyOneNiche = As::HasExactlyOneNiche;
     type ContainsIndirections = As::ContainsIndirections;
+    type CType = As::CType;
     const ID: u64 = crate::report::gen_id(Self::REPORT);
     const REPORT: &'static report::TypeReport = As::REPORT;
 }
@@ -295,6 +294,7 @@ unsafe impl<
     type UnusedBits = End;
     type HasExactlyOneNiche = HasExactlyOneNiche;
     type ContainsIndirections = ContainsIndirections;
+    type CType = ();
     primitive_report!("NoNiches");
 }
 
@@ -346,6 +346,7 @@ unsafe impl<T: IStable, Cond: IStable> IStable for StableIf<T, Cond> {
     type UnusedBits = T::UnusedBits;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
     type ContainsIndirections = T::ContainsIndirections;
+    type CType = T::CType;
     const REPORT: &'static report::TypeReport = T::REPORT;
     const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
@@ -391,7 +392,7 @@ pub mod slice;
 /// ABI-stable strs.
 pub mod str;
 /// ABI-stable tuples.
-pub mod tuples {
+pub mod tuple {
     include!(concat!(env!("OUT_DIR"), "/tuples.rs"));
 }
 

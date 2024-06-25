@@ -53,6 +53,7 @@ where
         <<Ok as IDeterminantProvider<Err>>::NicheExporter as IStable>::ForbiddenValues;
     type UnusedBits = <<Tuple<Determinant<Ok, Err>, <Self::Align as Alignment>::AsUint> as IStable>::UnusedBits as IBitMask>::BitOr<<<<Ok as IDeterminantProvider<Err>>::NicheExporter as IStable>::UnusedBits as IBitMask>::Shift<<<Determinant<Ok, Err> as IStable>::Size as Unsigned>::NextMultipleOf<Self::Align>>>;
     type HasExactlyOneNiche = B0;
+    type CType = <Storage<<Self as IStable>::Size, <Self as IStable>::Align> as IStable>::CType;
     const REPORT: &'static crate::report::TypeReport = &crate::report::TypeReport {
         name: Str::new("Result"),
         module: Str::new("stabby_abi::result"),
@@ -70,10 +71,13 @@ where
     };
     const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
-
-#[stabby::stabby]
-struct Storage<Size: Unsigned, Align: Alignment + Alignment> {
-    inner: <Align::Divide<Size> as IUnsignedBase>::Array<Align::AsUint>,
+use seal::Storage;
+mod seal {
+    use super::*;
+    #[stabby::stabby]
+    pub struct Storage<Size: Unsigned, Align: Alignment + Alignment> {
+        inner: <Align::Divide<Size> as IUnsignedBase>::Array<Align::AsUint>,
+    }
 }
 
 impl<Size: Unsigned, Align: Alignment + Alignment> Storage<Size, Align> {

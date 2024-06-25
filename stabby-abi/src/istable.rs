@@ -20,18 +20,7 @@ use super::typenum2::*;
 use super::unsigned::{IBitBase, NonZero};
 use super::{FieldPair, Struct, Union};
 use stabby_macros::tyeval;
-macro_rules! same_as {
-    ($t: ty) => {
-        type Align = <$t as IStable>::Align;
-        type Size = <$t as IStable>::Size;
-        type UnusedBits = <$t as IStable>::UnusedBits;
-        type ForbiddenValues = <$t as IStable>::ForbiddenValues;
-        type HasExactlyOneNiche = <$t as IStable>::HasExactlyOneNiche;
-        type ContainsIndirections = <$t as IStable>::ContainsIndirections;
-        const REPORT: &'static TypeReport = <$t as IStable>::REPORT;
-        const ID: u64 = <$t as IStable>::ID;
-    };
-}
+
 /// A trait to describe the layout of a type, marking it as ABI-stable.
 ///
 /// Every layout is assumed to start at the type's first byte.
@@ -55,6 +44,8 @@ pub unsafe trait IStable: Sized {
     type HasExactlyOneNiche: ISaturatingAdd;
     /// Whether or not the type contains indirections (pointers, indices in independent data-structures...)
     type ContainsIndirections: Bit;
+    /// A support mechanism for [`safer-ffi`](https://crates.io/crates/safer-ffi), allowing all [`IStable`] types to also be `safer_ffi::ReprC`
+    type CType: IStable;
     /// A compile-time generated report of the fields of the type, allowing for compatibility inspection.
     const REPORT: &'static TypeReport;
     /// A stable (and ideally unique) identifier for the type. Often generated using [`crate::report::gen_id`], but can be manually set.
@@ -132,6 +123,7 @@ unsafe impl<T: IStable> IStable for NotPod<T> {
     type ForbiddenValues = T::ForbiddenValues;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
     type UnusedBits = T::UnusedBits;
+    type CType = T::CType;
     primitive_report!("NotPod", T);
 }
 
@@ -196,6 +188,7 @@ unsafe impl<
     type UnusedBits = UnusedBits;
     type HasExactlyOneNiche = HasExactlyOneNiche;
     type ContainsIndirections = B0;
+    type CType = ();
     primitive_report!("NicheExporter");
 }
 
@@ -393,6 +386,7 @@ unsafe impl<A: IStable, B: IStable> IStable for FieldPair<A, B> {
         <AlignedAfter<B, A::Size> as IStable>::HasExactlyOneNiche,
     >;
     type ContainsIndirections = <A::ContainsIndirections as Bit>::Or<B::ContainsIndirections>;
+    type CType = ();
     primitive_report!("FP");
 }
 /// Runtime values for [`ISaturatingAdd`]
@@ -516,26 +510,17 @@ impl<O1: Unsigned, T1, O2: Unsigned, T2, R2: IBitMask> IncludesComputer<(O1, T1,
     type Output = End;
 }
 
-unsafe impl<A: IStable, B: IStable> IStable for Union<A, B>
-where
-    (Self, tyeval!(A::Align == B::Align)): IStable,
-{
-    same_as!((Self, tyeval!(A::Align == B::Align)));
-}
-unsafe impl<A: IStable, B: IStable> IStable for (Union<A, B>, B1) {
+unsafe impl<A: IStable, B: IStable> IStable for Union<A, B> {
     type ForbiddenValues = End;
     type UnusedBits = End;
     type Size = <A::Size as Unsigned>::Max<B::Size>;
     type Align = <A::Align as Alignment>::Max<B::Align>;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = <A::ContainsIndirections as Bit>::Or<B::ContainsIndirections>;
+    type CType = <<Self::Align as PowerOf2>::Divide<Self::Size> as IUnsignedBase>::Array<
+        <Self::Align as Alignment>::AsUint,
+    >;
     primitive_report!("Union");
-}
-unsafe impl<A: IStable, B: IStable> IStable for (Union<A, B>, B0)
-where
-    Struct<(Union<A, B>, B1)>: IStable,
-{
-    same_as!(Struct<(Union<A, B>, B1)>);
 }
 
 /// Computes a `T`-typed field's layout when it's after `Start` bytes, taking `T`'s alignment into account.
@@ -552,6 +537,7 @@ unsafe impl<T: IStable, Start: Unsigned> IStable for AlignedAfter<T, Start> {
     >;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
     type ContainsIndirections = T::ContainsIndirections;
+    type CType = ();
     primitive_report!("FP");
 }
 
@@ -563,5 +549,6 @@ unsafe impl<T: IStable> IStable for Struct<T> {
         <<tyeval!(<T::Size as Unsigned>::NextMultipleOf<T::Align> - T::Size) as IUnsignedBase>::PaddingBitMask as IBitMask>::Shift<T::Size>>;
     type HasExactlyOneNiche = Saturator;
     type ContainsIndirections = T::ContainsIndirections;
+    type CType = ();
     primitive_report!("FP");
 }

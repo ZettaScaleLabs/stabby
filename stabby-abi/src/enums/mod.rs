@@ -55,6 +55,7 @@ unsafe impl IStable for BitDeterminant {
     type UnusedBits = Array<U0, U254, End>;
     type HasExactlyOneNiche = Saturator;
     type ContainsIndirections = B0;
+    type CType = u8;
     primitive_report!("BitDeterminant");
 }
 
@@ -95,6 +96,7 @@ unsafe impl<Offset, Value, Tail: IStable> IStable for ValueIsErr<Offset, Value, 
     type UnusedBits = Tail::UnusedBits;
     type HasExactlyOneNiche = Tail::HasExactlyOneNiche;
     type ContainsIndirections = B0;
+    type CType = ();
     primitive_report!("ValueIsErr");
 }
 impl<Offset: Unsigned, Value: Unsigned, Tail: IDeterminant + core::fmt::Debug> core::fmt::Debug
@@ -186,6 +188,7 @@ unsafe impl<Determinant: IStable> IStable for Not<Determinant> {
     type UnusedBits = Determinant::UnusedBits;
     type HasExactlyOneNiche = Determinant::HasExactlyOneNiche;
     type ContainsIndirections = Determinant::ContainsIndirections;
+    type CType = Determinant::CType;
     primitive_report!("Not", Determinant);
 }
 impl<Determinant: IDeterminant> IDeterminant for Not<Determinant>

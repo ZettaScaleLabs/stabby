@@ -1,6 +1,7 @@
 # 6.1.1
 - Add support for multi-fields variants in `repr(C, u*)` enums.
 	- Deprecate support for `repr(C)` by deprecating any enum that uses it without also specifying a determinant size.
+- Remove `CompilerVersion_X_Y_Z` types and their `CurrentCompilerVersion` type alias: the former were hard to keep up to date and the latter could break your code if you upgraded to a version of the compiler that `stabby` didn't know of.
 - Prepare integration of `stabby` and [`safer-ffi`](https://crates.io/crates/safer-ffi) by adding `CType` and `is_invalid` to `IStable`.
 
 # 5.1.0

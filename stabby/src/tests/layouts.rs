@@ -250,6 +250,7 @@ unsafe impl stabby::abi::IStable for Align128 {
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
+    type CType = Align128;
     const REPORT: &'static stabby::abi::report::TypeReport = &stabby::abi::report::TypeReport {
         name: stabby::abi::str::Str::new("Align128"),
         module: stabby::abi::str::Str::new(core::module_path!()),

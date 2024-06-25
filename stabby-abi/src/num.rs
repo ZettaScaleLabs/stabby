@@ -63,6 +63,7 @@ macro_rules! define_non_max {
             type UnusedBits = <$NonZeroU8 as crate::IStable>::UnusedBits;
             type HasExactlyOneNiche = <$NonZeroU8 as crate::IStable>::HasExactlyOneNiche;
             type ContainsIndirections = <$NonZeroU8 as crate::IStable>::ContainsIndirections;
+            type CType = <$NonZeroU8 as crate::IStable>::CType;
             const ID: u64 = $crate::report::gen_id(Self::REPORT);
             const REPORT: &'static $crate::report::TypeReport = &$crate::report::TypeReport {
                 name: $crate::str::Str::new(stringify!($NonMaxU8)),
@@ -139,6 +140,7 @@ macro_rules! define_non_x {
             type UnusedBits = <$NonZeroU8 as crate::IStable>::UnusedBits;
             type HasExactlyOneNiche = <$NonZeroU8 as crate::IStable>::HasExactlyOneNiche;
             type ContainsIndirections = <$NonZeroU8 as crate::IStable>::ContainsIndirections;
+            type CType = <$NonZeroU8 as crate::IStable>::CType;
             const ID: u64 = $crate::report::gen_id(Self::REPORT);
             const REPORT: &'static $crate::report::TypeReport = &$crate::report::TypeReport {
                 name: $crate::str::Str::new(stringify!($NonMaxU8)),
