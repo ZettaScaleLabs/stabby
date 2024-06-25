@@ -20,14 +20,14 @@ use crate::vtable::HasDropVt;
 use crate::{IPtrMut, IPtrOwned, IStable};
 
 pub use stable_waker::StableWaker;
-#[cfg(unsafe_wakers = "true")]
+#[cfg(stabby_unsafe_wakers = "true")]
 mod stable_waker {
     use core::task::Waker;
 
     use crate::StableLike;
     /// A waker that promises to be ABI stable.
     ///
-    /// With the `unsafe_wakers` feature enabled, this is actually a lie: the waker is not guaranteed to
+    /// With the `stabby_unsafe_wakers` feature enabled, this is actually a lie: the waker is not guaranteed to
     /// be ABI-stable! However, since building ABI-stable wakers that are compatible with Rust's wakers is
     /// costly in terms of runtime, you might want to experiment with unsafe wakers, to bench the cost of
     /// stable wakers if nothing else.
@@ -47,7 +47,7 @@ mod stable_waker {
         }
     }
 }
-#[cfg(any(not(unsafe_wakers), unsafe_wakers = "false"))]
+#[cfg(any(not(stabby_unsafe_wakers), stabby_unsafe_wakers = "false"))]
 mod stable_waker {
     use core::{
         mem::ManuallyDrop,
@@ -114,7 +114,7 @@ mod stable_waker {
     ///
     /// While this is the only way to guarantee ABI-stability when interacting with futures, this does add
     /// a layer of indirection, and cloning this waker will cause an allocation. To bench the performance cost
-    /// of this wrapper and decide if you want to risk ABI-unstability on wakers, you may use `RUST_FLAGS='--cfg unsafe_wakers="true"'`, which will turn [`StableWaker`] into a newtype of [`core::task::Waker`].
+    /// of this wrapper and decide if you want to risk ABI-unstability on wakers, you may use `RUSTFLAGS='--cfg stabby_unsafe_wakers="true"'`, which will turn [`StableWaker`] into a newtype of [`core::task::Waker`].
     #[crate::stabby]
     pub struct StableWaker<'a, Alloc: IAlloc = crate::alloc::DefaultAllocator> {
         waker: StableLike<&'a Waker, &'a ()>,

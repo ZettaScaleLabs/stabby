@@ -44,6 +44,7 @@ unsafe impl IStable for PadByte {
     type UnusedBits = Array<U0, UxFF, End>;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
+    type CType = u8;
     primitive_report!("PadByte");
 }
 
@@ -72,6 +73,8 @@ pub trait IBitBase {
     /// Support for [`IBit`]
     type _FvTernary<A: IForbiddenValues, B: IForbiddenValues>: IForbiddenValues;
     /// Support for [`IBit`]
+    type _SfvTernary<A: ISingleForbiddenValue, B: ISingleForbiddenValue>: ISingleForbiddenValue;
+    /// Support for [`IBit`]
     type _UbTernary<A: IBitMask, B: IBitMask>: IBitMask;
     /// Support for [`IBit`]
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd>: ISaturatingAdd;
@@ -97,6 +100,7 @@ impl IBitBase for B0 {
     type _BmTernary<A: IBitMask, B: IBitMask> = B;
     type _PTernary<A: IPowerOf2, B: IPowerOf2> = B;
     type _FvTernary<A: IForbiddenValues, B: IForbiddenValues> = B;
+    type _SfvTernary<A: ISingleForbiddenValue, B: ISingleForbiddenValue> = B;
     type _UbTernary<A: IBitMask, B: IBitMask> = B;
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = B;
     type _StabTernary<A: IStable, B: IStable> = B;
@@ -118,6 +122,7 @@ impl IBitBase for B1 {
     type _BmTernary<A: IBitMask, B: IBitMask> = A;
     type _PTernary<A: IPowerOf2, B: IPowerOf2> = A;
     type _FvTernary<A: IForbiddenValues, B: IForbiddenValues> = A;
+    type _SfvTernary<A: ISingleForbiddenValue, B: ISingleForbiddenValue> = A;
     type _UbTernary<A: IBitMask, B: IBitMask> = A;
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = A;
     type _StabTernary<A: IStable, B: IStable> = A;
@@ -428,6 +433,7 @@ unsafe impl<L: IStable + Copy + Default> IStable for OneMoreByte<L> {
     type UnusedBits = <L::UnusedBits as IBitMask>::BitOr<Array<L::Size, UxFF, End>>;
     type HasExactlyOneNiche = L::HasExactlyOneNiche;
     type ContainsIndirections = L::ContainsIndirections;
+    type CType = Tuple<L, u8>;
     primitive_report!("OneMoreByte");
 }
 impl<Msb: IUnsigned, Bit: IBit> NonZero for UInt<Msb, Bit> {

@@ -40,9 +40,7 @@ use core::fmt::{Debug, Display};
 pub const fn assert_stable<T: IStable>() {}
 
 /// An ABI-stable tuple.
-#[crate::stabby]
-#[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct Tuple<A, B>(pub A, pub B);
+pub use tuple::Tuple2 as Tuple;
 
 /// Generate the [`IStable::REPORT`] and [`IStable::ID`] fields for an implementation of [`IStable`].
 #[macro_export]
@@ -263,6 +261,7 @@ unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
     type UnusedBits = As::UnusedBits;
     type HasExactlyOneNiche = As::HasExactlyOneNiche;
     type ContainsIndirections = As::ContainsIndirections;
+    type CType = As::CType;
     const ID: u64 = crate::report::gen_id(Self::REPORT);
     const REPORT: &'static report::TypeReport = As::REPORT;
 }
@@ -295,6 +294,7 @@ unsafe impl<
     type UnusedBits = End;
     type HasExactlyOneNiche = HasExactlyOneNiche;
     type ContainsIndirections = ContainsIndirections;
+    type CType = ();
     primitive_report!("NoNiches");
 }
 
@@ -346,6 +346,7 @@ unsafe impl<T: IStable, Cond: IStable> IStable for StableIf<T, Cond> {
     type UnusedBits = T::UnusedBits;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
     type ContainsIndirections = T::ContainsIndirections;
+    type CType = T::CType;
     const REPORT: &'static report::TypeReport = T::REPORT;
     const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
@@ -390,6 +391,10 @@ pub mod report;
 pub mod slice;
 /// ABI-stable strs.
 pub mod str;
+/// ABI-stable tuples.
+pub mod tuple {
+    include!(concat!(env!("OUT_DIR"), "/tuples.rs"));
+}
 
 pub use istable::{Array, End, IStable};
 
@@ -409,7 +414,7 @@ mod boundtests {
     }
 }
 
-/// Expands to [`unreachable!()`](core::unreachable) in debug builds or if `--cfg check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`core::hint::unreachable_unchecked`] otherwise.
+/// Expands to [`unreachable!()`](core::unreachable) in debug builds or if `--cfg stabby_check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`core::hint::unreachable_unchecked`] otherwise.
 ///
 /// This lets the compiler take advantage of the fact that the code is unreachable in release builds, and optimize accordingly, while giving you the opportunity to double check this at runtime in case of doubts.
 ///
@@ -422,7 +427,7 @@ mod boundtests {
 #[macro_export]
 macro_rules! unreachable_unchecked {
     () => {
-        if cfg!(any(debug_assertions, check_unreachable = "true")) {
+        if cfg!(any(debug_assertions, stabby_check_unreachable = "true")) {
             ::core::unreachable!()
         } else {
             ::core::hint::unreachable_unchecked()
@@ -430,7 +435,7 @@ macro_rules! unreachable_unchecked {
     };
 }
 
-/// Expands to [`assert!(condition)`](core::assert) in debug builds or if `--cfg check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`if condition {core::hint::unreachable_unchecked()}`](core::hint::unreachable_unchecked) otherwise.
+/// Expands to [`assert!(condition)`](core::assert) in debug builds or if `--cfg stabby_check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`if condition {core::hint::unreachable_unchecked()}`](core::hint::unreachable_unchecked) otherwise.
 ///
 /// This lets the compiler take advantage of the fact that the condition is always true in release builds, and optimize accordingly, while giving you the opportunity to double check this at runtime in case of doubts.
 ///
@@ -443,7 +448,7 @@ macro_rules! unreachable_unchecked {
 #[macro_export]
 macro_rules! assert_unchecked {
     ($e: expr, $($t: tt)*) => {
-        if cfg!(any(debug_assertions, check_unreachable = "true")) {
+        if cfg!(any(debug_assertions, stabby_check_unreachable = "true")) {
             ::core::assert!($e, $($t)*);
         } else {
             if !$e {
@@ -453,7 +458,7 @@ macro_rules! assert_unchecked {
     };
 }
 
-/// Expands to [`assert_eq`](core::assert_eq) in debug builds or if `--cfg check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`if a != b {core::hint::unreachable_unchecked()}`](core::hint::unreachable_unchecked) otherwise.
+/// Expands to [`assert_eq`](core::assert_eq) in debug builds or if `--cfg stabby_check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`if a != b {core::hint::unreachable_unchecked()}`](core::hint::unreachable_unchecked) otherwise.
 ///
 /// This lets the compiler take advantage of the fact that the condition is always true in release builds, and optimize accordingly, while giving you the opportunity to double check this at runtime in case of doubts.
 ///
@@ -466,7 +471,7 @@ macro_rules! assert_unchecked {
 #[macro_export]
 macro_rules! assert_eq_unchecked {
     ($a: expr, $b: expr, $($t: tt)*) => {
-        if cfg!(any(debug_assertions, check_unreachable = "true")) {
+        if cfg!(any(debug_assertions, stabby_check_unreachable = "true")) {
             ::core::assert_eq!($a, $b, $($t)*);
         } else {
             if $a != $b {

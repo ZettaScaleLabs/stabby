@@ -24,6 +24,7 @@ fn main() -> Result<(), std::io::Error> {
         io::{BufWriter, Write},
         path::PathBuf,
     };
+    // println!("cargo:rustc-check-cfg=cfg(stabby_max_tuple, values(any()))");
     let rustc = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
     let output = String::from_utf8(
         Command::new(rustc)

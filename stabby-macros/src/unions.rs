@@ -51,6 +51,7 @@ pub fn stabby(
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
             type ContainsIndirections =  <#layout as #st::IStable>::ContainsIndirections;
+            type CType = <#layout as #st::IStable>::CType;
             const REPORT: &'static #st::report::TypeReport = & #st::report::TypeReport {
                 name: #st::str::Str::new(#sident),
                 module: #st::str::Str::new(core::module_path!()),

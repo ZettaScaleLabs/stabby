@@ -14,7 +14,7 @@
 
 [package]
 name = "stabby-abi"
-version = "5.1.0"
+version = { workspace = true }
 edition = "2021"
 authors = { workspace = true }
 license = { workspace = true }
@@ -36,10 +36,11 @@ abi_stable-channels = ["abi_stable", "abi_stable/channels"]
 # `stabby::future::Future::poll` may need to allocate in order to provide stable wakers.
 # If you're confident enough that `core::task::Waker`'s ABI will not change between your targetted versions
 # of rustc, you may enable this feature to pass them across the FFI boundary directly.
-# unsafe_wakers = [] # unsafe_wakers is no longer a feature, but a compile option: you can enable them using `RUST_FLAGS='--cfg unsafe_wakers="true"'`
+# stabby_unsafe_wakers = [] # stabby_unsafe_wakers is no longer a feature, but a compile option: you can enable them using `RUST_FLAGS='--cfg stabby_unsafe_wakers="true"'`
 
 [dependencies]
-stabby-macros = { path = "../stabby-macros/", version = "5.1.0" }
+stabby-macros.workspace = true
+
 abi_stable = { workspace = true, optional = true }
 libc = { workspace = true, optional = true }
 rustversion = { workspace = true }

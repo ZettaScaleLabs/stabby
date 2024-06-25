@@ -175,6 +175,7 @@ where
     type UnusedBits = <*const T as IStable>::UnusedBits;
     type HasExactlyOneNiche = crate::B0;
     type ContainsIndirections = crate::B1;
+    type CType = <*const T as IStable>::CType;
     const REPORT: &'static crate::report::TypeReport = &crate::report::TypeReport {
         name: crate::str::Str::new("ArcBTreeSet"),
         module: crate::str::Str::new("stabby_abi::alloc::collections::arc_btree"),
@@ -248,7 +249,7 @@ impl<T: Ord + Clone, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize>
     const fn as_ptr(
         &self,
     ) -> *mut ArcBTreeSetNodeInner<T, DefaultAllocator, REPLACE_ON_INSERT, SPLIT_LIMIT> {
-        unsafe { core::mem::transmute_copy(self) }
+        unsafe { core::mem::transmute(core::ptr::read(self)) }
     }
     fn copy_from_ptr(
         ptr: *const ArcBTreeSetNodeInner<T, DefaultAllocator, REPLACE_ON_INSERT, SPLIT_LIMIT>,

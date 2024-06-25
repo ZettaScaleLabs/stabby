@@ -20,18 +20,7 @@ use super::typenum2::*;
 use super::unsigned::{IBitBase, NonZero};
 use super::{FieldPair, Struct, Union};
 use stabby_macros::tyeval;
-macro_rules! same_as {
-    ($t: ty) => {
-        type Align = <$t as IStable>::Align;
-        type Size = <$t as IStable>::Size;
-        type UnusedBits = <$t as IStable>::UnusedBits;
-        type ForbiddenValues = <$t as IStable>::ForbiddenValues;
-        type HasExactlyOneNiche = <$t as IStable>::HasExactlyOneNiche;
-        type ContainsIndirections = <$t as IStable>::ContainsIndirections;
-        const REPORT: &'static TypeReport = <$t as IStable>::REPORT;
-        const ID: u64 = <$t as IStable>::ID;
-    };
-}
+
 /// A trait to describe the layout of a type, marking it as ABI-stable.
 ///
 /// Every layout is assumed to start at the type's first byte.
@@ -55,6 +44,8 @@ pub unsafe trait IStable: Sized {
     type HasExactlyOneNiche: ISaturatingAdd;
     /// Whether or not the type contains indirections (pointers, indices in independent data-structures...)
     type ContainsIndirections: Bit;
+    /// A support mechanism for [`safer-ffi`](https://crates.io/crates/safer-ffi), allowing all [`IStable`] types to also be `safer_ffi::ReprC`
+    type CType: IStable;
     /// A compile-time generated report of the fields of the type, allowing for compatibility inspection.
     const REPORT: &'static TypeReport;
     /// A stable (and ideally unique) identifier for the type. Often generated using [`crate::report::gen_id`], but can be manually set.
@@ -69,6 +60,17 @@ pub unsafe trait IStable: Sized {
     fn align() -> usize {
         Self::Align::USIZE
     }
+    /// Returns `true` if `ptr` points to memory that cannot be a valid value of `Self`.
+    ///
+    /// Note that this function returning `false` is not a guarantee that the value is valid,
+    /// as no heuristic can guarantee that. Notably, this heuristic will generally not look
+    /// through indirections.
+    ///
+    /// # Safety
+    /// Calling this may result in UB if `ptr` points to uninitialized memory at offsets where a forbidden value in `Self` exists.
+    unsafe fn is_invalid(ptr: *const u8) -> bool {
+        Self::ForbiddenValues::is_invalid(ptr)
+    }
 }
 
 /// A static proof that a type is "Plain Old Data".
@@ -78,7 +80,7 @@ pub unsafe trait IStable: Sized {
 /// but might not be limited to:
 /// - The type doesn't contain pointers, as they may not point to the same memory on the recipient's end.
 /// - The type doesn't have a destructor, as destructors generally imply a context needs to be cleaned up,
-/// implying that a context exists.
+///   implying that a context exists.
 ///
 /// In some circumstances, a POD type may be used as a key in a context (index in an array, key in a HashMap...) that
 /// may not be available to all potential recipient. In such a case, you can wrap that type in [`NotPod`] to strip it
@@ -121,6 +123,7 @@ unsafe impl<T: IStable> IStable for NotPod<T> {
     type ForbiddenValues = T::ForbiddenValues;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
     type UnusedBits = T::UnusedBits;
+    type CType = T::CType;
     primitive_report!("NotPod", T);
 }
 
@@ -185,6 +188,7 @@ unsafe impl<
     type UnusedBits = UnusedBits;
     type HasExactlyOneNiche = HasExactlyOneNiche;
     type ContainsIndirections = B0;
+    type CType = ();
     primitive_report!("NicheExporter");
 }
 
@@ -270,6 +274,11 @@ pub trait IForbiddenValues {
     type SelectFrom<Mask: IBitMask>: ISingleForbiddenValue;
     /// Extract the first available forbidden value.
     type SelectOne: ISingleForbiddenValue;
+    /// Returns `true` if `ptr` points to a forbidden value.
+    ///
+    /// # Safety
+    /// Calling this on uninitialized memory is UB.
+    unsafe fn is_invalid(ptr: *const u8) -> bool;
 }
 /// A single multi-byte forbidden value.
 pub trait ISingleForbiddenValue {
@@ -287,6 +296,9 @@ impl IForbiddenValues for End {
     type Or<T: IForbiddenValues> = T;
     type SelectFrom<Mask: IBitMask> = End;
     type SelectOne = End;
+    unsafe fn is_invalid(_: *const u8) -> bool {
+        false
+    }
 }
 impl ISingleForbiddenValue for Saturator {
     type Push<O: Unsigned, T> = Saturator;
@@ -308,7 +320,9 @@ impl<Offset: Unsigned, T, Rest: ISingleForbiddenValue> ISingleForbiddenValue
     type And<V: ISingleForbiddenValue> = V;
     type Resolve = Self;
 }
-impl<Offset: Unsigned, T, Rest: IForbiddenValues> IForbiddenValues for Array<Offset, T, Rest> {
+impl<Offset: Unsigned, T: Unsigned, Rest: IForbiddenValues> IForbiddenValues
+    for Array<Offset, T, Rest>
+{
     type Shift<O: Unsigned> = Array<Offset::Add<O>, T, Rest::Shift<O>>;
     type Or<O: IForbiddenValues> = Or<O, Self>;
     type SelectFrom<Mask: IBitMask> =
@@ -316,6 +330,9 @@ impl<Offset: Unsigned, T, Rest: IForbiddenValues> IForbiddenValues for Array<Off
             <Rest::SelectFrom<Mask> as ISingleForbiddenValue>::Push<Offset, T>,
         >;
     type SelectOne = Array<Offset, T, Rest::SelectOne>;
+    unsafe fn is_invalid(ptr: *const u8) -> bool {
+        ptr.add(Offset::USIZE).read() == T::U8 && Rest::is_invalid(ptr)
+    }
 }
 impl<A: IForbiddenValues, B: IForbiddenValues> IForbiddenValues for Or<A, B> {
     type Shift<O: Unsigned> = Or<A::Shift<O>, B::Shift<O>>;
@@ -323,6 +340,26 @@ impl<A: IForbiddenValues, B: IForbiddenValues> IForbiddenValues for Or<A, B> {
     type SelectFrom<Mask: IBitMask> =
         <A::SelectFrom<Mask> as ISingleForbiddenValue>::Or<B::SelectFrom<Mask>>;
     type SelectOne = A::SelectOne;
+    unsafe fn is_invalid(ptr: *const u8) -> bool {
+        A::is_invalid(ptr) || B::is_invalid(ptr)
+    }
+}
+/// An inclusive range of forbidden values for a single byte.
+pub struct ForbiddenRange<Min: Unsigned, Max: Unsigned<Greater<Min> = B1>, Offset: Unsigned>(
+    core::marker::PhantomData<(Min, Max, Offset)>,
+);
+impl<Min: Unsigned, Max: Unsigned<Greater<Min> = B1>, Offset: Unsigned> IForbiddenValues
+    for ForbiddenRange<Min, Max, Offset>
+{
+    type Shift<O: Unsigned> = ForbiddenRange<Min, Max, Offset::Add<O>>;
+    type Or<T: IForbiddenValues> = Or<Self, T>;
+    type SelectFrom<Mask: IBitMask> =
+        <Mask::HasFreeByteAt<Offset> as IBitBase>::_SfvTernary<Self::SelectOne, End>;
+    type SelectOne = Array<Offset, Min, End>;
+    unsafe fn is_invalid(ptr: *const u8) -> bool {
+        let v = ptr.add(Offset::USIZE).read();
+        Min::U8 <= v && v <= Max::U8
+    }
 }
 /// The union of 2 sets.
 pub struct Or<A, B>(core::marker::PhantomData<(A, B)>);
@@ -349,6 +386,7 @@ unsafe impl<A: IStable, B: IStable> IStable for FieldPair<A, B> {
         <AlignedAfter<B, A::Size> as IStable>::HasExactlyOneNiche,
     >;
     type ContainsIndirections = <A::ContainsIndirections as Bit>::Or<B::ContainsIndirections>;
+    type CType = ();
     primitive_report!("FP");
 }
 /// Runtime values for [`ISaturatingAdd`]
@@ -472,26 +510,17 @@ impl<O1: Unsigned, T1, O2: Unsigned, T2, R2: IBitMask> IncludesComputer<(O1, T1,
     type Output = End;
 }
 
-unsafe impl<A: IStable, B: IStable> IStable for Union<A, B>
-where
-    (Self, tyeval!(A::Align == B::Align)): IStable,
-{
-    same_as!((Self, tyeval!(A::Align == B::Align)));
-}
-unsafe impl<A: IStable, B: IStable> IStable for (Union<A, B>, B1) {
+unsafe impl<A: IStable, B: IStable> IStable for Union<A, B> {
     type ForbiddenValues = End;
     type UnusedBits = End;
     type Size = <A::Size as Unsigned>::Max<B::Size>;
     type Align = <A::Align as Alignment>::Max<B::Align>;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = <A::ContainsIndirections as Bit>::Or<B::ContainsIndirections>;
+    type CType = <<Self::Align as PowerOf2>::Divide<Self::Size> as IUnsignedBase>::Array<
+        <Self::Align as Alignment>::AsUint,
+    >;
     primitive_report!("Union");
-}
-unsafe impl<A: IStable, B: IStable> IStable for (Union<A, B>, B0)
-where
-    Struct<(Union<A, B>, B1)>: IStable,
-{
-    same_as!(Struct<(Union<A, B>, B1)>);
 }
 
 /// Computes a `T`-typed field's layout when it's after `Start` bytes, taking `T`'s alignment into account.
@@ -508,6 +537,7 @@ unsafe impl<T: IStable, Start: Unsigned> IStable for AlignedAfter<T, Start> {
     >;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
     type ContainsIndirections = T::ContainsIndirections;
+    type CType = ();
     primitive_report!("FP");
 }
 
@@ -519,5 +549,6 @@ unsafe impl<T: IStable> IStable for Struct<T> {
         <<tyeval!(<T::Size as Unsigned>::NextMultipleOf<T::Align> - T::Size) as IUnsignedBase>::PaddingBitMask as IBitMask>::Shift<T::Size>>;
     type HasExactlyOneNiche = Saturator;
     type ContainsIndirections = T::ContainsIndirections;
+    type CType = ();
     primitive_report!("FP");
 }

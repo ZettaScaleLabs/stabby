@@ -18,7 +18,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Attribute, DataEnum, Generics, Ident, Visibility};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Repr {
     Stabby,
     C,
@@ -53,6 +53,25 @@ impl syn::parse::Parse for Repr {
         }
     }
 }
+impl core::fmt::Debug for Repr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Repr::Stabby => "stabby",
+            Repr::C => "C",
+            Repr::U8 => "u8",
+            Repr::U16 => "u16",
+            Repr::U32 => "u32",
+            Repr::U64 => "u64",
+            Repr::Usize => "usize",
+            Repr::I8 => "i8",
+            Repr::I16 => "i16",
+            Repr::I32 => "i32",
+            Repr::I64 => "i64",
+            Repr::Isize => "isize",
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct FullRepr {
     repr: Option<Repr>,
@@ -170,9 +189,10 @@ pub fn stabby(
             }
         }
     }
-    let reprstr = match repr
+    let mut deprecation = None;
+    let trepr = match repr
         .as_ref()
-        .and_then(|r| if r.is_c { Some(Repr::C) } else { r.repr })
+        .and_then(|r| r.repr.or_else(|| r.is_c.then_some(Repr::C)))
     {
         None | Some(Repr::Stabby) => {
             if !has_non_empty_fields {
@@ -188,40 +208,54 @@ pub fn stabby(
                 repr.is_none(),
             );
         }
-        Some(Repr::C) => "u8", // TODO: Remove support for `#[repr(C)]` alone on the next API-breaking release
-        Some(Repr::U8) => "u8",
-        Some(Repr::U16) => "u16",
-        Some(Repr::U32) => "u32",
-        Some(Repr::U64) => "u64",
-        Some(Repr::Usize) => "usize",
-        Some(Repr::I8) => "i8",
-        Some(Repr::I16) => "i16",
-        Some(Repr::I32) => "i32",
-        Some(Repr::I64) => "i64",
-        Some(Repr::Isize) => "isize",
+        Some(Repr::C) => {
+            let msg = format!("{repr:?} stabby doesn't support variable size repr and implicitly replaces repr(C) with repr(C, u8), you can silence this warning by picking an explict fixed-size repr");
+            deprecation = Some(quote!(#[deprecated = #msg]));
+            Repr::U8
+        } // TODO: Remove support for `#[repr(C)]` alone on the next API-breaking release
+        Some(Repr::U8) => Repr::U8,
+        Some(Repr::U16) => Repr::U16,
+        Some(Repr::U32) => Repr::U32,
+        Some(Repr::U64) => Repr::U64,
+        Some(Repr::Usize) => Repr::Usize,
+        Some(Repr::I8) => Repr::I8,
+        Some(Repr::I16) => Repr::I16,
+        Some(Repr::I32) => Repr::I32,
+        Some(Repr::I64) => Repr::I64,
+        Some(Repr::Isize) => Repr::Isize,
     };
-    let reprid = quote::format_ident!("{}", reprstr);
+    let reprid = quote::format_ident!("{trepr:?}");
     let reprattr = if repr.map_or(false, |r| r.is_c) {
         quote!(#[repr(C, #reprid)])
     } else {
         quote!(#[repr(#reprid)])
     };
     layout = quote!(#st::Tuple<#reprid, #layout>);
-    report.tyty = quote!(#st::report::TyTy::Enum(#st::str::Str::new(#reprstr)));
+    report.tyty = crate::Tyty::Enum(trepr);
     let report_bounds = report.bounds();
+    let ctype = report.crepr();
     let size_bug = format!(
-        "{ident}'s size was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please file an issue"
+        "{ident}'s size was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
     );
     let align_bug = format!(
-        "{ident}'s align was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please file an issue"
+        "{ident}'s align was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
     );
+    let reprc_bug = format!(
+        "{ident}'s CType was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
+    );
+    let assertion = generics
+        .params
+        .is_empty()
+        .then(|| quote!(const _: () = {<#ident as #st::IStable>::ID;};));
+
     quote! {
         #(#new_attrs)*
         #reprattr
+        #deprecation
         #vis enum #ident #generics {
             #variants
         }
-
+        #assertion
         #[automatically_derived]
         unsafe impl #generics #st::IStable for #ident <#unbound_generics> where #report_bounds #layout: #st::IStable {
             type ForbiddenValues = <#layout as #st::IStable>::ForbiddenValues;
@@ -230,8 +264,13 @@ pub fn stabby(
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
             type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
+            type CType = #ctype;
             const REPORT: &'static #st::report::TypeReport = & #report;
             const ID: u64 ={
+                if (<<Self as #st::IStable>::Size as #st::Unsigned>::USIZE != <<<Self as #st::IStable>::CType as #st::IStable>::Size as #st::Unsigned>::USIZE)
+                || (<<Self as #st::IStable>::Align as #st::Unsigned>::USIZE != <<<Self as #st::IStable>::CType as #st::IStable>::Align as #st::Unsigned>::USIZE) {
+                    panic!(#reprc_bug)
+                }
                 if core::mem::size_of::<Self>() != <<Self as #st::IStable>::Size as #st::Unsigned>::USIZE {
                     panic!(#size_bug)
                 }
@@ -335,13 +374,13 @@ impl Variants {
     }
 }
 
-pub fn repr_stabby(
+pub(crate) fn repr_stabby(
     attrs: &Vec<Attribute>,
     vis: &Visibility,
     ident: &Ident,
     generics: &Generics,
     data: DataEnum,
-    mut report: crate::Report,
+    report: crate::Report,
     check: bool,
 ) -> TokenStream {
     let st = crate::tl_mod();
@@ -453,7 +492,6 @@ pub fn repr_stabby(
     let bounds2 = generics.where_clause.as_ref().map(|c| &c.predicates);
     let bounds = quote!(#bounds #bounds2);
 
-    report.tyty = quote!(#st::report::TyTy::Enum(#st::str::Str::new("stabby")));
     let report_bounds = report.bounds();
     let enum_as_struct = quote! {
         #(#attrs)*
@@ -487,10 +525,10 @@ pub fn repr_stabby(
                 })
         });
         let size_bug = format!(
-            "{ident}'s size was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please fill an issue"
+            "{ident}'s size was mis-evaluated by stabby, this is definitely a bug and may cause UB, please fill an issue"
         );
         let align_bug = format!(
-            "{ident}'s align was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please fill an issue"
+            "{ident}'s align was mis-evaluated by stabby, this is definitely a bug and may cause UB, please fill an issue"
         );
         quote! {
             const _: () = {
@@ -516,6 +554,7 @@ pub fn repr_stabby(
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
             type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
+            type CType = <#layout as #st::IStable>::CType;
             const REPORT: &'static #st::report::TypeReport = & #report;
             const ID: u64 = #st::report::gen_id(Self::REPORT);
         }

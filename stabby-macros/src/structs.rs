@@ -85,11 +85,14 @@ pub fn stabby(
     let layout = layout.map_or_else(|| quote!(()), |layout| quote!(#st::Struct<#layout>));
     let opt_id = quote::format_ident!("OptimizedLayoutFor{ident}");
     let size_bug = format!(
-        "{ident}'s size was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please file an issue"
+        "{ident}'s size was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
     );
     let align_bug = format!(
-        "{ident}'s align was mis-evaluated by stabby, this is a definitely a bug and may cause UB, please file an issue"
+        "{ident}'s align was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
     );
+    // let reprc_bug = format!(
+    //     "{ident}'s CType was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
+    // );
     let assertion = opt.then(|| {
         let sub_optimal_message = format!(
             "{ident}'s layout is sub-optimal, reorder fields or use `#[stabby::stabby(no_opt)]`"
@@ -103,6 +106,7 @@ pub fn stabby(
         }
     });
     let report_bounds = report.bounds();
+    let ctype = report.crepr();
     let optdoc = format!("Returns true if the layout for [`{ident}`] is smaller or equal to that Rust would have generated for it.");
     quote! {
         #struct_code
@@ -115,8 +119,13 @@ pub fn stabby(
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = <#layout as #st::IStable>::HasExactlyOneNiche;
             type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
+            type CType = #ctype;
             const REPORT: &'static #st::report::TypeReport = &#report;
             const ID: u64 = {
+                // if (<<Self as #st::IStable>::Size as #st::Unsigned>::USIZE != <<<Self as #st::IStable>::CType as #st::IStable>::Size as #st::Unsigned>::USIZE)
+                // || (<<Self as #st::IStable>::Align as #st::Unsigned>::USIZE != <<<Self as #st::IStable>::CType as #st::IStable>::Align as #st::Unsigned>::USIZE) {
+                //     panic!(#reprc_bug)
+                // }
                 if core::mem::size_of::<Self>() != <<Self as #st::IStable>::Size as #st::Unsigned>::USIZE {
                     panic!(#size_bug)
                 }
