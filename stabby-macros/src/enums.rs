@@ -170,9 +170,10 @@ pub fn stabby(
             }
         }
     }
+    let mut deprecation = None;
     let reprstr = match repr
         .as_ref()
-        .and_then(|r| if r.is_c { Some(Repr::C) } else { r.repr })
+        .and_then(|r| r.repr.or_else(|| r.is_c.then_some(Repr::C)))
     {
         None | Some(Repr::Stabby) => {
             if !has_non_empty_fields {
@@ -188,7 +189,11 @@ pub fn stabby(
                 repr.is_none(),
             );
         }
-        Some(Repr::C) => "u8", // TODO: Remove support for `#[repr(C)]` alone on the next API-breaking release
+        Some(Repr::C) => {
+            let msg = format!("{repr:?} stabby doesn't support variable size repr and implicitly replaces repr(C) with repr(C, u8), you can silence this warning by picking an explict fixed-size repr");
+            deprecation = Some(quote!(#[deprecated = #msg]));
+            "u8"
+        } // TODO: Remove support for `#[repr(C)]` alone on the next API-breaking release
         Some(Repr::U8) => "u8",
         Some(Repr::U16) => "u16",
         Some(Repr::U32) => "u32",
@@ -218,6 +223,7 @@ pub fn stabby(
     quote! {
         #(#new_attrs)*
         #reprattr
+        #deprecation
         #vis enum #ident #generics {
             #variants
         }

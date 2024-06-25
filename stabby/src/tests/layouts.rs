@@ -12,9 +12,9 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use core::num::{NonZeroU16, NonZeroU32};
-use std::num::NonZeroU8;
+use core::num::{NonZeroU16, NonZeroU32, NonZeroU8};
 
+use crate as stabby;
 use stabby::tuple::{Tuple2, Tuple3, Tuple8};
 use stabby_abi::{typenum2::*, Array, End, Result};
 
@@ -36,7 +36,7 @@ pub enum NoFields {
     _B,
 }
 #[stabby::stabby]
-#[repr(C)]
+#[repr(C, u8)]
 pub enum FieldsC {
     _A(NonZeroU32),
     _B,
@@ -47,7 +47,7 @@ pub enum FieldsStabby {
     _B,
 }
 #[stabby::stabby]
-#[repr(C)]
+#[repr(C, u8)]
 #[allow(dead_code)]
 pub enum MultiFieldsC {
     A(NonZeroU16),

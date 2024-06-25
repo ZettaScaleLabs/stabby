@@ -37,12 +37,12 @@ pub use stabby_abi::{Dyn, DynRef};
 pub mod compiler_version;
 
 /// ABI-stable tuples
-pub mod tuple;
+pub use crate::abi::tuples as tuple;
 
 /// Futures can be ABI-stable if you wish hard enough
 #[cfg_attr(
-    unsafe_wakers = "true",
-    deprecated = "Warning! you are using the `stabby/unsafe_wakers` feature. This could cause UB if you poll a future received from another shared library with mismatching ABI! (this API isn't actually deprecated)"
+    stabby_unsafe_wakers = "true",
+    deprecated = "Warning! you are using the `stabby/stabby_unsafe_wakers` feature. This could cause UB if you poll a future received from another shared library with mismatching ABI! (this API isn't actually deprecated)"
 )]
 pub mod future {
     pub use crate::abi::future::*;
@@ -85,3 +85,9 @@ macro_rules! format {
 #[cfg(doc)]
 #[doc = include_str!("../TUTORIAL.md")]
 pub mod _tutorial_ {}
+#[cfg(test)]
+mod tests {
+    mod enums;
+    mod layouts;
+    mod traits;
+}

@@ -413,7 +413,7 @@ mod boundtests {
     }
 }
 
-/// Expands to [`unreachable!()`](core::unreachable) in debug builds or if `--cfg check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`core::hint::unreachable_unchecked`] otherwise.
+/// Expands to [`unreachable!()`](core::unreachable) in debug builds or if `--cfg stabby_check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`core::hint::unreachable_unchecked`] otherwise.
 ///
 /// This lets the compiler take advantage of the fact that the code is unreachable in release builds, and optimize accordingly, while giving you the opportunity to double check this at runtime in case of doubts.
 ///
@@ -426,7 +426,7 @@ mod boundtests {
 #[macro_export]
 macro_rules! unreachable_unchecked {
     () => {
-        if cfg!(any(debug_assertions, check_unreachable = "true")) {
+        if cfg!(any(debug_assertions, stabby_check_unreachable = "true")) {
             ::core::unreachable!()
         } else {
             ::core::hint::unreachable_unchecked()
@@ -434,7 +434,7 @@ macro_rules! unreachable_unchecked {
     };
 }
 
-/// Expands to [`assert!(condition)`](core::assert) in debug builds or if `--cfg check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`if condition {core::hint::unreachable_unchecked()}`](core::hint::unreachable_unchecked) otherwise.
+/// Expands to [`assert!(condition)`](core::assert) in debug builds or if `--cfg stabby_check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`if condition {core::hint::unreachable_unchecked()}`](core::hint::unreachable_unchecked) otherwise.
 ///
 /// This lets the compiler take advantage of the fact that the condition is always true in release builds, and optimize accordingly, while giving you the opportunity to double check this at runtime in case of doubts.
 ///
@@ -447,7 +447,7 @@ macro_rules! unreachable_unchecked {
 #[macro_export]
 macro_rules! assert_unchecked {
     ($e: expr, $($t: tt)*) => {
-        if cfg!(any(debug_assertions, check_unreachable = "true")) {
+        if cfg!(any(debug_assertions, stabby_check_unreachable = "true")) {
             ::core::assert!($e, $($t)*);
         } else {
             if !$e {
@@ -457,7 +457,7 @@ macro_rules! assert_unchecked {
     };
 }
 
-/// Expands to [`assert_eq`](core::assert_eq) in debug builds or if `--cfg check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`if a != b {core::hint::unreachable_unchecked()}`](core::hint::unreachable_unchecked) otherwise.
+/// Expands to [`assert_eq`](core::assert_eq) in debug builds or if `--cfg stabby_check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`if a != b {core::hint::unreachable_unchecked()}`](core::hint::unreachable_unchecked) otherwise.
 ///
 /// This lets the compiler take advantage of the fact that the condition is always true in release builds, and optimize accordingly, while giving you the opportunity to double check this at runtime in case of doubts.
 ///
@@ -470,7 +470,7 @@ macro_rules! assert_unchecked {
 #[macro_export]
 macro_rules! assert_eq_unchecked {
     ($a: expr, $b: expr, $($t: tt)*) => {
-        if cfg!(any(debug_assertions, check_unreachable = "true")) {
+        if cfg!(any(debug_assertions, stabby_check_unreachable = "true")) {
             ::core::assert_eq!($a, $b, $($t)*);
         } else {
             if $a != $b {

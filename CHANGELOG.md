@@ -1,3 +1,8 @@
+# 6.1.1
+- Add support for multi-fields variants in `repr(C, u*)` enums.
+	- Deprecate support for `repr(C)` by deprecating any enum that uses it without also specifying a determinant size.
+- Prepare integration of `stabby` and [`safer-ffi`](https://crates.io/crates/safer-ffi) by adding `CType` and `is_invalid` to `IStable`.
+
 # 5.1.0
 - Introducing `stabby::collections::arc_btree`, a set of copy-on-write btrees:
 	- `ArcBtreeSet` and `ArcBtreeMap` behave like you would expect, but share nodes with their clones.
@@ -8,7 +13,6 @@
 		- This is notably how `stabby` global set of vtables is implemented to support stable Rust from version 1.78 onward, until the [static-promotion regression](https://github.com/rust-lang/rust/issues/123281) is [fixed](https://github.com/rust-lang/rfcs/pull/3633), and this global set can be removed.
 - Add some missing `Send` and `Sync` implementations for container types.
 - Fix a lot of nightly lints.
-- Officially switch to [Humane SemVer](https://p-avital.github.io/humane-semver)
 
 # 5.0.1
 - Fix a regression in MSRV

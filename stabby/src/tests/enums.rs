@@ -12,6 +12,8 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+use crate as stabby;
+
 #[test]
 fn enums() {
     use core::num::{NonZeroU16, NonZeroU8};

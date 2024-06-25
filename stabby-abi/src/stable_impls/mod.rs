@@ -323,8 +323,6 @@ unsafe impl IStable for usize {
     same_as!(u32, "usize");
     #[cfg(target_pointer_width = "16")]
     same_as!(u16, "usize");
-    #[cfg(target_pointer_width = "8")]
-    same_as!(u8, "usize");
     type ContainsIndirections = B0;
 }
 
@@ -336,8 +334,6 @@ unsafe impl IStable for core::num::NonZeroUsize {
     same_as!(core::num::NonZeroU32, "core::num::NonZeroUsize");
     #[cfg(target_pointer_width = "16")]
     same_as!(core::num::NonZeroU16, "core::num::NonZeroUsize");
-    #[cfg(target_pointer_width = "8")]
-    same_as!(core::num::NonZeroU8, "core::num::NonZeroUsize");
     type ContainsIndirections = B0;
 }
 

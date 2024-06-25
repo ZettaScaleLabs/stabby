@@ -66,9 +66,23 @@ fn tuples() -> std::io::Result<()> {
     for i in 0..128 {
         writeln!(
             file,
-            r##"/// An ABI stable tuple
+            r##"/// An ABI stable tuple of {i} elements.
 #[crate::stabby]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Tuple{i}<{generics}>({fields});
+impl<{generics}> From<({generics})> for Tuple{i}<{generics}> {{
+    fn from(value: ({generics})) -> Self {{
+        let ({named_fields}) = value;
+        Self({named_fields})
+    }}
+}}
+#[allow(clippy::unused_unit)]
+impl<{generics}> From<Tuple{i}<{generics}>> for ({generics}) {{
+    fn from(value: Tuple{i}<{generics}>) -> Self {{
+        let Tuple{i}({named_fields}) = value;
+        ({named_fields})
+    }}
+}}
 "##,
             generics = (0..i).fold(String::new(), |mut acc, it| {
                 write!(acc, "T{it}, ").unwrap();
@@ -76,6 +90,10 @@ pub struct Tuple{i}<{generics}>({fields});
             }),
             fields = (0..i).fold(String::new(), |mut acc, it| {
                 write!(acc, "pub T{it}, ").unwrap();
+                acc
+            }),
+            named_fields = (0..i).fold(String::new(), |mut acc, it| {
+                write!(acc, "field{it}, ").unwrap();
                 acc
             }),
         )?;
@@ -86,6 +104,14 @@ pub struct Tuple{i}<{generics}>({fields});
 fn main() {
     typenum_unsigned().unwrap();
     tuples().unwrap();
+    println!("cargo:rustc-check-cfg=cfg(stabby_nightly, values(none()))");
+    println!(
+        r#"cargo:rustc-check-cfg=cfg(stabby_check_unreachable, values(none(), "true", "false"))"#
+    );
+    println!(r#"cargo:rustc-check-cfg=cfg(stabby_unsafe_wakers, values(none(), "true", "false"))"#);
+    println!(
+        r#"cargo:rustc-check-cfg=cfg(stabby_vtables, values(none(), "vec", "btree", "no_alloc"))"#
+    );
     if let Ok(toolchain) = std::env::var("RUSTUP_TOOLCHAIN") {
         if toolchain.starts_with("nightly") {
             println!("cargo:rustc-cfg=stabby_nightly");

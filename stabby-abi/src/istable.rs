@@ -89,7 +89,7 @@ pub unsafe trait IStable: Sized {
 /// but might not be limited to:
 /// - The type doesn't contain pointers, as they may not point to the same memory on the recipient's end.
 /// - The type doesn't have a destructor, as destructors generally imply a context needs to be cleaned up,
-/// implying that a context exists.
+///   implying that a context exists.
 ///
 /// In some circumstances, a POD type may be used as a key in a context (index in an array, key in a HashMap...) that
 /// may not be available to all potential recipient. In such a case, you can wrap that type in [`NotPod`] to strip it

@@ -14,10 +14,11 @@
 
 // MYTRAIT
 
-#![cfg_attr(unsafe_wakers = "true", allow(deprecated))]
+#![cfg_attr(stabby_unsafe_wakers = "true", allow(deprecated))]
 
-use std::time::Duration;
+use core::time::Duration;
 
+pub use crate as stabby;
 use stabby::boxed::Box;
 use stabby::future::DynFuture;
 
