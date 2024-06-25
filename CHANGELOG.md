@@ -1,8 +1,12 @@
-# 6.1.1
+# 6.1.1 (api=1.0.0, abi=1.0.0)
 - Add support for multi-fields variants in `repr(C, u*)` enums.
 	- Deprecate support for `repr(C)` by deprecating any enum that uses it without also specifying a determinant size.
-- Remove `CompilerVersion_X_Y_Z` types and their `CurrentCompilerVersion` type alias: the former were hard to keep up to date and the latter could break your code if you upgraded to a version of the compiler that `stabby` didn't know of.
+- Add support for `Result<T, core::conver::Infallible>`, which is fully identical to `T` down to its reports.
+- Remove `CompilerVersion_X_Y_Z` types: keeping them up to date with new compiler release was too much maintenance.
+- Remove `CurrentCompilerVersion` type alias: as it could break your code if you upgraded to a version of the compiler that `stabby` didn't know of.
 - Prepare integration of `stabby` and [`safer-ffi`](https://crates.io/crates/safer-ffi) by adding `CType` and `is_invalid` to `IStable`.
+- Switch versioning system to [SemVer Prime](https://p-avital.github.io/semver-prime), using the `api, abi` as the key.
+- [RFC 3633](https://github.com/rust-lang/rfcs/pull/3633) which seeks to address the breaking change in Rust 1.78 is scheduled to be discussed in July 2024.
 
 # 5.1.0
 - Introducing `stabby::collections::arc_btree`, a set of copy-on-write btrees:

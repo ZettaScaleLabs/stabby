@@ -154,8 +154,8 @@ My hope with `stabby` comes in two flavors:
 # `stabby`'s SemVer policy
 Stabby includes all of its `stabby_abi::IStable` implementation in its public API: any change to an `IStable` type's memory representation is a breaking change which will lead to a `MAJOR` version change.
 
-From `6.1.1` onwards, Stabby follows [SemVer Prime](https://p-avital.github.io/semver-prime), using the `api, abi` key. Here's a few ways you can interpret that:
-- `stabby.version[level] = 2^(api[level]) * 3^(abi[level])` lets you compute the exact versions of stabby's ABI and API, there's a decoder for that [here](https://p-avital.github.io/semver-prime#:~:text=semver%20prime%20translation).
+From `6.1.1` onwards, Stabby follows [SemVer Prime](https://p-avital.github.io/semver-prime), using the `api, abi` as the key. Here's a few ways you can interpret that:
+- `stabby.version[level] = 2^(api[level]) * 3^(abi[level])` lets you compute the exact versions of stabby's ABI and API.
 - When upgrading stabby, you can check what has changed by dividing the new version by the previous one: if the division result is a multiple of 2, the change affected API; and it affected ABI if it's a multiple of 3.
 	- ABI versioning:
 		- Adding a new type to the set of ABI stable type will bump ABI patch.

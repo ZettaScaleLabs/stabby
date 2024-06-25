@@ -23,6 +23,7 @@ unsafe impl<T: IStable> IStable for abi_stable::std_types::RVec<T> {
     type UnusedBits = End;
     type HasExactlyOneNiche = B1;
     type ContainsIndirections = B1;
+    type CType = [*const T; 4];
     primitive_report!("abi_stable::std_types::RVec", T);
 }
 check!(abi_stable::std_types::RVec<u8>);
@@ -41,6 +42,7 @@ unsafe impl<'a, T: IStable> IStable for abi_stable::std_types::RSlice<'a, T> {
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B1;
+    type CType = [*const T; 2];
     primitive_report!("abi_stable::std_types::RSlice", T);
 }
 check!(abi_stable::std_types::RSlice<u8>);
@@ -59,6 +61,7 @@ unsafe impl<'a, T: IStable> IStable for abi_stable::std_types::RSliceMut<'a, T> 
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B1;
+    type CType = [*const T; 2];
     primitive_report!("abi_stable::std_types::RSliceMut", T);
 }
 check!(abi_stable::std_types::RSliceMut<u8>);
@@ -73,6 +76,7 @@ where
     type UnusedBits = End;
     type HasExactlyOneNiche = B1;
     type ContainsIndirections = B1;
+    type CType = [*const (); 3];
     primitive_report!("abi_stable::std_types::RHashMap", Tuple<K, V>);
 }
 check!(abi_stable::std_types::RHashMap<u8, u64>);
@@ -91,6 +95,7 @@ unsafe impl<T: IStable> IStable for abi_stable::std_types::RBox<T> {
     type UnusedBits = End;
     type HasExactlyOneNiche = B1;
     type ContainsIndirections = B1;
+    type CType = [*const T; 2];
     primitive_report!("abi_stable::std_types::RBox", T);
 }
 check!(abi_stable::std_types::RBox<u8>);
@@ -102,6 +107,7 @@ unsafe impl IStable for abi_stable::std_types::RBoxError {
     type UnusedBits = End;
     type HasExactlyOneNiche = B1;
     type ContainsIndirections = B1;
+    type CType = [*const (); 3];
     primitive_report!("abi_stable::std_types::RBoxError");
 }
 check!(abi_stable::std_types::RBoxError);

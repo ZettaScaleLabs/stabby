@@ -528,6 +528,14 @@ unsafe impl<T: IStable> IStable for HasExactlyOneNiche<core::option::Option<T>, 
     };
     const ID: u64 = crate::report::gen_id(Self::REPORT);
 }
+
+unsafe impl<T: IStable> IStable for core::result::Result<T, core::convert::Infallible> {
+    same_as!(T);
+    type ContainsIndirections = T::ContainsIndirections;
+    const REPORT: &'static report::TypeReport = T::REPORT;
+    const ID: u64 = T::ID;
+}
+
 unsafe impl<Ok: IStable, Err: IStable> IStable for core::result::Result<Ok, Err>
 where
     HasExactlyOneNiche<Self, (Ok::HasExactlyOneNiche, Err::Size)>: IStable,

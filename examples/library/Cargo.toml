@@ -22,4 +22,4 @@ crate-type = ["cdylib", "staticlib"]
 
 
 [dependencies]
-stabby = { path = "../../stabby/" }
+stabby.workspace = true
