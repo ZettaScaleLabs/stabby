@@ -1,4 +1,3 @@
-
 /// Returned when using [`core::convert::TryInto`] on the illegal value of a restricted integer.
 #[crate::stabby]
 #[derive(Clone, Copy, Default, Debug, Ord, PartialEq, PartialOrd, Eq, Hash)]
