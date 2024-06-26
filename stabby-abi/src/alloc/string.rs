@@ -366,12 +366,12 @@ mod serde_impl {
     use super::*;
     use crate::alloc::IAlloc;
     use serde::{Deserialize, Serialize};
-    impl<'a, Alloc: IAlloc> Serialize for String<Alloc> {
+    impl<Alloc: IAlloc> Serialize for String<Alloc> {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
         {
-            let slice: &str = &*self;
+            let slice: &str = self;
             slice.serialize(serializer)
         }
     }

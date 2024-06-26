@@ -205,7 +205,7 @@ mod serde_impl {
         where
             S: serde::Serializer,
         {
-            let slice: &[T] = &*self;
+            let slice: &[T] = self;
             slice.serialize(serializer)
         }
     }
@@ -214,7 +214,7 @@ mod serde_impl {
         where
             S: serde::Serializer,
         {
-            let slice: &[T] = &*self;
+            let slice: &[T] = self;
             slice.serialize(serializer)
         }
     }

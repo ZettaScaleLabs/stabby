@@ -53,7 +53,7 @@ impl<'a> From<Str<'a>> for &'a str {
 }
 impl AsRef<str> for Str<'_> {
     fn as_ref(&self) -> &str {
-        &*self
+        self
     }
 }
 impl<'a> Deref for Str<'a> {
@@ -85,7 +85,7 @@ pub struct StrMut<'a> {
 }
 impl AsRef<str> for StrMut<'_> {
     fn as_ref(&self) -> &str {
-        &*self
+        self
     }
 }
 impl<'a> Deref for StrMut<'a> {
@@ -134,7 +134,7 @@ mod serde_impl {
         where
             S: serde::Serializer,
         {
-            serializer.serialize_str(&*self)
+            serializer.serialize_str(self)
         }
     }
     impl<'a> Serialize for StrMut<'a> {
@@ -142,7 +142,7 @@ mod serde_impl {
         where
             S: serde::Serializer,
         {
-            serializer.serialize_str(&*self)
+            serializer.serialize_str(self)
         }
     }
     impl<'a> Deserialize<'a> for Str<'a> {

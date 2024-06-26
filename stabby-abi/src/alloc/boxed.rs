@@ -439,12 +439,12 @@ mod serde_impl {
     use super::*;
     use crate::alloc::IAlloc;
     use serde::{Deserialize, Serialize};
-    impl<'a, T: Serialize, Alloc: IAlloc> Serialize for BoxedSlice<T, Alloc> {
+    impl<T: Serialize, Alloc: IAlloc> Serialize for BoxedSlice<T, Alloc> {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
         {
-            let slice: &[T] = &*self;
+            let slice: &[T] = self;
             slice.serialize(serializer)
         }
     }
@@ -456,12 +456,12 @@ mod serde_impl {
             crate::alloc::vec::Vec::deserialize(deserializer).map(Into::into)
         }
     }
-    impl<'a, Alloc: IAlloc> Serialize for BoxedStr<Alloc> {
+    impl<Alloc: IAlloc> Serialize for BoxedStr<Alloc> {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
         {
-            let slice: &str = &*self;
+            let slice: &str = self;
             slice.serialize(serializer)
         }
     }

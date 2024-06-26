@@ -45,7 +45,7 @@ stabby-macros.workspace = true
 abi_stable = { workspace = true, optional = true }
 libc = { workspace = true, optional = true }
 rustversion = { workspace = true }
-serde = { workspace = true, optional = true }
+serde = { workspace = true, optional = true, features = ["derive"] }
 sha2-const-stable = { workspace = true }
 
 [dev-dependencies]

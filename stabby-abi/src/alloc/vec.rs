@@ -824,12 +824,12 @@ mod serde_impl {
     use super::*;
     use crate::alloc::IAlloc;
     use serde::{de::Visitor, Deserialize, Serialize};
-    impl<'a, T: Serialize, Alloc: IAlloc> Serialize for Vec<T, Alloc> {
+    impl<T: Serialize, Alloc: IAlloc> Serialize for Vec<T, Alloc> {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
         {
-            let slice: &[T] = &*self;
+            let slice: &[T] = self;
             slice.serialize(serializer)
         }
     }

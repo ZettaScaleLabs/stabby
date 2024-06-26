@@ -563,7 +563,7 @@ mod serde_impl {
         where
             S: serde::Serializer,
         {
-            let this: core::result::Result<_, _> = self.as_ref().into();
+            let this: core::result::Result<_, _> = self.as_ref();
             this.serialize(serializer)
         }
     }
