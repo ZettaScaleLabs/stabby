@@ -513,7 +513,7 @@ impl<O1: Unsigned, T1, O2: Unsigned, T2, R2: IBitMask> IncludesComputer<(O1, T1,
 unsafe impl<A: IStable, B: IStable> IStable for Union<A, B> {
     type ForbiddenValues = End;
     type UnusedBits = End;
-    type Size = <A::Size as Unsigned>::Max<B::Size>;
+    type Size = <<A::Size as Unsigned>::Max<B::Size> as Unsigned>::NextMultipleOf<Self::Align>;
     type Align = <A::Align as Alignment>::Max<B::Align>;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = <A::ContainsIndirections as Bit>::Or<B::ContainsIndirections>;

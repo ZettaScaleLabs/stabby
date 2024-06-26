@@ -100,14 +100,50 @@ impl syn::parse::Parse for FullRepr {
     }
 }
 
+struct Args {
+    version: u32,
+    module: proc_macro2::TokenStream,
+}
+impl syn::parse::Parse for Args {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let mut this = Args {
+            version: 0,
+            module: quote!(),
+        };
+        while !input.is_empty() {
+            let ident: Ident = input.parse()?;
+            match ident.to_string().as_str() {
+                "version" => {
+                    input.parse::<syn::Token!(=)>()?;
+                    this.version = input.parse::<syn::LitInt>()?.to_string().parse().unwrap();
+                }
+                "module" => {
+                    input.parse::<syn::Token!(=)>()?;
+                    while !input.is_empty() {
+                        if input.peek(syn::Token!(,)) {
+                            break;
+                        }
+                        let token: proc_macro2::TokenTree = input.parse()?;
+                        this.module.extend(Some(token))
+                    }
+                }
+                _ => return Err(input.error("Unknown stabby attribute {ident}")),
+            }
+            _ = input.parse::<syn::Token!(,)>();
+        }
+        Ok(this)
+    }
+}
 pub fn stabby(
     attrs: Vec<Attribute>,
     vis: Visibility,
     ident: Ident,
     generics: Generics,
     data: DataEnum,
+    stabby_attrs: &proc_macro::TokenStream,
 ) -> TokenStream {
     let st = crate::tl_mod();
+    let Args { version, module } = syn::parse(stabby_attrs.clone()).unwrap();
     let unbound_generics = &generics.params;
     let mut repr: Option<FullRepr> = None;
     let repr_ident = quote::format_ident!("repr");
@@ -139,12 +175,13 @@ pub fn stabby(
     let DataEnum { variants, .. } = &data;
     let mut has_non_empty_fields = false;
     let unit = syn::parse2(quote!(())).unwrap();
-    let mut report = crate::Report::r#enum(ident.to_string(), 0);
+    let mut report = crate::Report::r#enum(ident.to_string(), version, module.clone());
     for variant in variants {
         match &variant.fields {
             syn::Fields::Named(f) if matches!(repr, Some(FullRepr { is_c: true, .. })) => {
                 has_non_empty_fields = true;
-                let mut variant_report = crate::Report::r#struct(variant.ident.to_string(), 0);
+                let mut variant_report =
+                    crate::Report::r#struct(variant.ident.to_string(), version, module.clone());
                 let mut variant_layout = quote!(());
                 for f in &f.named {
                     let ty = &f.ty;
@@ -161,7 +198,8 @@ pub fn stabby(
             syn::Fields::Unnamed(f) => {
                 if f.unnamed.len() != 1 && matches!(repr, Some(FullRepr { is_c: true, .. })) {
                     has_non_empty_fields = true;
-                    let mut variant_report = crate::Report::r#struct(variant.ident.to_string(), 0);
+                    let mut variant_report =
+                        crate::Report::r#struct(variant.ident.to_string(), version, module.clone());
                     let mut variant_layout = quote!(());
                     for (n, f) in f.unnamed.iter().enumerate() {
                         let ty = &f.ty;
@@ -267,8 +305,7 @@ pub fn stabby(
             type CType = #ctype;
             const REPORT: &'static #st::report::TypeReport = & #report;
             const ID: u64 ={
-                if (<<Self as #st::IStable>::Size as #st::Unsigned>::USIZE != <<<Self as #st::IStable>::CType as #st::IStable>::Size as #st::Unsigned>::USIZE)
-                || (<<Self as #st::IStable>::Align as #st::Unsigned>::USIZE != <<<Self as #st::IStable>::CType as #st::IStable>::Align as #st::Unsigned>::USIZE) {
+                if core::mem::size_of::<Self>() != core::mem::size_of::<<Self as #st::IStable>::CType>() || core::mem::align_of::<Self>() != core::mem::align_of::<<Self as #st::IStable>::CType>() {
                     panic!(#reprc_bug)
                 }
                 if core::mem::size_of::<Self>() != <<Self as #st::IStable>::Size as #st::Unsigned>::USIZE {

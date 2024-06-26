@@ -135,6 +135,12 @@ impl<Alloc: IAlloc + Default> From<&str> for String<Alloc> {
     }
 }
 
+impl<Alloc: IAlloc + Default> From<crate::str::Str<'_>> for String<Alloc> {
+    fn from(value: crate::str::Str<'_>) -> Self {
+        Self::default() + value.as_ref()
+    }
+}
+
 /// A reference counted boxed string.
 #[crate::stabby]
 pub struct ArcStr<Alloc: IAlloc = super::DefaultAllocator> {
@@ -337,5 +343,44 @@ impl<Alloc: IAlloc> core::fmt::Display for BoxedStr<Alloc> {
 impl core::fmt::Write for String {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         self.try_concat(s).map_err(|_| core::fmt::Error)
+    }
+}
+
+#[cfg(feature = "std")]
+mod std_impl {
+    use crate::alloc::IAlloc;
+    impl<Alloc: IAlloc + Default> From<std::string::String> for crate::alloc::string::String<Alloc> {
+        fn from(value: std::string::String) -> Self {
+            Self::from(value.as_ref())
+        }
+    }
+    impl<Alloc: IAlloc + Default> From<crate::alloc::string::String<Alloc>> for std::string::String {
+        fn from(value: crate::alloc::string::String<Alloc>) -> Self {
+            Self::from(value.as_ref())
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+mod serde_impl {
+    use super::*;
+    use crate::alloc::IAlloc;
+    use serde::{Deserialize, Serialize};
+    impl<'a, Alloc: IAlloc> Serialize for String<Alloc> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            let slice: &str = &*self;
+            slice.serialize(serializer)
+        }
+    }
+    impl<'a, Alloc: IAlloc + Default> Deserialize<'a> for String<Alloc> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'a>,
+        {
+            crate::str::Str::deserialize(deserializer).map(Into::into)
+        }
     }
 }

@@ -855,3 +855,44 @@ impl<T, Alloc: IAlloc> AtomicArc<T, Alloc> {
         }
     }
 }
+
+#[cfg(feature = "serde")]
+mod serde_impl {
+    use super::*;
+    use crate::alloc::IAlloc;
+    use serde::{Deserialize, Serialize};
+    impl<'a, T: Serialize, Alloc: IAlloc> Serialize for ArcSlice<T, Alloc> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            let slice: &[T] = &*self;
+            slice.serialize(serializer)
+        }
+    }
+    impl<'a, T: Deserialize<'a>, Alloc: IAlloc + Default> Deserialize<'a> for ArcSlice<T, Alloc> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'a>,
+        {
+            crate::alloc::vec::Vec::deserialize(deserializer).map(Into::into)
+        }
+    }
+    impl<'a, Alloc: IAlloc> Serialize for ArcStr<Alloc> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            let slice: &str = &*self;
+            slice.serialize(serializer)
+        }
+    }
+    impl<'a, Alloc: IAlloc + Default> Deserialize<'a> for ArcStr<Alloc> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'a>,
+        {
+            crate::alloc::string::String::deserialize(deserializer).map(Into::into)
+        }
+    }
+}

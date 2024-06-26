@@ -24,13 +24,14 @@ readme = { workspace = true }
 description = "A Stable ABI for Rust with compact sum-types."
 
 [features]
-default = ["std", "libc"]
+default = ["std", "libc", "serde"]
 std = ["libc", "stabby-abi/std"]
 libloading = ["dep:libloading", "std"]
 libc = ["stabby-abi/libc"]
+serde = ["stabby-abi/serde"]
 
 [dependencies]
-stabby-abi = { workspace = true }
+stabby-abi = { workspace = true, default-features = false }
 
 lazy_static = { workspace = true }
 libloading = { workspace = true, optional = true }

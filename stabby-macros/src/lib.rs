@@ -86,8 +86,12 @@ pub fn stabby(stabby_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
             syn::Data::Struct(data) => {
                 structs::stabby(attrs, vis, ident, generics, data, &stabby_attrs)
             }
-            syn::Data::Enum(data) => enums::stabby(attrs, vis, ident, generics, data),
-            syn::Data::Union(data) => unions::stabby(attrs, vis, ident, generics, data),
+            syn::Data::Enum(data) => {
+                enums::stabby(attrs, vis, ident, generics, data, &stabby_attrs)
+            }
+            syn::Data::Union(data) => {
+                unions::stabby(attrs, vis, ident, generics, data, &stabby_attrs)
+            }
         }
     } else if let Ok(fn_spec) = syn::parse(tokens.clone()) {
         functions::stabby(syn::parse(stabby_attrs).unwrap(), fn_spec)
@@ -294,23 +298,55 @@ pub(crate) struct Report<'a> {
     name: String,
     fields: Vec<(String, Type<'a>)>,
     version: u32,
+    module: proc_macro2::TokenStream,
     pub tyty: Tyty,
 }
 impl<'a> Report<'a> {
-    pub fn r#struct(name: impl Into<String>, version: u32) -> Self {
+    pub fn r#struct(
+        name: impl Into<String>,
+        version: u32,
+        module: proc_macro2::TokenStream,
+    ) -> Self {
         Self {
             name: name.into(),
             fields: Vec::new(),
             version,
+            module: if module.is_empty() {
+                quote!(::core::module_path!())
+            } else {
+                module
+            },
             tyty: Tyty::Struct,
         }
     }
-    pub fn r#enum(name: impl Into<String>, version: u32) -> Self {
+    pub fn r#enum(name: impl Into<String>, version: u32, module: proc_macro2::TokenStream) -> Self {
         Self {
             name: name.into(),
             fields: Vec::new(),
             version,
+            module: if module.is_empty() {
+                quote!(::core::module_path!())
+            } else {
+                module
+            },
             tyty: Tyty::Enum(enums::Repr::Stabby),
+        }
+    }
+    pub fn r#union(
+        name: impl Into<String>,
+        version: u32,
+        module: proc_macro2::TokenStream,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            fields: Vec::new(),
+            version,
+            module: if module.is_empty() {
+                quote!(::core::module_path!())
+            } else {
+                module
+            },
+            tyty: Tyty::Union,
         }
     }
     pub fn add_field(&mut self, name: String, ty: impl Into<Type<'a>>) {
@@ -390,6 +426,7 @@ impl ToTokens for Report<'_> {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let st = crate::tl_mod();
         let mut fields = quote!(None);
+
         for (name, ty) in &self.fields {
             fields = match ty {
                 Type::Syn(ty) => quote! {
@@ -412,38 +449,17 @@ impl ToTokens for Report<'_> {
             name,
             version,
             tyty,
+            module,
             ..
         } = self;
         tokens.extend(quote!(#st::report::TypeReport {
             name: #st::str::Str::new(#name),
-            module: #st::str::Str::new(core::module_path!()),
+            module: #st::str::Str::new(#module),
             fields: unsafe{#st::StableLike::new(#fields)},
             version: #version,
             tyty: #tyty,
         }));
     }
-}
-
-pub(crate) fn report(
-    fields: &[(String, &syn::Type)],
-) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
-    let st = crate::tl_mod();
-    let mut report_bounds = quote!();
-    let mut report = quote!(None);
-    let mut bounded_types = HashSet::new();
-    for (name, ty) in fields.iter().rev() {
-        if bounded_types.insert(*ty) {
-            report_bounds = quote!(#ty: #st::IStable, #report_bounds);
-        }
-        report = quote! {
-            Some(& #st::report::FieldReport {
-                name: #st::str::Str::new(#name),
-                ty: <#ty as #st::IStable>::REPORT,
-                next_field: #st::StableLike::new(#report)
-            })
-        };
-    }
-    (report, report_bounds)
 }
 
 #[proc_macro_attribute]

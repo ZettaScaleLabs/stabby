@@ -179,3 +179,32 @@ where
         self.unwrap_or_else(|| panic!("Option::unwrap called on None"))
     }
 }
+
+#[cfg(feature = "serde")]
+mod serde_impl {
+    use super::*;
+    use serde::{Deserialize, Serialize};
+    impl<Ok: Serialize> Serialize for Option<Ok>
+    where
+        Ok: IDeterminantProvider<()>,
+    {
+        fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            let this = self.as_ref();
+            this.serialize(serializer)
+        }
+    }
+    impl<'a, Ok: IDeterminantProvider<()>> Deserialize<'a> for Option<Ok>
+    where
+        core::option::Option<Ok>: Deserialize<'a>,
+    {
+        fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'a>,
+        {
+            Ok(core::option::Option::<Ok>::deserialize(deserializer)?.into())
+        }
+    }
+}

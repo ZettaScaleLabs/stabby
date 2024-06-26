@@ -1,10 +1,25 @@
+/// Returned when using [`core::convert::TryInto`] on the illegal value of a restricted integer.
+#[crate::stabby]
+#[derive(Clone, Copy, Default, Debug, Ord, PartialEq, PartialOrd, Eq, Hash)]
+pub struct IllegalValue;
+impl core::fmt::Display for IllegalValue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Debug::fmt(&self, f)
+    }
+}
+#[cfg(feature = "std")]
+impl std::error::Error for IllegalValue {}
+
 macro_rules! define_non_max {
-    ($NonMaxU8:ident: $u8: ty = $NonZeroU8: ty ) => {
+    ($NonMaxU8:ident: $u8: ty = $NonZeroU8: ty; $u8s: literal ) => {
         /// A number whose bit pattern is guaranteed not to be only 1s.
         ///
         /// `x` is stored as `NonZero(!x)`, so transmuting results in wrong values.
         #[repr(transparent)]
         #[derive(Clone, Copy, PartialEq, Eq)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+        #[cfg_attr(feature = "serde", serde(into = $u8s))]
+        #[cfg_attr(feature = "serde", serde(try_from = $u8s))]
         pub struct $NonMaxU8 {
             inner: $NonZeroU8,
         }
@@ -36,9 +51,9 @@ macro_rules! define_non_max {
             }
         }
         impl TryFrom<$u8> for $NonMaxU8 {
-            type Error = ();
+            type Error = IllegalValue;
             fn try_from(value: $u8) -> Result<Self, Self::Error> {
-                Self::new(value).ok_or(())
+                Self::new(value).ok_or(IllegalValue)
             }
         }
         impl PartialOrd for $NonMaxU8 {
@@ -76,12 +91,15 @@ macro_rules! define_non_max {
     };
 }
 macro_rules! define_non_x {
-    ($NonMaxU8:ident: $u8: ty = $NonZeroU8: ty ) => {
+    ($NonMaxU8:ident: $u8: ty = $NonZeroU8: ty; $u8s: literal ) => {
         /// A number whose value is guaranteed not to be `FORBIDDEN`.
         ///
         /// `x` is stored as `NonZero(x.wrapping_sub(FORBIDDEN))`, so transmuting results in wrong values.
         #[repr(transparent)]
         #[derive(Clone, Copy, PartialEq, Eq)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+        #[cfg_attr(feature = "serde", serde(into = $u8s))]
+        #[cfg_attr(feature = "serde", serde(try_from = $u8s))]
         pub struct $NonMaxU8<const FORBIDDEN: $u8> {
             inner: $NonZeroU8,
         }
@@ -113,9 +131,9 @@ macro_rules! define_non_x {
             }
         }
         impl<const FORBIDDEN: $u8> TryFrom<$u8> for $NonMaxU8<{ FORBIDDEN }> {
-            type Error = ();
+            type Error = IllegalValue;
             fn try_from(value: $u8) -> Result<Self, Self::Error> {
-                Self::new(value).ok_or(())
+                Self::new(value).ok_or(IllegalValue)
             }
         }
         impl<const FORBIDDEN: $u8> PartialOrd for $NonMaxU8<{ FORBIDDEN }> {
@@ -153,25 +171,25 @@ macro_rules! define_non_x {
     };
 }
 
-define_non_max!(NonMaxU8: u8 = core::num::NonZeroU8);
-define_non_max!(NonMaxU16: u16 = core::num::NonZeroU16);
-define_non_max!(NonMaxU32: u32 = core::num::NonZeroU32);
-define_non_max!(NonMaxU64: u64 = core::num::NonZeroU64);
-define_non_max!(NonMaxU128: u128 = core::num::NonZeroU128);
-define_non_max!(NonMaxUsize: usize = core::num::NonZeroUsize);
+define_non_max!(NonMaxU8: u8 = core::num::NonZeroU8; "u8");
+define_non_max!(NonMaxU16: u16 = core::num::NonZeroU16; "u16");
+define_non_max!(NonMaxU32: u32 = core::num::NonZeroU32; "u32");
+define_non_max!(NonMaxU64: u64 = core::num::NonZeroU64; "u64");
+define_non_max!(NonMaxU128: u128 = core::num::NonZeroU128; "u128");
+define_non_max!(NonMaxUsize: usize = core::num::NonZeroUsize; "usize");
 
-define_non_x!(NonXU8: u8 = core::num::NonZeroU8);
-define_non_x!(NonXU16: u16 = core::num::NonZeroU16);
-define_non_x!(NonXU32: u32 = core::num::NonZeroU32);
-define_non_x!(NonXU64: u64 = core::num::NonZeroU64);
-define_non_x!(NonXU128: u128 = core::num::NonZeroU128);
-define_non_x!(NonXUsize: usize = core::num::NonZeroUsize);
-define_non_x!(NonXI8: i8 = core::num::NonZeroI8);
-define_non_x!(NonXI16: i16 = core::num::NonZeroI16);
-define_non_x!(NonXI32: i32 = core::num::NonZeroI32);
-define_non_x!(NonXI64: i64 = core::num::NonZeroI64);
-define_non_x!(NonXI128: i128 = core::num::NonZeroI128);
-define_non_x!(NonXIsize: isize = core::num::NonZeroIsize);
+define_non_x!(NonXU8: u8 = core::num::NonZeroU8; "u8");
+define_non_x!(NonXU16: u16 = core::num::NonZeroU16; "u16");
+define_non_x!(NonXU32: u32 = core::num::NonZeroU32; "u32");
+define_non_x!(NonXU64: u64 = core::num::NonZeroU64; "u64");
+define_non_x!(NonXU128: u128 = core::num::NonZeroU128; "u128");
+define_non_x!(NonXUsize: usize = core::num::NonZeroUsize; "usize");
+define_non_x!(NonXI8: i8 = core::num::NonZeroI8; "i8");
+define_non_x!(NonXI16: i16 = core::num::NonZeroI16; "i16");
+define_non_x!(NonXI32: i32 = core::num::NonZeroI32; "i32");
+define_non_x!(NonXI64: i64 = core::num::NonZeroI64; "i64");
+define_non_x!(NonXI128: i128 = core::num::NonZeroI128; "i128");
+define_non_x!(NonXIsize: isize = core::num::NonZeroIsize; "isize");
 
 macro_rules! makeutest {
     ($u8: ident, $NonMaxU8: ident, $NonXU8: ident) => {

@@ -51,6 +51,11 @@ impl<'a> From<Str<'a>> for &'a str {
         unsafe { core::str::from_utf8_unchecked(value.inner.into()) }
     }
 }
+impl AsRef<str> for Str<'_> {
+    fn as_ref(&self) -> &str {
+        &*self
+    }
+}
 impl<'a> Deref for Str<'a> {
     type Target = str;
     fn deref(&self) -> &Self::Target {
@@ -77,6 +82,11 @@ impl core::cmp::PartialOrd for Str<'_> {
 #[stabby::stabby]
 pub struct StrMut<'a> {
     pub(crate) inner: crate::slice::SliceMut<'a, u8>,
+}
+impl AsRef<str> for StrMut<'_> {
+    fn as_ref(&self) -> &str {
+        &*self
+    }
 }
 impl<'a> Deref for StrMut<'a> {
     type Target = str;
@@ -112,5 +122,48 @@ impl<'a> From<StrMut<'a>> for &'a mut str {
 impl<'a> From<StrMut<'a>> for &'a str {
     fn from(value: StrMut<'a>) -> Self {
         unsafe { core::str::from_utf8_unchecked(value.inner.into()) }
+    }
+}
+
+#[cfg(feature = "serde")]
+mod serde_impl {
+    use super::*;
+    use serde::{de::Visitor, Deserialize, Serialize};
+    impl<'a> Serialize for Str<'a> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serializer.serialize_str(&*self)
+        }
+    }
+    impl<'a> Serialize for StrMut<'a> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serializer.serialize_str(&*self)
+        }
+    }
+    impl<'a> Deserialize<'a> for Str<'a> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'a>,
+        {
+            deserializer.deserialize_str(StrVisitor(core::marker::PhantomData))
+        }
+    }
+    struct StrVisitor<'a>(core::marker::PhantomData<Str<'a>>);
+    impl<'a> Visitor<'a> for StrVisitor<'a> {
+        type Value = Str<'a>;
+        fn visit_borrowed_str<E>(self, v: &'a str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(v.into())
+        }
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(formatter, "A borrowed_str")
+        }
     }
 }
