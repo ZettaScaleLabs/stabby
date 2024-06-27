@@ -195,3 +195,48 @@ impl<'a, T> From<SliceMut<'a, T>> for &'a [T] {
         unsafe { core::slice::from_raw_parts(value.start.as_mut(), value.len) }
     }
 }
+
+#[cfg(feature = "serde")]
+mod serde_impl {
+    use super::*;
+    use serde::{de::Visitor, Deserialize, Serialize};
+    impl<'a, T: Serialize> Serialize for Slice<'a, T> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            let slice: &[T] = self;
+            slice.serialize(serializer)
+        }
+    }
+    impl<'a, T: Serialize> Serialize for SliceMut<'a, T> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            let slice: &[T] = self;
+            slice.serialize(serializer)
+        }
+    }
+    impl<'a> Deserialize<'a> for Slice<'a, u8> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'a>,
+        {
+            deserializer.deserialize_bytes(BytesVisitor(core::marker::PhantomData))
+        }
+    }
+    struct BytesVisitor<'a>(core::marker::PhantomData<Slice<'a, u8>>);
+    impl<'a> Visitor<'a> for BytesVisitor<'a> {
+        type Value = Slice<'a, u8>;
+        fn visit_borrowed_bytes<E>(self, v: &'a [u8]) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(v.into())
+        }
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(formatter, "A borrowed_str")
+        }
+    }
+}

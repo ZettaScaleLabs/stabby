@@ -1,3 +1,10 @@
+# 6.2.1 (api=1.1.0, abi=1.0.0)
+- Add support for `#[stabby::stabby(version=10, module="my::module")]` to let you change the values in those fields without having to implement the whole trait yourself.
+- Add support for `serde` through the `serde` feature flag.
+- Add conversions between `std` and `stabby` `String`s.
+- Fix an issue where optimized layout checks would prevent compilation due to missing trait bounds.
+- Fix estimation of `IStable::CType` for arrays.
+
 # 6.1.1 (api=1.0.0, abi=1.0.0)
 - Add support for multi-fields variants in `repr(C, u*)` enums.
 	- Deprecate support for `repr(C)` by deprecating any enum that uses it without also specifying a determinant size.

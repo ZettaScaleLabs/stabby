@@ -28,6 +28,7 @@ default = ["std"]
 std = ["libc"]
 libc = ["dep:libc"]
 test = []
+serde = ["dep:serde"]
 
 abi_stable = ["dep:abi_stable"]
 abi_stable-channels = ["abi_stable", "abi_stable/channels"]
@@ -44,6 +45,7 @@ stabby-macros.workspace = true
 abi_stable = { workspace = true, optional = true }
 libc = { workspace = true, optional = true }
 rustversion = { workspace = true }
+serde = { workspace = true, optional = true, features = ["derive"] }
 sha2-const-stable = { workspace = true }
 
 [dev-dependencies]

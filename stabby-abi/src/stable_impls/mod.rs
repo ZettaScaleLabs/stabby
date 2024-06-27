@@ -731,7 +731,7 @@ macro_rules! sliceimpl {
                 <<$size as Unsigned>::Equal<U1> as Bit>::SaddTernary<T::HasExactlyOneNiche, Saturator>,
             >;
             type ContainsIndirections = T::ContainsIndirections;
-            type CType = T::CType;
+            type CType = [T::CType; <$size as Unsigned>::USIZE];
             primitive_report!(ARRAY_NAME[<$size as Unsigned>::USIZE], T);
         }
     };

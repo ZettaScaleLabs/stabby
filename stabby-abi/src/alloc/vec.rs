@@ -818,3 +818,44 @@ fn test() {
 }
 
 pub use super::single_or_vec::SingleOrVec;
+
+#[cfg(feature = "serde")]
+mod serde_impl {
+    use super::*;
+    use crate::alloc::IAlloc;
+    use serde::{de::Visitor, Deserialize, Serialize};
+    impl<T: Serialize, Alloc: IAlloc> Serialize for Vec<T, Alloc> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            let slice: &[T] = self;
+            slice.serialize(serializer)
+        }
+    }
+    impl<'a, T: Deserialize<'a>, Alloc: IAlloc + Default> Deserialize<'a> for Vec<T, Alloc> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'a>,
+        {
+            deserializer.deserialize_seq(VecVisitor(core::marker::PhantomData))
+        }
+    }
+    pub struct VecVisitor<T, Alloc>(core::marker::PhantomData<(T, Alloc)>);
+    impl<'a, T: Deserialize<'a>, Alloc: IAlloc + Default> Visitor<'a> for VecVisitor<T, Alloc> {
+        type Value = Vec<T, Alloc>;
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("A sequence")
+        }
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: serde::de::SeqAccess<'a>,
+        {
+            let mut this = Vec::with_capacity_in(seq.size_hint().unwrap_or(0), Alloc::default());
+            while let Some(v) = seq.next_element()? {
+                this.push(v);
+            }
+            Ok(this)
+        }
+    }
+}

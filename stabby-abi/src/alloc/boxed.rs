@@ -284,6 +284,18 @@ impl<T, Alloc: IAlloc> BoxedSlice<T, Alloc> {
         (slice, capacity, alloc)
     }
 }
+impl<T, Alloc: IAlloc> core::ops::Deref for BoxedSlice<T, Alloc> {
+    type Target = [T];
+    fn deref(&self) -> &Self::Target {
+        self.as_slice()
+    }
+}
+
+impl<T, Alloc: IAlloc> core::ops::DerefMut for BoxedSlice<T, Alloc> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.as_slice_mut()
+    }
+}
 impl<T: Eq, Alloc: IAlloc> Eq for BoxedSlice<T, Alloc> {}
 impl<T: PartialEq, Alloc: IAlloc> PartialEq for BoxedSlice<T, Alloc> {
     fn eq(&self, other: &Self) -> bool {
@@ -421,3 +433,44 @@ impl<T, Alloc: IAlloc> IntoIterator for BoxedSlice<T, Alloc> {
     }
 }
 pub use super::string::BoxedStr;
+
+#[cfg(feature = "serde")]
+mod serde_impl {
+    use super::*;
+    use crate::alloc::IAlloc;
+    use serde::{Deserialize, Serialize};
+    impl<T: Serialize, Alloc: IAlloc> Serialize for BoxedSlice<T, Alloc> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            let slice: &[T] = self;
+            slice.serialize(serializer)
+        }
+    }
+    impl<'a, T: Deserialize<'a>, Alloc: IAlloc + Default> Deserialize<'a> for BoxedSlice<T, Alloc> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'a>,
+        {
+            crate::alloc::vec::Vec::deserialize(deserializer).map(Into::into)
+        }
+    }
+    impl<Alloc: IAlloc> Serialize for BoxedStr<Alloc> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            let slice: &str = self;
+            slice.serialize(serializer)
+        }
+    }
+    impl<'a, Alloc: IAlloc + Default> Deserialize<'a> for BoxedStr<Alloc> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'a>,
+        {
+            crate::alloc::string::String::deserialize(deserializer).map(Into::into)
+        }
+    }
+}

@@ -549,3 +549,33 @@ where
         }
     }
 }
+
+#[cfg(feature = "serde")]
+mod serde_impl {
+    use super::*;
+    use serde::{Deserialize, Serialize};
+    impl<Ok: Serialize, Err: Serialize> Serialize for Result<Ok, Err>
+    where
+        Ok: IDeterminantProvider<Err>,
+        Err: IStable,
+    {
+        fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            let this: core::result::Result<_, _> = self.as_ref();
+            this.serialize(serializer)
+        }
+    }
+    impl<'a, Ok: IDeterminantProvider<Err>, Err: IStable> Deserialize<'a> for Result<Ok, Err>
+    where
+        core::result::Result<Ok, Err>: Deserialize<'a>,
+    {
+        fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'a>,
+        {
+            Ok(core::result::Result::<Ok, Err>::deserialize(deserializer)?.into())
+        }
+    }
+}

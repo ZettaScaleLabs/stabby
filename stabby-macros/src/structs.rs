@@ -16,6 +16,44 @@ use proc_macro2::Ident;
 use quote::quote;
 use syn::{Attribute, DataStruct, Generics, Visibility};
 
+struct Args {
+    optimize: bool,
+    version: u32,
+    module: proc_macro2::TokenStream,
+}
+impl syn::parse::Parse for Args {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let mut this = Args {
+            optimize: true,
+            version: 0,
+            module: quote!(),
+        };
+        while !input.is_empty() {
+            let ident: Ident = input.parse()?;
+            match ident.to_string().as_str() {
+                "no_opt" => this.optimize = false,
+                "version" => {
+                    input.parse::<syn::Token!(=)>()?;
+                    this.version = input.parse::<syn::LitInt>()?.to_string().parse().unwrap();
+                }
+                "module" => {
+                    input.parse::<syn::Token!(=)>()?;
+                    while !input.is_empty() {
+                        if input.peek(syn::Token!(,)) {
+                            break;
+                        }
+                        let token: proc_macro2::TokenTree = input.parse()?;
+                        this.module.extend(Some(token))
+                    }
+                }
+                _ => return Err(input.error("Unknown stabby attribute {ident}")),
+            }
+            _ = input.parse::<syn::Token!(,)>();
+        }
+        Ok(this)
+    }
+}
+
 pub fn stabby(
     attrs: Vec<Attribute>,
     vis: Visibility,
@@ -26,19 +64,19 @@ pub fn stabby(
     }: DataStruct,
     stabby_attrs: &proc_macro::TokenStream,
 ) -> proc_macro2::TokenStream {
-    let mut opt = match stabby_attrs.to_string().as_str() {
-        "no_opt" => false,
-        "" => true,
-        _ => panic!("Unkown stabby attributes {stabby_attrs}"),
-    };
-    opt &= generics.params.is_empty();
+    let Args {
+        mut optimize,
+        version,
+        module,
+    } = syn::parse(stabby_attrs.clone()).unwrap();
+    optimize &= generics.params.is_empty();
     let st = crate::tl_mod();
     let unbound_generics = crate::utils::unbound_generics(&generics.params);
     let generics_without_defaults = crate::utils::generics_without_defaults(&generics.params);
     let where_clause = &generics.where_clause;
     let clauses = where_clause.as_ref().map(|w| &w.predicates);
     let mut layout = None;
-    let mut report = crate::Report::r#struct(ident.to_string(), 0);
+    let mut report = crate::Report::r#struct(ident.to_string(), version, module);
     let struct_code = match &fields {
         syn::Fields::Named(fields) => {
             let fields = &fields.named;
@@ -90,10 +128,10 @@ pub fn stabby(
     let align_bug = format!(
         "{ident}'s align was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
     );
-    // let reprc_bug = format!(
-    //     "{ident}'s CType was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
-    // );
-    let assertion = opt.then(|| {
+    let reprc_bug = format!(
+        "{ident}'s CType was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
+    );
+    let assertion = optimize.then(|| {
         let sub_optimal_message = format!(
             "{ident}'s layout is sub-optimal, reorder fields or use `#[stabby::stabby(no_opt)]`"
         );
@@ -122,10 +160,9 @@ pub fn stabby(
             type CType = #ctype;
             const REPORT: &'static #st::report::TypeReport = &#report;
             const ID: u64 = {
-                // if (<<Self as #st::IStable>::Size as #st::Unsigned>::USIZE != <<<Self as #st::IStable>::CType as #st::IStable>::Size as #st::Unsigned>::USIZE)
-                // || (<<Self as #st::IStable>::Align as #st::Unsigned>::USIZE != <<<Self as #st::IStable>::CType as #st::IStable>::Align as #st::Unsigned>::USIZE) {
-                //     panic!(#reprc_bug)
-                // }
+                if core::mem::size_of::<Self>() != core::mem::size_of::<<Self as #st::IStable>::CType>() || core::mem::align_of::<Self>() != core::mem::align_of::<<Self as #st::IStable>::CType>() {
+                    panic!(#reprc_bug)
+                }
                 if core::mem::size_of::<Self>() != <<Self as #st::IStable>::Size as #st::Unsigned>::USIZE {
                     panic!(#size_bug)
                 }
@@ -138,7 +175,7 @@ pub fn stabby(
         #[allow(dead_code, missing_docs)]
         struct #opt_id #generics #where_clause #fields #semi_token
         #assertion
-        impl < #generics_without_defaults > #ident <#unbound_generics> #where_clause {
+        impl < #generics_without_defaults > #ident <#unbound_generics> where #layout: #st::IStable, #report_bounds #clauses {
             #[doc = #optdoc]
             pub const fn has_optimal_layout() -> bool {
                 core::mem::size_of::<Self>() <= core::mem::size_of::<#opt_id<#unbound_generics>>()
