@@ -36,32 +36,90 @@ macro_rules! same_as {
 
 #[allow(dead_code)]
 const ARCH: &[u8] = _ARCH;
-#[cfg(target_arch = "x86")]
-const _ARCH: &[u8] = b"x86";
-#[cfg(target_arch = "x86_64")]
-const _ARCH: &[u8] = b"x86_64";
-#[cfg(target_arch = "arm")]
-const _ARCH: &[u8] = b"arm";
 #[cfg(target_arch = "aarch64")]
 const _ARCH: &[u8] = b"aarch64";
+#[cfg(target_arch = "arm")]
+const _ARCH: &[u8] = b"arm";
+#[cfg(target_arch = "arm64ec")]
+const _ARCH: &[u8] = b"arm64ec";
+#[cfg(target_arch = "avr")]
+const _ARCH: &[u8] = b"avr";
+#[cfg(target_arch = "bpf")]
+const _ARCH: &[u8] = b"bpf";
+#[cfg(target_arch = "csky")]
+const _ARCH: &[u8] = b"csky";
+#[cfg(target_arch = "hexagon")]
+const _ARCH: &[u8] = b"hexagon";
 #[cfg(target_arch = "loongarch64")]
 const _ARCH: &[u8] = b"loongarch64";
 #[cfg(target_arch = "m68k")]
 const _ARCH: &[u8] = b"m68k";
 #[cfg(target_arch = "mips")]
 const _ARCH: &[u8] = b"mips";
+#[cfg(target_arch = "mips32r6")]
+const _ARCH: &[u8] = b"mips32r6";
 #[cfg(target_arch = "mips64")]
 const _ARCH: &[u8] = b"mips64";
+#[cfg(target_arch = "mips64r6")]
+const _ARCH: &[u8] = b"mips64r6";
+#[cfg(target_arch = "msp430")]
+const _ARCH: &[u8] = b"msp430";
+#[cfg(target_arch = "nvptx64")]
+const _ARCH: &[u8] = b"nvptx64";
 #[cfg(target_arch = "powerpc")]
 const _ARCH: &[u8] = b"powerpc";
 #[cfg(target_arch = "powerpc64")]
 const _ARCH: &[u8] = b"powerpc64";
+#[cfg(target_arch = "riscv32")]
+const _ARCH: &[u8] = b"riscv32";
 #[cfg(target_arch = "riscv64")]
 const _ARCH: &[u8] = b"riscv64";
 #[cfg(target_arch = "s390x")]
 const _ARCH: &[u8] = b"s390x";
+#[cfg(target_arch = "sparc")]
+const _ARCH: &[u8] = b"sparc";
 #[cfg(target_arch = "sparc64")]
 const _ARCH: &[u8] = b"sparc64";
+#[cfg(target_arch = "wasm32")]
+const _ARCH: &[u8] = b"wasm32";
+#[cfg(target_arch = "wasm64")]
+const _ARCH: &[u8] = b"wasm64";
+#[cfg(target_arch = "x86")]
+const _ARCH: &[u8] = b"x86";
+#[cfg(target_arch = "x86_64")]
+const _ARCH: &[u8] = b"x86_64";
+#[cfg(target_arch = "xtensa")]
+const _ARCH: &[u8] = b"xtensa";
+#[cfg(not(any(
+    target_arch = "aarch64",
+    target_arch = "arm",
+    target_arch = "arm64ec",
+    target_arch = "avr",
+    target_arch = "bpf",
+    target_arch = "csky",
+    target_arch = "hexagon",
+    target_arch = "loongarch64",
+    target_arch = "m68k",
+    target_arch = "mips",
+    target_arch = "mips32r6",
+    target_arch = "mips64",
+    target_arch = "mips64r6",
+    target_arch = "msp430",
+    target_arch = "nvptx64",
+    target_arch = "powerpc",
+    target_arch = "powerpc64",
+    target_arch = "riscv32",
+    target_arch = "riscv64",
+    target_arch = "s390x",
+    target_arch = "sparc",
+    target_arch = "sparc64",
+    target_arch = "wasm32",
+    target_arch = "wasm64",
+    target_arch = "x86",
+    target_arch = "x86_64",
+    target_arch = "xtensa"
+)))]
+const _ARCH: &[u8] = b"unknown_arch";
 
 macro_rules! check {
     ($t: ty) => {
@@ -298,24 +356,34 @@ unsafe impl IStable for u128 {
     type ForbiddenValues = End;
     type Size = U16;
     type HasExactlyOneNiche = B0;
+
     #[rustversion::before(1.77)]
     #[cfg(not(target_arch = "aarch64"))]
     type Align = U8;
-    #[rustversion::since(1.77)]
-    type Align = U16;
     #[rustversion::before(1.77)]
     #[cfg(target_arch = "aarch64")]
     type Align = U16;
+    #[rustversion::since(1.77)]
+    #[cfg(not(target_arch = "wasm32"))]
+    type Align = U16;
+    #[rustversion::since(1.77)]
+    #[cfg(target_arch = "wasm32")]
+    type Align = U8;
+
     type ContainsIndirections = B0;
     type CType = <Self::Align as Alignment>::AsUint;
     #[rustversion::before(1.77)]
     #[cfg(not(target_arch = "aarch64"))]
     primitive_report!("u128(8)");
-    #[rustversion::since(1.77)]
-    primitive_report!("u128(16)");
     #[rustversion::before(1.77)]
     #[cfg(target_arch = "aarch64")]
     primitive_report!("u128(16)");
+    #[rustversion::since(1.77)]
+    #[cfg(not(target_arch = "wasm32"))]
+    primitive_report!("u128(16)");
+    #[rustversion::since(1.77)]
+    #[cfg(target_arch = "wasm32")]
+    primitive_report!("u128(8)");
 }
 
 check!(u128);
