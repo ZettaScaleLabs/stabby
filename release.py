@@ -10,7 +10,8 @@ def factor(x, base):
     return n
 
 def factor_version(version, base):
-    return ".".join([str(factor(int(x), base)) for x in version.split(".")])
+    v = re.sub(r'([0-9\.]+).*', "\\g<1>", version)
+    return ".".join([str(factor(int(x), base)) for x in v.split(".")])
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "publish":
@@ -27,13 +28,13 @@ if __name__ == "__main__":
         with open(changelog) as clog:
             changelog_text = clog.read()
             for line in changelog_text.splitlines():
-                versions = re.findall(r"^#\s+([\d\.]+)", line)
+                versions = re.findall(r"^#\s+([\.\w\-]+)", line)
                 version = versions[0] if len(versions) else None
                 if version is not None:
                     break
         header = f"# {version} (api={factor_version(version, 2)}, abi={factor_version(version, 3)})"
         print(header)
-        changelog_text = re.sub(r"^#\s+([\d\.]+)\s*(\(api[^\)]+\))?", header, changelog_text)
+        changelog_text = re.sub(r"^#\s+([\.\w\-]+)(\s*\(api[^\)]+\))?", header, changelog_text)
         with open(changelog, "w") as clog:
             clog.write(changelog_text)
         

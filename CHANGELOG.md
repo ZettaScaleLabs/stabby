@@ -1,3 +1,10 @@
+# 6.4.1-rc1 (api=1.2.0, abi=1.0.0)
+- Found out that `libc` doesn't expose any allocation primitives for `wasm` targets.
+	- These targets now have a poor man's allocator. Be warned that while ABI-stable, this allocator is trivial and probably bad.  
+	  If `wasm` is indeed a target which you care a lot about, and you use stabby's allocation primitives a lot, you should probably roll out a better one (maybe even contribute it back).
+	- This allocator is not included in `stabby`'s cross-version contract: it may be swapped out for a better one in a patch-level API-bump.  
+	  If you need me _not_ to do so (i.e. you pass stabby's allocation primitives in `wasm` between multiple packages and can't pin your version of `stabby` down to patch for X reason), please reach out to me.
+
 # 6.2.1 (api=1.1.0, abi=1.0.0)
 - Add support for `#[stabby::stabby(version=10, module="my::module")]` to let you change the values in those fields without having to implement the whole trait yourself.
 - Add support for `serde` through the `serde` feature flag.
