@@ -640,8 +640,6 @@ fn btree_insert_libc() {
         let mut vec = crate::alloc::vec::Vec::new();
         let mut btree = ArcBTreeSet::new();
         for _ in 0..rng.gen_range(0..800) {
-            eprintln!("btree: {btree:?}");
-            eprintln!("vec: {vec:?}");
             let val = rng.gen_range(0..100u8);
             if vec.binary_search(&val).is_ok() {
                 assert_eq!(btree.insert(val), Some(val));
@@ -670,12 +668,10 @@ fn btree_insert_rs() {
     let mut rng = rand::thread_rng();
     for i in 0..1000 {
         dbg!(i);
-        let mut vec = crate::alloc::vec::Vec::new_in(
-            crate::alloc::allocators::rust_alloc::RustAlloc::default(),
-        );
-        let mut btree = ArcBTreeSet::<_, _, false, 5>::new_in(
-            crate::alloc::allocators::rust_alloc::RustAlloc::default(),
-        );
+        let mut vec =
+            crate::alloc::vec::Vec::new_in(crate::alloc::allocators::RustAlloc::default());
+        let mut btree =
+            ArcBTreeSet::<_, _, false, 5>::new_in(crate::alloc::allocators::RustAlloc::default());
         for _ in 0..rng.gen_range(0..800) {
             let val = rng.gen_range(0..100);
             if vec.binary_search(&val).is_ok() {
@@ -683,7 +679,11 @@ fn btree_insert_rs() {
             } else {
                 vec.push(val);
                 vec.sort();
-                assert_eq!(btree.insert(val), None);
+                assert_eq!(
+                    btree.insert(val),
+                    None,
+                    "The BTree contained an unexpected value: {btree:?}, {vec:?}"
+                );
             }
         }
         vec.sort();

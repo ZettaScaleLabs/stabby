@@ -20,7 +20,10 @@ use self::vec::ptr_diff;
 /// Allocators provided by `stabby`
 pub mod allocators;
 #[cfg(all(feature = "libc", not(any(target_arch = "wasm32"))))]
-pub use allocators::libc_alloc;
+/// The `libc_alloc` module, kept for API-stability.
+pub mod libc_alloc {
+    pub use super::allocators::libc_alloc::LibcAlloc;
+}
 
 /// A generic allocation error.
 #[crate::stabby]
@@ -49,7 +52,7 @@ pub mod vec;
 
 /// The default allocator: libc malloc based if the libc feature is enabled, or unavailable otherwise.
 #[cfg(all(feature = "libc", not(any(target_arch = "wasm32"))))]
-pub type DefaultAllocator = libc_alloc::LibcAlloc;
+pub type DefaultAllocator = allocators::LibcAlloc;
 #[cfg(not(all(feature = "libc", not(any(target_arch = "wasm32")))))]
 pub type DefaultAllocator = core::convert::Infallible;
 
@@ -358,11 +361,10 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
                 ),
                 marker: PhantomData,
             };
-            assert!(core::ptr::eq(
+            debug_assert!(core::ptr::eq(
                 prefix.as_ptr().cast(),
                 this.prefix() as *const _
             ));
-            dbg!(prefix);
             this
         })
     }
@@ -377,11 +379,10 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
                 ptr: NonNull::new_unchecked(ptr.cast()),
                 marker: PhantomData,
             };
-            assert!(core::ptr::eq(
+            debug_assert!(core::ptr::eq(
                 prefix.as_ptr().cast(),
                 this.prefix() as *const _
             ));
-            dbg!(prefix);
             this
         })
     }
@@ -399,11 +400,13 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
     ) -> Option<Self> {
         let layout = Layout::of::<AllocPrefix<Alloc>>().concat(Layout::array::<T>(prev_capacity));
         let ptr = alloc.realloc(
-            dbg!(self.prefix() as *const AllocPrefix<Alloc>)
+            (self.prefix() as *const AllocPrefix<Alloc>)
                 .cast_mut()
                 .cast(),
             layout,
-            new_capacity,
+            Layout::of::<AllocPrefix<Alloc>>()
+                .concat(Layout::array::<T>(new_capacity))
+                .size,
         );
         NonNull::new(ptr).map(|prefix| unsafe {
             prefix.cast::<AllocPrefix<Alloc>>().as_mut().capacity = AtomicUsize::new(new_capacity);
@@ -412,11 +415,10 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
                 ptr: NonNull::new_unchecked(ptr.cast()),
                 marker: PhantomData,
             };
-            assert!(core::ptr::eq(
+            debug_assert!(core::ptr::eq(
                 prefix.as_ptr().cast(),
                 this.prefix() as *const _
             ));
-            dbg!(prefix);
             this
         })
     }

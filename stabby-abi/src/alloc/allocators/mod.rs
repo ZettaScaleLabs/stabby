@@ -8,13 +8,17 @@
 /// This allocator is based on an ordered linked list of free memory blocks.
 // pub mod freelist_alloc;
 
-#[cfg(not(any(target_arch = "wasm32")))]
+#[cfg(all(feature = "libc", not(target_arch = "wasm32")))]
 /// [`IAlloc`](crate::alloc::IAlloc) bindings for `libc::malloc`
-pub mod libc_alloc;
+pub(crate) mod libc_alloc;
+#[cfg(all(feature = "libc", not(target_arch = "wasm32")))]
+pub use libc_alloc::LibcAlloc;
 
 #[cfg(feature = "alloc-rs")]
 /// Rust's GlobalAlloc, accessed through a vtable to ensure no incompatible function calls are performed
-pub mod rust_alloc;
+mod rust_alloc;
+#[cfg(feature = "alloc-rs")]
+pub use rust_alloc::RustAlloc;
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) mod paging {

@@ -12,8 +12,6 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use std::io::Write;
-
 use crate::alloc::Layout;
 
 #[cfg(not(windows))]
@@ -31,7 +29,7 @@ unsafe fn posix_memalign(this: &mut *mut core::ffi::c_void, size: usize, align: 
 use libc::aligned_free;
 #[cfg(not(windows))]
 use libc::free as aligned_free;
-use libc::{malloc, realloc};
+use libc::realloc;
 
 /// An allocator based on `libc::posix_memalign` or `libc::aligned_malloc` depending on the platform.
 ///
@@ -69,26 +67,14 @@ impl crate::alloc::IAlloc for LibcAlloc {
         unsafe { aligned_free(ptr.cast()) }
     }
     unsafe fn realloc(&mut self, ptr: *mut (), prev: Layout, new_size: usize) -> *mut () {
-        dbg!(prev);
         if new_size == 0 {
             return core::ptr::null_mut();
         }
-        let mut new_ptr = if prev.align <= 8 {
-            eprintln!(
-                "Previous ({ptr:?}): {:?}",
-                core::slice::from_raw_parts(ptr.cast::<u8>(), prev.size)
-            );
-            let new_ptr = unsafe { realloc(ptr.cast(), new_size) };
-            eprintln!(
-                "Reallocd ({new_ptr:?}): {:?}",
-                core::slice::from_raw_parts(new_ptr.cast::<u8>(), prev.size)
-            );
-            new_ptr
-        } else {
-            core::ptr::null_mut()
+        let mut new_ptr = core::ptr::null_mut::<core::ffi::c_void>();
+        if prev.align <= 8 {
+            new_ptr = unsafe { realloc(ptr.cast(), new_size) };
         };
         if new_ptr.is_null() {
-            new_ptr = core::ptr::null_mut();
             let err = unsafe { posix_memalign(&mut new_ptr, prev.align, new_size) };
             if err == 0 {
                 unsafe {

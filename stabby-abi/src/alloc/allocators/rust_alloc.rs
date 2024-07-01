@@ -29,19 +29,34 @@ extern "C" fn realloc(
     new_size: usize,
 ) -> *mut () {
     let prev_layout = unsafe { ptr.cast::<Layout>().sub(1).read() };
-    let alloc_start = unsafe { ptr.cast::<u8>().sub(prev_layout.align) };
+    let realloc_start = unsafe {
+        ptr.cast::<u8>()
+            .sub(prev_layout.align.max(core::mem::size_of::<Layout>()))
+    };
     let Ok(layout) = core::alloc::Layout::from_size_align(prev_layout.size, prev_layout.align)
     else {
         return core::ptr::null_mut();
     };
-    unsafe { alloc_rs::alloc::realloc(alloc_start, layout, new_size).cast() }
+    unsafe {
+        let requested = Layout::of::<Layout>().concat(Layout {
+            size: new_size,
+            align: prev_layout.align,
+        });
+        let alloc_start = alloc_rs::alloc::realloc(realloc_start, layout, requested.size);
+        let ret = alloc_start.add(layout.align().max(core::mem::size_of::<Layout>()));
+        ret.cast::<Layout>().sub(1).write(requested);
+        ret.cast()
+    }
 }
 extern "C" fn free(ptr: *mut ()) {
     let prev_layout = unsafe { ptr.cast::<Layout>().sub(1).read() };
-    let alloc_start = unsafe { ptr.cast::<u8>().sub(prev_layout.align) };
+    let dealloc_start = unsafe {
+        ptr.cast::<u8>()
+            .sub(prev_layout.align.max(core::mem::size_of::<Layout>()))
+    };
     unsafe {
         alloc_rs::alloc::dealloc(
-            alloc_start,
+            dealloc_start,
             core::alloc::Layout::from_size_align_unchecked(prev_layout.size, prev_layout.align),
         )
     }
