@@ -1,3 +1,6 @@
+# 6.2.2 (api=1.1.1, abi=1.0.0)
+- Relax many dependency requirements to help avoid conflicts with crates that pin them
+
 # 6.4.1-rc1 (api=1.2.0, abi=1.0.0)
 - Found out that `libc` doesn't expose any allocation primitives for `wasm` targets.
 	- These targets now have a poor man's allocator. Be warned that while ABI-stable, this allocator is trivial and probably bad.  
