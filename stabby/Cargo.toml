@@ -33,7 +33,6 @@ serde = ["stabby-abi/serde"]
 [dependencies]
 stabby-abi = { workspace = true, default-features = false }
 
-lazy_static = { workspace = true }
 libloading = { workspace = true, optional = true }
 rustversion = { workspace = true }
 
