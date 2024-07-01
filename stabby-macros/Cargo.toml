@@ -23,6 +23,9 @@ repository = { workspace = true }
 readme = { workspace = true }
 description = "the macros that make working with stabby possible, you shouldn't add this crate to your dependencies, only `stabby`."
 
+[features]
+ctypes = []
+
 [dependencies]
 proc-macro2 = { workspace = true }
 proc-macro-crate = { workspace = true }

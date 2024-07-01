@@ -26,6 +26,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(stabby_nightly, feature(freeze))]
 
+#[cfg(feature = "alloc-rs")]
+extern crate alloc as alloc_rs;
+
 /// ABI-stable smart pointers and allocated data structures, with support for custom allocators.
 pub mod alloc;
 /// Extending [Non-Zero Types](core::num) to enable niches for other values than 0.
@@ -261,6 +264,7 @@ unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
     type UnusedBits = As::UnusedBits;
     type HasExactlyOneNiche = As::HasExactlyOneNiche;
     type ContainsIndirections = As::ContainsIndirections;
+    #[cfg(feature = "ctypes")]
     type CType = As::CType;
     const ID: u64 = crate::report::gen_id(Self::REPORT);
     const REPORT: &'static report::TypeReport = As::REPORT;
@@ -294,6 +298,7 @@ unsafe impl<
     type UnusedBits = End;
     type HasExactlyOneNiche = HasExactlyOneNiche;
     type ContainsIndirections = ContainsIndirections;
+    #[cfg(feature = "ctypes")]
     type CType = ();
     primitive_report!("NoNiches");
 }
@@ -346,6 +351,7 @@ unsafe impl<T: IStable, Cond: IStable> IStable for StableIf<T, Cond> {
     type UnusedBits = T::UnusedBits;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
     type ContainsIndirections = T::ContainsIndirections;
+    #[cfg(feature = "ctypes")]
     type CType = T::CType;
     const REPORT: &'static report::TypeReport = T::REPORT;
     const ID: u64 = crate::report::gen_id(Self::REPORT);
@@ -400,19 +406,6 @@ pub use istable::{Array, End, IStable};
 
 /// The heart of `stabby`: the [`IStable`] trait.
 pub mod istable;
-
-mod boundtests {
-    #[crate::stabby]
-    pub trait Test {
-        extern "C" fn test(&self);
-        extern "C" fn test2(&self);
-    }
-    #[crate::stabby]
-    pub struct Test2 {
-        a: usize,
-        b: usize,
-    }
-}
 
 /// Expands to [`unreachable!()`](core::unreachable) in debug builds or if `--cfg stabby_check_unreachable=true` has been set in the `RUST_FLAGS`, and to [`core::hint::unreachable_unchecked`] otherwise.
 ///

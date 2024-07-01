@@ -25,7 +25,9 @@ description = "stabby's core ABI, you shouldn't add this crate to your dependenc
 
 [features]
 default = ["std"]
-std = ["libc"]
+std = ["libc", "alloc-rs"]
+alloc-rs = []
+ctypes = ["stabby-macros/ctypes"]
 libc = ["dep:libc"]
 test = []
 serde = ["dep:serde"]

@@ -12,13 +12,15 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+#![allow(deprecated)]
 use core::{marker::PhantomData, mem::MaybeUninit, ptr::NonNull, sync::atomic::AtomicUsize};
 
 use self::vec::ptr_diff;
 
-#[cfg(feature = "libc")]
-/// A libc malloc based implementation of the [`IAlloc`] API
-pub mod libc_alloc;
+/// Allocators provided by `stabby`
+pub mod allocators;
+#[cfg(all(feature = "libc", not(any(target_arch = "wasm32"))))]
+pub use allocators::libc_alloc;
 
 /// A generic allocation error.
 #[crate::stabby]
@@ -46,9 +48,9 @@ pub mod sync;
 pub mod vec;
 
 /// The default allocator: libc malloc based if the libc feature is enabled, or unavailable otherwise.
-#[cfg(feature = "libc")]
+#[cfg(all(feature = "libc", not(any(target_arch = "wasm32"))))]
 pub type DefaultAllocator = libc_alloc::LibcAlloc;
-#[cfg(not(feature = "libc"))]
+#[cfg(not(all(feature = "libc", not(any(target_arch = "wasm32")))))]
 pub type DefaultAllocator = core::convert::Infallible;
 
 #[crate::stabby]
@@ -103,6 +105,14 @@ impl Layout {
         }
         next_matching(self.align, ptr.cast()).cast()
     }
+    pub(crate) const fn for_alloc(mut self) -> Self {
+        if self.align >= 8 {
+            return self;
+        }
+        self.align = 8;
+        self.size = self.size + (8 - self.size % 8) * ((self.size % 8 != 0) as usize);
+        self
+    }
 }
 
 /// An interface to an allocator.
@@ -127,11 +137,14 @@ pub trait IAlloc: Unpin {
     ///
     /// # Safety
     /// `ptr` MUST have been allocated through a succesful call to `Self::alloc` with the same instance of `Self`
-    unsafe fn realloc(&mut self, ptr: *mut (), new_layout: Layout) -> *mut () {
-        let ret = self.alloc(new_layout);
+    unsafe fn realloc(&mut self, ptr: *mut (), prev_layout: Layout, new_size: usize) -> *mut () {
+        let ret = self.alloc(Layout {
+            size: new_size,
+            align: prev_layout.align,
+        });
         if !ret.is_null() {
             unsafe {
-                core::ptr::copy_nonoverlapping(ptr.cast::<u8>(), ret.cast(), new_layout.size);
+                core::ptr::copy_nonoverlapping(ptr.cast::<u8>(), ret.cast(), prev_layout.size);
                 self.free(ptr);
             }
         }
@@ -141,6 +154,7 @@ pub trait IAlloc: Unpin {
 
 /// An ABI stable equivalent to [`IAlloc`].
 #[crate::stabby]
+#[deprecated = "Stabby doesn't actually use this trait due to conflicts."]
 pub trait IStableAlloc: Unpin {
     /// Allocates at least as much memory as requested by layout, ensuring the requested alignment is respected.
     ///
@@ -157,11 +171,19 @@ pub trait IStableAlloc: Unpin {
     ///
     /// # Safety
     /// `ptr` MUST have been allocated through a succesful call to `Self::alloc` with the same instance of `Self`
-    extern "C" fn realloc(&mut self, ptr: *mut (), new_layout: Layout) -> *mut () {
-        let ret = self.alloc(new_layout);
+    extern "C" fn realloc(
+        &mut self,
+        ptr: *mut (),
+        prev_layout: Layout,
+        new_size: usize,
+    ) -> *mut () {
+        let ret = self.alloc(Layout {
+            size: new_size,
+            align: prev_layout.align,
+        });
         if !ret.is_null() {
             unsafe {
-                core::ptr::copy_nonoverlapping(ptr.cast::<u8>(), ret.cast(), new_layout.size);
+                core::ptr::copy_nonoverlapping(ptr.cast::<u8>(), ret.cast(), prev_layout.size);
                 self.free(ptr);
             }
         }
@@ -176,8 +198,13 @@ impl<T: IAlloc> IStableAlloc for T {
     extern "C" fn free(&mut self, ptr: *mut ()) {
         unsafe { IAlloc::free(self, ptr) }
     }
-    extern "C" fn realloc(&mut self, ptr: *mut (), layout: Layout) -> *mut () {
-        unsafe { IAlloc::realloc(self, ptr, layout) }
+    extern "C" fn realloc(
+        &mut self,
+        ptr: *mut (),
+        prev_layout: Layout,
+        new_size: usize,
+    ) -> *mut () {
+        unsafe { IAlloc::realloc(self, ptr, prev_layout, new_size) }
     }
 }
 
@@ -188,8 +215,8 @@ impl<T: IStableAllocDynMut<crate::vtable::H> + Unpin> IAlloc for T {
     unsafe fn free(&mut self, ptr: *mut ()) {
         IStableAllocDynMut::free(self, ptr)
     }
-    unsafe fn realloc(&mut self, ptr: *mut (), new_layout: Layout) -> *mut () {
-        IStableAllocDynMut::realloc(self, ptr, new_layout)
+    unsafe fn realloc(&mut self, ptr: *mut (), prev_layout: Layout, new_size: usize) -> *mut () {
+        IStableAllocDynMut::realloc(self, ptr, prev_layout, new_size)
     }
 }
 impl IAlloc for core::convert::Infallible {
@@ -323,28 +350,39 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
     /// Allocates a pointer to a single element of `T`, prefixed by an [`AllocPrefix`]
     pub fn alloc(alloc: &mut Alloc) -> Option<Self> {
         let ptr = alloc.alloc(Layout::of::<AllocPrefix<Alloc>>().concat(Layout::of::<T>()));
-        NonNull::new(ptr).map(|ptr| unsafe {
-            ptr.cast::<AllocPrefix<Alloc>>().as_mut().capacity = AtomicUsize::new(1);
-            Self {
+        NonNull::new(ptr).map(|prefix| unsafe {
+            prefix.cast::<AllocPrefix<Alloc>>().as_mut().capacity = AtomicUsize::new(1);
+            let this = Self {
                 ptr: NonNull::new_unchecked(
-                    ptr.as_ptr().cast::<u8>().add(Self::prefix_skip()).cast(),
+                    prefix.as_ptr().cast::<u8>().add(Self::prefix_skip()).cast(),
                 ),
                 marker: PhantomData,
-            }
+            };
+            assert!(core::ptr::eq(
+                prefix.as_ptr().cast(),
+                this.prefix() as *const _
+            ));
+            dbg!(prefix);
+            this
         })
     }
     /// Allocates a pointer to an array of `capacity` `T`, prefixed by an [`AllocPrefix`]
     pub fn alloc_array(alloc: &mut Alloc, capacity: usize) -> Option<Self> {
         let ptr =
             alloc.alloc(Layout::of::<AllocPrefix<Alloc>>().concat(Layout::array::<T>(capacity)));
-        NonNull::new(ptr).map(|ptr| unsafe {
-            ptr.cast::<AllocPrefix<Alloc>>().as_mut().capacity = AtomicUsize::new(capacity);
-            Self {
-                ptr: NonNull::new_unchecked(
-                    ptr.as_ptr().cast::<u8>().add(Self::prefix_skip()).cast(),
-                ),
+        NonNull::new(ptr).map(|prefix| unsafe {
+            prefix.cast::<AllocPrefix<Alloc>>().as_mut().capacity = AtomicUsize::new(capacity);
+            let ptr = prefix.as_ptr().cast::<u8>().add(Self::prefix_skip());
+            let this = Self {
+                ptr: NonNull::new_unchecked(ptr.cast()),
                 marker: PhantomData,
-            }
+            };
+            assert!(core::ptr::eq(
+                prefix.as_ptr().cast(),
+                this.prefix() as *const _
+            ));
+            dbg!(prefix);
+            this
         })
     }
     /// Reallocates a pointer to an array of `capacity` `T`, prefixed by an [`AllocPrefix`].
@@ -353,19 +391,33 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
     ///
     /// # Safety
     /// `self` must not be dangling
-    pub unsafe fn realloc(self, alloc: &mut Alloc, capacity: usize) -> Option<Self> {
+    pub unsafe fn realloc(
+        self,
+        alloc: &mut Alloc,
+        prev_capacity: usize,
+        new_capacity: usize,
+    ) -> Option<Self> {
+        let layout = Layout::of::<AllocPrefix<Alloc>>().concat(Layout::array::<T>(prev_capacity));
         let ptr = alloc.realloc(
-            self.prefix() as *const _ as *mut _,
-            Layout::of::<AllocPrefix<Alloc>>().concat(Layout::array::<T>(capacity)),
+            dbg!(self.prefix() as *const AllocPrefix<Alloc>)
+                .cast_mut()
+                .cast(),
+            layout,
+            new_capacity,
         );
-        NonNull::new(ptr).map(|ptr| unsafe {
-            ptr.cast::<AllocPrefix<Alloc>>().as_mut().capacity = AtomicUsize::new(capacity);
-            Self {
-                ptr: NonNull::new_unchecked(
-                    ptr.as_ptr().cast::<u8>().add(Self::prefix_skip()).cast(),
-                ),
+        NonNull::new(ptr).map(|prefix| unsafe {
+            prefix.cast::<AllocPrefix<Alloc>>().as_mut().capacity = AtomicUsize::new(new_capacity);
+            let ptr = prefix.as_ptr().cast::<u8>().add(Self::prefix_skip());
+            let this = Self {
+                ptr: NonNull::new_unchecked(ptr.cast()),
                 marker: PhantomData,
-            }
+            };
+            assert!(core::ptr::eq(
+                prefix.as_ptr().cast(),
+                this.prefix() as *const _
+            ));
+            dbg!(prefix);
+            this
         })
     }
     /// Reallocates a pointer to an array of `capacity` `T`, prefixed by an [`AllocPrefix`]

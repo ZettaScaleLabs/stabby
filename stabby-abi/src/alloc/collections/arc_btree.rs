@@ -175,6 +175,7 @@ where
     type UnusedBits = <*const T as IStable>::UnusedBits;
     type HasExactlyOneNiche = crate::B0;
     type ContainsIndirections = crate::B1;
+    #[cfg(feature = "ctypes")]
     type CType = <*const T as IStable>::CType;
     const REPORT: &'static crate::report::TypeReport = &crate::report::TypeReport {
         name: crate::str::Str::new("ArcBTreeSet"),
@@ -631,12 +632,50 @@ impl<T, Alloc: IAlloc, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize>
     }
 }
 #[test]
-fn btree_insert() {
+fn btree_insert_libc() {
     use rand::Rng;
     let mut rng = rand::thread_rng();
-    for _ in 0..1000 {
+    for i in 0..1000 {
+        dbg!(i);
         let mut vec = crate::alloc::vec::Vec::new();
         let mut btree = ArcBTreeSet::new();
+        for _ in 0..rng.gen_range(0..800) {
+            eprintln!("btree: {btree:?}");
+            eprintln!("vec: {vec:?}");
+            let val = rng.gen_range(0..100u8);
+            if vec.binary_search(&val).is_ok() {
+                assert_eq!(btree.insert(val), Some(val));
+            } else {
+                vec.push(val);
+                vec.sort();
+                assert_eq!(
+                    btree.insert(val),
+                    None,
+                    "The BTree contained an unexpected value: {btree:?}, {vec:?}"
+                );
+            }
+        }
+        vec.sort();
+        assert_eq!(vec.len(), btree.len());
+        let mut iter = vec.into_iter();
+        btree.for_each(|i| assert_eq!(Some(*i), iter.next()));
+        assert_eq!(iter.next(), None);
+    }
+}
+
+#[test]
+#[cfg(feature = "alloc-rs")]
+fn btree_insert_rs() {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    for i in 0..1000 {
+        dbg!(i);
+        let mut vec = crate::alloc::vec::Vec::new_in(
+            crate::alloc::allocators::rust_alloc::RustAlloc::default(),
+        );
+        let mut btree = ArcBTreeSet::<_, _, false, 5>::new_in(
+            crate::alloc::allocators::rust_alloc::RustAlloc::default(),
+        );
         for _ in 0..rng.gen_range(0..800) {
             let val = rng.gen_range(0..100);
             if vec.binary_search(&val).is_ok() {

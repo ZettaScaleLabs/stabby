@@ -73,6 +73,9 @@ pub fn stabby(
         report.add_field(field.ident.as_ref().unwrap().to_string(), ty);
     }
     let report_bounds = report.bounds();
+    let ctype = cfg!(feature = "ctypes").then(|| {
+        quote! {type CType = <#layout as #st::IStable>::CType;}
+    });
     quote! {
         #(#attrs)*
         #[repr(C)]
@@ -87,7 +90,7 @@ pub fn stabby(
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
             type ContainsIndirections =  <#layout as #st::IStable>::ContainsIndirections;
-            type CType = <#layout as #st::IStable>::CType;
+            #ctype
             const REPORT: &'static #st::report::TypeReport = & #report;
             const ID: u64 = #st::report::gen_id(Self::REPORT);
         }

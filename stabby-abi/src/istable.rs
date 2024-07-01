@@ -44,6 +44,7 @@ pub unsafe trait IStable: Sized {
     type HasExactlyOneNiche: ISaturatingAdd;
     /// Whether or not the type contains indirections (pointers, indices in independent data-structures...)
     type ContainsIndirections: Bit;
+    #[cfg(feature = "ctypes")]
     /// A support mechanism for [`safer-ffi`](https://crates.io/crates/safer-ffi), allowing all [`IStable`] types to also be `safer_ffi::ReprC`
     type CType: IStable;
     /// A compile-time generated report of the fields of the type, allowing for compatibility inspection.
@@ -123,6 +124,7 @@ unsafe impl<T: IStable> IStable for NotPod<T> {
     type ForbiddenValues = T::ForbiddenValues;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
     type UnusedBits = T::UnusedBits;
+    #[cfg(feature = "ctypes")]
     type CType = T::CType;
     primitive_report!("NotPod", T);
 }
@@ -188,6 +190,7 @@ unsafe impl<
     type UnusedBits = UnusedBits;
     type HasExactlyOneNiche = HasExactlyOneNiche;
     type ContainsIndirections = B0;
+    #[cfg(feature = "ctypes")]
     type CType = ();
     primitive_report!("NicheExporter");
 }
@@ -386,6 +389,7 @@ unsafe impl<A: IStable, B: IStable> IStable for FieldPair<A, B> {
         <AlignedAfter<B, A::Size> as IStable>::HasExactlyOneNiche,
     >;
     type ContainsIndirections = <A::ContainsIndirections as Bit>::Or<B::ContainsIndirections>;
+    #[cfg(feature = "ctypes")]
     type CType = ();
     primitive_report!("FP");
 }
@@ -517,6 +521,7 @@ unsafe impl<A: IStable, B: IStable> IStable for Union<A, B> {
     type Align = <A::Align as Alignment>::Max<B::Align>;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = <A::ContainsIndirections as Bit>::Or<B::ContainsIndirections>;
+    #[cfg(feature = "ctypes")]
     type CType = <<Self::Align as PowerOf2>::Divide<Self::Size> as IUnsignedBase>::Array<
         <Self::Align as Alignment>::AsUint,
     >;
@@ -537,6 +542,7 @@ unsafe impl<T: IStable, Start: Unsigned> IStable for AlignedAfter<T, Start> {
     >;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
     type ContainsIndirections = T::ContainsIndirections;
+    #[cfg(feature = "ctypes")]
     type CType = ();
     primitive_report!("FP");
 }
@@ -549,6 +555,7 @@ unsafe impl<T: IStable> IStable for Struct<T> {
         <<tyeval!(<T::Size as Unsigned>::NextMultipleOf<T::Align> - T::Size) as IUnsignedBase>::PaddingBitMask as IBitMask>::Shift<T::Size>>;
     type HasExactlyOneNiche = Saturator;
     type ContainsIndirections = T::ContainsIndirections;
+    #[cfg(feature = "ctypes")]
     type CType = ();
     primitive_report!("FP");
 }
