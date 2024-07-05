@@ -497,7 +497,7 @@ impl Unself for syn::Path {
             return syn::parse2(quote! {#st::istable::_Self}).unwrap();
         }
         syn::Path {
-            leading_colon: leading_colon.clone(),
+            leading_colon: *leading_colon,
             segments: segments
                 .iter()
                 .map(|syn::PathSegment { ident, arguments }| syn::PathSegment {
@@ -513,8 +513,8 @@ impl Unself for syn::Path {
                             },
                         ) => syn::PathArguments::AngleBracketed(
                             syn::AngleBracketedGenericArguments {
-                                colon2_token: colon2_token.clone(),
-                                lt_token: lt_token.clone(),
+                                colon2_token: *colon2_token,
+                                lt_token: *lt_token,
                                 args: args
                                     .iter()
                                     .map(|arg| match arg {
@@ -527,7 +527,7 @@ impl Unself for syn::Path {
                                             ty,
                                         }) => syn::GenericArgument::Binding(syn::Binding {
                                             ident: ident.clone(),
-                                            eq_token: eq_token.clone(),
+                                            eq_token: *eq_token,
                                             ty: ty.unself(this),
                                         }),
                                         syn::GenericArgument::Constraint(syn::Constraint {
@@ -536,13 +536,13 @@ impl Unself for syn::Path {
                                             bounds,
                                         }) => syn::GenericArgument::Constraint(syn::Constraint {
                                             ident: ident.clone(),
-                                            colon_token: colon_token.clone(),
+                                            colon_token: *colon_token,
                                             bounds: bounds.iter().map(|b| b.unself(this)).collect(),
                                         }),
                                         other => other.clone(),
                                     })
                                     .collect(),
-                                gt_token: gt_token.clone(),
+                                gt_token: *gt_token,
                             },
                         ),
                         syn::PathArguments::Parenthesized(syn::ParenthesizedGenericArguments {
@@ -551,12 +551,12 @@ impl Unself for syn::Path {
                             output,
                         }) => {
                             syn::PathArguments::Parenthesized(syn::ParenthesizedGenericArguments {
-                                paren_token: paren_token.clone(),
+                                paren_token: *paren_token,
                                 inputs: inputs.iter().map(|t| t.unself(this)).collect(),
                                 output: match output {
                                     syn::ReturnType::Default => syn::ReturnType::Default,
                                     syn::ReturnType::Type(arrow, ty) => syn::ReturnType::Type(
-                                        arrow.clone(),
+                                        *arrow,
                                         Box::new(ty.unself(this)),
                                     ),
                                 },
@@ -577,8 +577,8 @@ impl Unself for syn::TypeParamBound {
                 lifetimes,
                 path,
             }) => TypeParamBound::Trait(syn::TraitBound {
-                paren_token: paren_token.clone(),
-                modifier: modifier.clone(),
+                paren_token: *paren_token,
+                modifier: *modifier,
                 lifetimes: lifetimes.clone(),
                 path: path.unself(this),
             }),
@@ -597,8 +597,8 @@ impl Unself for syn::Type {
             }) => syn::Type::Array(syn::TypeArray {
                 elem: Box::new(elem.unself(this)),
                 len: len.clone(),
-                bracket_token: bracket_token.clone(),
-                semi_token: semi_token.clone(),
+                bracket_token: *bracket_token,
+                semi_token: *semi_token,
             }),
             syn::Type::BareFn(syn::TypeBareFn {
                 lifetimes,
@@ -611,7 +611,7 @@ impl Unself for syn::Type {
                 variadic,
             }) => syn::Type::BareFn(syn::TypeBareFn {
                 lifetimes: lifetimes.clone(),
-                unsafety: unsafety.clone(),
+                unsafety: *unsafety,
                 abi: abi.clone(),
                 inputs: inputs
                     .iter()
@@ -624,28 +624,28 @@ impl Unself for syn::Type {
                 output: match output {
                     syn::ReturnType::Default => syn::ReturnType::Default,
                     syn::ReturnType::Type(arrow, ret) => {
-                        syn::ReturnType::Type(arrow.clone(), Box::new(ret.unself(this)))
+                        syn::ReturnType::Type(*arrow, Box::new(ret.unself(this)))
                     }
                 },
-                fn_token: fn_token.clone(),
-                paren_token: paren_token.clone(),
+                fn_token: *fn_token,
+                paren_token: *paren_token,
                 variadic: variadic.clone(),
             }),
             syn::Type::Group(syn::TypeGroup { group_token, elem }) => {
                 syn::Type::Group(syn::TypeGroup {
-                    group_token: group_token.clone(),
+                    group_token: *group_token,
                     elem: Box::new(elem.unself(this)),
                 })
             }
             syn::Type::ImplTrait(syn::TypeImplTrait { impl_token, bounds }) => {
                 syn::Type::ImplTrait(syn::TypeImplTrait {
-                    impl_token: impl_token.clone(),
+                    impl_token: *impl_token,
                     bounds: bounds.into_iter().map(|p| p.unself(this)).collect(),
                 })
             }
             syn::Type::Paren(syn::TypeParen { paren_token, elem }) => {
                 syn::Type::Paren(syn::TypeParen {
-                    paren_token: paren_token.clone(),
+                    paren_token: *paren_token,
                     elem: Box::new(elem.unself(this)),
                 })
             }
@@ -658,11 +658,11 @@ impl Unself for syn::Type {
                          as_token,
                          gt_token,
                      }| syn::QSelf {
-                        lt_token: lt_token.clone(),
+                        lt_token: *lt_token,
                         ty: Box::new(ty.unself(this)),
-                        position: position.clone(),
-                        as_token: as_token.clone(),
-                        gt_token: gt_token.clone(),
+                        position: *position,
+                        as_token: *as_token,
+                        gt_token: *gt_token,
                     },
                 ),
                 path: path.unself(this),
@@ -673,9 +673,9 @@ impl Unself for syn::Type {
                 mutability,
                 elem,
             }) => syn::Type::Ptr(syn::TypePtr {
-                star_token: star_token.clone(),
-                const_token: const_token.clone(),
-                mutability: mutability.clone(),
+                star_token: *star_token,
+                const_token: *const_token,
+                mutability: *mutability,
                 elem: Box::new(elem.unself(this)),
             }),
             syn::Type::Reference(syn::TypeReference {
@@ -684,27 +684,27 @@ impl Unself for syn::Type {
                 mutability,
                 elem,
             }) => syn::Type::Reference(syn::TypeReference {
-                and_token: and_token.clone(),
+                and_token: *and_token,
                 lifetime: lifetime.clone(),
-                mutability: mutability.clone(),
+                mutability: *mutability,
                 elem: Box::new(elem.unself(this)),
             }),
             syn::Type::Slice(syn::TypeSlice {
                 bracket_token,
                 elem,
             }) => syn::Type::Slice(syn::TypeSlice {
-                bracket_token: bracket_token.clone(),
+                bracket_token: *bracket_token,
                 elem: Box::new(elem.unself(this)),
             }),
             syn::Type::TraitObject(syn::TypeTraitObject { dyn_token, bounds }) => {
                 syn::Type::TraitObject(syn::TypeTraitObject {
-                    dyn_token: dyn_token.clone(),
+                    dyn_token: *dyn_token,
                     bounds: bounds.iter().map(|b| b.unself(this)).collect(),
                 })
             }
             syn::Type::Tuple(syn::TypeTuple { paren_token, elems }) => {
                 syn::Type::Tuple(syn::TypeTuple {
-                    paren_token: paren_token.clone(),
+                    paren_token: *paren_token,
                     elems: elems.iter().map(|ty| ty.unself(this)).collect(),
                 })
             }

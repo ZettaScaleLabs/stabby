@@ -250,7 +250,12 @@ where
     const fn as_ptr(
         &self,
     ) -> *mut ArcBTreeSetNodeInner<T, DefaultAllocator, REPLACE_ON_INSERT, SPLIT_LIMIT> {
-        unsafe { core::mem::transmute(core::ptr::read(&self.root)) }
+        unsafe {
+            core::mem::transmute::<
+                Option<ArcBTreeSetNode<T, DefaultAllocator, REPLACE_ON_INSERT, SPLIT_LIMIT>>,
+                *mut ArcBTreeSetNodeInner<T, DefaultAllocator, REPLACE_ON_INSERT, SPLIT_LIMIT>,
+            >(core::ptr::read(&self.root))
+        }
     }
     /// Reinterprets the pointer as a root, leaving partial ownership to the pointer.
     fn copy_from_ptr(
@@ -262,9 +267,28 @@ where
                 alloc: core::mem::MaybeUninit::new(Default::default()),
             },
             Some(ptr) => {
-                let owner: core::mem::ManuallyDrop<
-                    Option<ArcBTreeSetNode<T, DefaultAllocator, REPLACE_ON_INSERT, SPLIT_LIMIT>>,
-                > = unsafe { core::mem::transmute(ptr) };
+                let owner: core::mem::ManuallyDrop<_> = unsafe {
+                    core::mem::transmute::<
+                        NonNull<
+                            ArcBTreeSetNodeInner<
+                                T,
+                                DefaultAllocator,
+                                REPLACE_ON_INSERT,
+                                SPLIT_LIMIT,
+                            >,
+                        >,
+                        core::mem::ManuallyDrop<
+                            Option<
+                                ArcBTreeSetNode<
+                                    T,
+                                    DefaultAllocator,
+                                    REPLACE_ON_INSERT,
+                                    SPLIT_LIMIT,
+                                >,
+                            >,
+                        >,
+                    >(ptr)
+                };
                 let root = owner.deref().clone();
                 Self {
                     root,
@@ -283,7 +307,21 @@ where
                 alloc: core::mem::MaybeUninit::new(Default::default()),
             },
             Some(ptr) => {
-                let root = unsafe { core::mem::transmute(ptr) };
+                let root = unsafe {
+                    core::mem::transmute::<
+                        NonNull<
+                            ArcBTreeSetNodeInner<
+                                T,
+                                DefaultAllocator,
+                                REPLACE_ON_INSERT,
+                                SPLIT_LIMIT,
+                            >,
+                        >,
+                        Option<
+                            ArcBTreeSetNode<T, DefaultAllocator, REPLACE_ON_INSERT, SPLIT_LIMIT>,
+                        >,
+                    >(ptr)
+                };
                 Self {
                     root,
                     alloc: core::mem::MaybeUninit::uninit(),
@@ -310,6 +348,7 @@ impl<T: Ord, Alloc: IAlloc, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: us
     /// Constructs a new set in the provided allocator.
     ///
     /// Note that this doesn't actually allocate.
+    #[allow(clippy::let_unit_value)]
     pub const fn from_alloc(alloc: Alloc) -> Self {
         _ = Self::CHECK;
         Self {
