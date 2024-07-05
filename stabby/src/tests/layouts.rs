@@ -257,10 +257,12 @@ fn layouts() {
     let _ = Align1024::ID;
 }
 
+#[allow(dead_code)]
 #[stabby::stabby]
 #[repr(align(16))]
 struct Align128(u128);
 
+#[allow(dead_code)]
 #[stabby::stabby]
 #[repr(align(1024))]
 struct Align1024(u8);
