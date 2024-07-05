@@ -69,9 +69,7 @@ pub(crate) fn tl_mod() -> proc_macro2::TokenStream {
     }
 }
 
-/// The lifeblood of stabby.
-///
-/// The README should provide all the necessary explainations.
+/// The lifeblood of stabby. [Click for the tutorial](https://docs.rs/stabby/latest/stabby/_tutorial_/index.html)
 #[proc_macro_attribute]
 pub fn stabby(stabby_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     if let Ok(DeriveInput {

@@ -259,6 +259,11 @@ unsafe impl IStable for core::marker::PhantomPinned {
     type CType = ();
     primitive_report!("core::marker::PhantomPinned");
 }
+unsafe impl IStable for core::ffi::c_void {
+    same_as!(());
+    type ContainsIndirections = B0;
+    primitive_report!("core::ffi::c_void");
+}
 unsafe impl IStable for bool {
     type Align = U1;
     type Size = U1;

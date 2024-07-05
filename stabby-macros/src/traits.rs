@@ -155,6 +155,7 @@ struct DynTraitDescription<'a> {
     functions: Vec<DynTraitFn<'a>>,
     mut_functions: Vec<DynTraitFn<'a>>,
     self_dependent_types: SelfDependentTypes,
+    vt_attrs: Vec<proc_macro2::TokenStream>,
     bounds: Vec<DynTraitBound>,
     check_bounds: bool,
 }
@@ -191,7 +192,19 @@ impl quote::ToTokens for DynTraitFn<'_> {
         tokens.extend(quote!(#unsafety #abi fn #ident #generics (#receiver, #(#inputs)*) #output))
     }
 }
-impl<'a> From<(&'a syn::ItemTrait, bool)> for DynTraitDescription<'a> {
+struct SubAttr {
+    inner: proc_macro2::TokenStream,
+}
+impl syn::parse::Parse for SubAttr {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let content;
+        syn::parenthesized!(content in input);
+        Ok(SubAttr {
+            inner: content.parse()?,
+        })
+    }
+}
+impl<'a> From<(&'a mut syn::ItemTrait, bool)> for DynTraitDescription<'a> {
     fn from(
         (
             syn::ItemTrait {
@@ -200,10 +213,11 @@ impl<'a> From<(&'a syn::ItemTrait, bool)> for DynTraitDescription<'a> {
                 generics,
                 brace_token: _,
                 items,
+                attrs,
                 ..
             },
             checked,
-        ): (&'a syn::ItemTrait, bool),
+        ): (&'a mut syn::ItemTrait, bool),
     ) -> Self {
         let mut this = DynTraitDescription {
             ident,
@@ -212,9 +226,22 @@ impl<'a> From<(&'a syn::ItemTrait, bool)> for DynTraitDescription<'a> {
             functions: Vec::new(),
             mut_functions: Vec::new(),
             bounds: Default::default(),
+            vt_attrs: Vec::new(),
             self_dependent_types: Default::default(),
             check_bounds: checked,
         };
+        attrs.retain(|attr| {
+            let mut path_segments = attr.path.segments.iter();
+            if path_segments.next().map_or(true, |s| s.ident != "stabby") {
+                return true;
+            }
+            if path_segments.next().map_or(true, |s| s.ident != "vt_attr") {
+                return true;
+            }
+            let vt_attr = syn::parse2::<SubAttr>(attr.tokens.clone()).unwrap();
+            this.vt_attrs.push(vt_attr.inner);
+            false
+        });
         for item in items {
             match item {
                 syn::TraitItem::Method(method) => {
@@ -509,6 +536,7 @@ impl<'a> DynTraitDescription<'a> {
         let vis = self.vis;
         let vt_generics = self.vt_generics::<true>();
         let nbvt_generics = self.vt_generics::<false>();
+        let vt_attrs = &self.vt_attrs;
         let vt_bounds = self
             .bounds
             .iter()
@@ -648,6 +676,7 @@ impl<'a> DynTraitDescription<'a> {
 
         let vt_doc = format!("An stabby-generated item for [`{}`]", trait_id);
         let mut vtable_decl = quote! {
+            #(#[#vt_attrs])*
             #vis struct #vtid < #vt_generics > where #(#vt_bounds)* {
                 #(
                     #[doc = #vt_doc]
@@ -1367,13 +1396,16 @@ impl Ty {
         }
     }
 }
-pub fn stabby(item_trait: syn::ItemTrait, stabby_attrs: &proc_macro::TokenStream) -> TokenStream {
+pub fn stabby(
+    mut item_trait: syn::ItemTrait,
+    stabby_attrs: &proc_macro::TokenStream,
+) -> TokenStream {
     let checked = match stabby_attrs.to_string().as_str() {
         "checked" => true,
         "" => false,
         _ => panic!("Unkown stabby attributes {stabby_attrs}"),
     };
-    let description: DynTraitDescription = (&item_trait, checked).into();
+    let description: DynTraitDescription = (&mut item_trait, checked).into();
     let vtable = description.vtable();
     quote! {
         #[deny(improper_ctypes_definitions)]

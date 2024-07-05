@@ -1,3 +1,7 @@
+# 36.1.1-rc2 (api=2.0.0, abi=2.0.0)
+- Add the `#[stabby::vt_attr(_)]` sub-attribute to `#[stabby::stabby]` on traits, letting you place custom attributes on the v-tables generated for a trait.
+- Add support for `core::ffi::c_void`.
+
 # 36.1.1-rc1 (api=2.0.0, abi=2.0.0)
 - BREAKING CHANGES: A large rework of allocation occurred, breaking both API and ABI compatibility with the previous version:
 	- `RustAlloc` is the new default allocator of `stabby`: this allocator is a simple pointer to a v-table allowing cross-ffi use of Rust's `alloc::GlobalAlloc`.
