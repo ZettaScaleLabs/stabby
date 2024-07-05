@@ -16,12 +16,12 @@ use core::num::{NonZeroU16, NonZeroU32, NonZeroU8};
 
 use crate as stabby;
 use stabby::tuple::{Tuple2, Tuple3, Tuple8};
-use stabby_abi::{typenum2::*, Array, End, Result};
+use stabby_abi::{istable::Saturator, typenum2::*, Array, End, IStable, Result};
 
 #[stabby::stabby]
-pub union UTest {
+pub union UnionTest {
     u8: u8,
-    usize: usize,
+    u64: u64,
 }
 #[stabby::stabby]
 pub union UTest2 {
@@ -88,7 +88,7 @@ pub enum SameFieldsFourTimes<T> {
 pub struct WeirdStructBadLayout {
     fields: FieldsC,
     no_fields: NoFields,
-    utest: UTest,
+    utest: UnionTest,
     u32: u32,
 }
 
@@ -96,7 +96,7 @@ pub struct WeirdStructBadLayout {
 pub struct WeirdStructBadLayout2 {
     fields: FieldsC,
     no_fields: NoFields,
-    utest: UTest,
+    utest: UnionTest,
 }
 
 #[stabby::stabby]
@@ -104,7 +104,7 @@ pub struct WeirdStruct {
     fields: FieldsC,
     no_fields: NoFields,
     u32: u32,
-    utest: UTest,
+    utest: UnionTest,
 }
 
 #[stabby::stabby]
@@ -117,9 +117,25 @@ pub struct Test {
     a: u32,
 }
 
+#[stabby::stabby]
+pub struct SingleNiche {
+    a: usize,
+    b: &'static u8,
+}
+#[stabby::stabby]
+pub struct EndPadding {
+    a: usize,
+    b: u8,
+}
+
 #[test]
 fn layouts() {
     use stabby::abi::istable::IForbiddenValues;
+    let _: B1 = <<SingleNiche as IStable>::HasExactlyOneNiche>::default();
+    let _: Saturator = <<EndPadding as IStable>::HasExactlyOneNiche>::default();
+    let _: B0 = <<Tuple3<u32, u32, u32> as IStable>::HasExactlyOneNiche>::default();
+    let _: Saturator = <<Tuple2<u8, u32> as IStable>::HasExactlyOneNiche>::default();
+    let _: Saturator = <<Test as IStable>::HasExactlyOneNiche>::default();
     macro_rules! test {
         () => {};
         ($t: ty, $unused: ty, $illegal: ty) => {
@@ -199,7 +215,7 @@ fn layouts() {
     test!(stabby::abi::Union<u8, ()>, End, End);
     test!(stabby::abi::Union<(), u8>, End, End);
     test!(stabby::result::Result<(), ()>, Array<U0, Ub11111110, End>, End);
-    test!(UTest, End, End);
+    test!(UnionTest, End, End);
     test!(FieldsC, Array<U1, UxFF, Array<U2, UxFF, Array<U3, UxFF, End>>>, End);
     test!(FieldsStabby, End, End);
     test!(MultiFieldsC, Array<U1, UxFF, End>, End);

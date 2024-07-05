@@ -1,3 +1,6 @@
+# 36.1.1-rc3 (api=2.0.0, abi=2.0.0)
+- Allow structures to compute their single-niche evaluation properly.
+
 # 36.1.1-rc2 (api=2.0.0, abi=2.0.0)
 - Add the `#[stabby::vt_attr(_)]` sub-attribute to `#[stabby::stabby]` on traits, letting you place custom attributes on the v-tables generated for a trait.
 - Add support for `core::ffi::c_void`.
