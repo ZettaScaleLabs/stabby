@@ -54,8 +54,12 @@ fn typenum_unsigned() -> std::io::Result<()> {
         }
     }
     for i in 0..128 {
-        let u = u(1 << i);
+        let p = 1 << i;
+        let u = u(p);
         writeln!(file, "/// {i}\npub type U2pow{i} = {u};")?;
+        if p > SEQ_MAX {
+            writeln!(file, "/// {i}\npub type U{p} = {u};")?;
+        }
     }
     Ok(())
 }

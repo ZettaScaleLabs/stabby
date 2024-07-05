@@ -1,3 +1,6 @@
+# 36.1.1-rc4 (api=2.0.0, abi=2.0.0)
+- Add support for `#[repr(transparent)]` and `#[repr(align(n))]` in `#[stabby::stabby]` structs up to n=64kiB.
+
 # 36.1.1-rc3 (api=2.0.0, abi=2.0.0)
 - Allow structures to compute their single-niche evaluation properly.
 

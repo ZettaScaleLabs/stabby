@@ -18,7 +18,7 @@ use self::unsigned::{Alignment, IUnsignedBase};
 
 use super::typenum2::*;
 use super::unsigned::{IBitBase, NonZero};
-use super::{FieldPair, Struct, Union};
+use super::{AlignedStruct, FieldPair, Struct, Union};
 use stabby_macros::tyeval;
 
 /// A trait to describe the layout of a type, marking it as ABI-stable.
@@ -555,6 +555,22 @@ unsafe impl<T: IStable, Start: Unsigned> IStable for AlignedAfter<T, Start> {
 unsafe impl<T: IStable> IStable for Struct<T> {
     type Size = <T::Size as Unsigned>::NextMultipleOf<T::Align>;
     type Align = T::Align;
+    type ForbiddenValues = T::ForbiddenValues;
+    type UnusedBits = <T::UnusedBits as IBitMask>::BitOr<
+        <<tyeval!(<T::Size as Unsigned>::NextMultipleOf<T::Align> - T::Size) as IUnsignedBase>::PaddingBitMask as IBitMask>::Shift<T::Size>>;
+    type HasExactlyOneNiche = <<T::Size as Unsigned>::Equal<Self::Size> as Bit>::SaddTernary<
+        T::HasExactlyOneNiche,
+        Saturator,
+    >;
+    type ContainsIndirections = T::ContainsIndirections;
+    #[cfg(feature = "experimental-ctypes")]
+    type CType = ();
+    primitive_report!("FP");
+}
+
+unsafe impl<T: IStable, Align: Alignment> IStable for AlignedStruct<T, Align> {
+    type Size = <T::Size as Unsigned>::NextMultipleOf<Self::Align>;
+    type Align = <Align as Alignment>::Max<T::Align>;
     type ForbiddenValues = T::ForbiddenValues;
     type UnusedBits = <T::UnusedBits as IBitMask>::BitOr<
         <<tyeval!(<T::Size as Unsigned>::NextMultipleOf<T::Align> - T::Size) as IUnsignedBase>::PaddingBitMask as IBitMask>::Shift<T::Size>>;

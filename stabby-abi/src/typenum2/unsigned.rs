@@ -531,6 +531,33 @@ impl Alignment for U16 {
     type Max<T: Alignment> = <Self::Greater<T> as IBitBase>::_ATernary<Self, T>;
     type AsUint = u128;
 }
+macro_rules! gen_align {
+    ($n: literal, $path: ident, $u: ident, $backing: ty) => {
+        /// A type with the alignment specified in its name.
+        ///
+        /// This type is also valid as a contiguous buffer.
+        #[crate::stabby]
+        #[repr(align($n))]
+        #[derive(Debug, Default, Copy, Clone)]
+        pub struct $path(pub $backing);
+        impl Alignment for $u {
+            type Max<T: Alignment> = <Self::Greater<T> as IBitBase>::_ATernary<Self, T>;
+            type AsUint = $path;
+        }
+    };
+}
+gen_align!(32, Align32, U32, [u8; 32]);
+gen_align!(64, Align64, U64, [[u8; 32]; 2]);
+gen_align!(128, Align128, U128, [[u8; 32]; 4]);
+gen_align!(256, Align256, U256, [[u8; 32]; 8]);
+gen_align!(512, Align512, U512, [[u8; 32]; 16]);
+gen_align!(1024, Align1024, U1024, [[u8; 32]; 32]);
+gen_align!(2048, Align2048, U2048, [[[u8; 32]; 32]; 2]);
+gen_align!(4096, Align4096, U4096, [[[u8; 32]; 32]; 4]);
+gen_align!(8192, Align8192, U8192, [[[u8; 32]; 32]; 8]);
+gen_align!(16384, Align16384, U16384, [[[u8; 32]; 32]; 16]);
+gen_align!(32768, Align32768, U32768, [[[u8; 32]; 32]; 32]);
+gen_align!(65536, Align65536, U65536, [[[[u8; 32]; 32]; 32]; 2]);
 
 #[allow(unknown_lints)]
 #[allow(clippy::missing_transmute_annotations)]

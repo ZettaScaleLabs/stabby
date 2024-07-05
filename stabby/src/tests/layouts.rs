@@ -254,26 +254,15 @@ fn layouts() {
         >(),
         3 * 16
     );
+    let _ = Align1024::ID;
 }
 
 #[allow(dead_code)]
+#[stabby::stabby]
 #[repr(align(16))]
 struct Align128(u128);
-unsafe impl stabby::abi::IStable for Align128 {
-    type Size = U16;
-    type Align = U16;
-    type ForbiddenValues = End;
-    type UnusedBits = End;
-    type HasExactlyOneNiche = B0;
-    type ContainsIndirections = B0;
-    #[cfg(feature = "experimental-ctypes")]
-    type CType = Align128;
-    const REPORT: &'static stabby::abi::report::TypeReport = &stabby::abi::report::TypeReport {
-        name: stabby::abi::str::Str::new("Align128"),
-        module: stabby::abi::str::Str::new(core::module_path!()),
-        fields: stabby::abi::StableLike::new(None),
-        version: 0,
-        tyty: stabby::abi::report::TyTy::Struct,
-    };
-    const ID: u64 = stabby::abi::report::gen_id(Self::REPORT);
-}
+
+#[allow(dead_code)]
+#[stabby::stabby]
+#[repr(align(1024))]
+struct Align1024(u8);
