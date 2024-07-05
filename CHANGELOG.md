@@ -11,6 +11,7 @@
 	- The `AllocPrefix`'s location relative to prefixed allocations (such as those used by all of `stabby`'s container types) has changed for types with alignments greater than pointer-size.
 		- The prefix was previously placed as if the allocation held `Tuple2<AllocPrefix, T>`, meaning that for larger alignments, there could be padding between the prefix and the pointed value.
 		- This padding has been removed, as it could cause soundness issues when the pointer was opacified, such as for trait objects.
+	- `serde` and `libc` features are no longer part of the default features set.
 - `stabby::collections::arc_btree`'s types are now ABI-stable.
 - `#[stabby::stabby]` can now understand when a type refers to itself to avoid forming proof cycles.
 - The `experimental-ctypes` feature-flag was added to mark the integration between `stabby` and `safer-ffi` as experimental.
