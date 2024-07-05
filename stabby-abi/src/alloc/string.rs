@@ -13,8 +13,10 @@ pub struct String<Alloc: IAlloc = super::DefaultAllocator> {
     pub(crate) inner: Vec<u8, Alloc>,
 }
 
-#[cfg(feature = "libc")]
-impl String {
+impl String
+where
+    super::DefaultAllocator: Default,
+{
     /// Constructs a new string using the default allocator.
     pub const fn new() -> Self {
         Self { inner: Vec::new() }

@@ -55,8 +55,10 @@ pub(crate) const fn ptr_add<T>(lhs: NonNull<T>, rhs: usize) -> NonNull<T> {
     }
 }
 
-#[cfg(feature = "libc")]
-impl<T> Vec<T> {
+impl<T> Vec<T>
+where
+    super::DefaultAllocator: Default,
+{
     /// Constructs a new vector with the default allocator. This doesn't actually allocate.
     pub const fn new() -> Self {
         Self::new_in(super::DefaultAllocator::new())
@@ -792,7 +794,7 @@ impl<Alloc: IAlloc> std::io::Write for Vec<u8, Alloc> {
     }
 }
 
-#[cfg(all(feature = "std", feature = "libc"))]
+#[cfg(feature = "std")]
 #[test]
 fn test() {
     use rand::Rng;

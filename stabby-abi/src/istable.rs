@@ -559,3 +559,7 @@ unsafe impl<T: IStable> IStable for Struct<T> {
     type CType = ();
     primitive_report!("FP");
 }
+
+/// Used by `stabby` to prevent proof cycles in types that contain indirections to themselves.
+#[crate::stabby]
+pub struct _Self;

@@ -16,6 +16,8 @@ use proc_macro2::Ident;
 use quote::quote;
 use syn::{Attribute, DataStruct, Generics, Visibility};
 
+use crate::Unself;
+
 struct Args {
     optimize: bool,
     version: u32,
@@ -81,7 +83,7 @@ pub fn stabby(
         syn::Fields::Named(fields) => {
             let fields = &fields.named;
             for field in fields {
-                let ty = &field.ty;
+                let ty = field.ty.unself(&ident);
                 layout = Some(layout.map_or_else(
                     || quote!(#ty),
                     |layout| quote!(#st::FieldPair<#layout, #ty>),
@@ -99,7 +101,7 @@ pub fn stabby(
         syn::Fields::Unnamed(fields) => {
             let fields = &fields.unnamed;
             for (i, field) in fields.iter().enumerate() {
-                let ty = &field.ty;
+                let ty = field.ty.unself(&ident);
                 layout = Some(layout.map_or_else(
                     || quote!(#ty),
                     |layout| quote!(#st::FieldPair<#layout, #ty>),

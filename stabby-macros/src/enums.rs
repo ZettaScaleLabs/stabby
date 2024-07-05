@@ -18,6 +18,8 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Attribute, DataEnum, Generics, Ident, Visibility};
 
+use crate::Unself;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Repr {
     Stabby,
@@ -174,7 +176,7 @@ pub fn stabby(
     let mut layout = quote!(());
     let DataEnum { variants, .. } = &data;
     let mut has_non_empty_fields = false;
-    let unit = syn::parse2(quote!(())).unwrap();
+    let unit: syn::Type = syn::parse2(quote!(())).unwrap();
     let mut report = crate::Report::r#enum(ident.to_string(), version, module.clone());
     for variant in variants {
         match &variant.fields {
@@ -184,7 +186,7 @@ pub fn stabby(
                     crate::Report::r#struct(variant.ident.to_string(), version, module.clone());
                 let mut variant_layout = quote!(());
                 for f in &f.named {
-                    let ty = &f.ty;
+                    let ty = f.ty.unself(&ident);
                     variant_layout = quote!(#st::FieldPair<#variant_layout, #ty>);
                     variant_report.add_field(f.ident.as_ref().unwrap().to_string(), ty);
                 }
@@ -202,7 +204,7 @@ pub fn stabby(
                         crate::Report::r#struct(variant.ident.to_string(), version, module.clone());
                     let mut variant_layout = quote!(());
                     for (n, f) in f.unnamed.iter().enumerate() {
-                        let ty = &f.ty;
+                        let ty = f.ty.unself(&ident);
                         variant_layout = quote!(#st::FieldPair<#variant_layout, #ty>);
                         variant_report.add_field(n.to_string(), ty);
                     }
@@ -217,13 +219,13 @@ pub fn stabby(
                     );
                     has_non_empty_fields = true;
                     let f = f.unnamed.first().unwrap();
-                    let ty = &f.ty;
+                    let ty = f.ty.unself(&ident);
                     layout = quote!(#st::Union<#layout, core::mem::ManuallyDrop<#ty>>);
                     report.add_field(variant.ident.to_string(), ty);
                 }
             }
             syn::Fields::Unit => {
-                report.add_field(variant.ident.to_string(), &unit);
+                report.add_field(variant.ident.to_string(), unit.clone());
             }
         }
     }

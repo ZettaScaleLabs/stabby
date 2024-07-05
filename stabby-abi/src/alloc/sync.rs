@@ -70,7 +70,7 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     ) -> Result<Self, (F, Alloc)> {
         let mut ptr = match AllocPtr::alloc(&mut alloc) {
             Some(mut ptr) => {
-                unsafe { core::ptr::write(&mut ptr.prefix_mut().alloc, alloc) };
+                unsafe { ptr.prefix_mut().alloc.write(alloc) };
                 ptr
             }
             None => return Err((constructor, alloc)),
@@ -110,10 +110,10 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
         mut alloc: Alloc,
     ) -> Self {
         let mut ptr = match AllocPtr::alloc(&mut alloc) {
-            Some(mut ptr) => {
-                unsafe { core::ptr::write(&mut ptr.prefix_mut().alloc, alloc) };
+            Some(mut ptr) => unsafe {
+                ptr.prefix_mut().alloc.write(alloc);
                 ptr
-            }
+            },
             None => panic!("Allocation failed"),
         };
         unsafe {
@@ -204,7 +204,10 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
         Alloc: Clone,
     {
         if !Self::is_unique(self) {
-            *self = Self::new_in(T::clone(self), unsafe { self.ptr.prefix() }.alloc.clone());
+            *self = Self::new_in(
+                T::clone(self),
+                unsafe { self.ptr.prefix().alloc.assume_init_ref() }.clone(),
+            );
         }
         unsafe { Self::get_mut_unchecked(self) }
     }
@@ -233,12 +236,12 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     #[rustversion::since(1.73)]
     /// Returns a reference to the allocator used to construct `this`
     pub const fn allocator(this: &Self) -> &Alloc {
-        unsafe { &this.ptr.prefix().alloc }
+        unsafe { this.ptr.prefix().alloc.assume_init_ref() }
     }
     #[rustversion::before(1.73)]
     /// Returns a reference to the allocator used to construct `this`
     pub fn allocator(this: &Self) -> &Alloc {
-        unsafe { &this.ptr.prefix().alloc }
+        unsafe { this.ptr.prefix().alloc.assume_init_ref() }
     }
 }
 impl<T, Alloc: IAlloc> Drop for Arc<T, Alloc> {
@@ -336,7 +339,7 @@ impl<T, Alloc: IAlloc> Drop for Weak<T, Alloc> {
             return;
         }
         unsafe {
-            let mut alloc = core::ptr::read(&self.ptr.prefix().alloc);
+            let mut alloc = self.ptr.prefix().alloc.assume_init_read();
             self.ptr.free(&mut alloc)
         }
     }
@@ -446,7 +449,7 @@ impl<T, Alloc: IAlloc> From<Vec<T, Alloc>> for ArcSlice<T, Alloc> {
                 slice.start.prefix_mut().strong = AtomicUsize::new(1);
                 slice.start.prefix_mut().weak = AtomicUsize::new(1);
                 slice.start.prefix_mut().capacity = AtomicUsize::new(capacity);
-                core::ptr::write(&mut slice.start.prefix_mut().alloc, alloc);
+                slice.start.prefix_mut().alloc.write(alloc);
             }
             Self {
                 inner: AllocSlice {
@@ -467,7 +470,7 @@ impl<T, Alloc: IAlloc> From<Vec<T, Alloc>> for ArcSlice<T, Alloc> {
                         start.ptr.cast::<u8>(),
                     ))
                 };
-                core::ptr::write(&mut slice.start.prefix_mut().alloc, alloc);
+                slice.start.prefix_mut().alloc.write(alloc);
             }
             Self {
                 inner: AllocSlice {
@@ -493,7 +496,7 @@ impl<T, Alloc: IAlloc> TryFrom<ArcSlice<T, Alloc>> for Vec<T, Alloc> {
                             value.inner.start.ptr,
                             value.inner.start.prefix().capacity.load(Ordering::Relaxed),
                         ),
-                        alloc: core::ptr::read(&value.inner.start.prefix().alloc),
+                        alloc: value.inner.start.prefix().alloc.assume_init_read(),
                     },
                 };
                 core::mem::forget(value);
@@ -643,7 +646,7 @@ impl<T, Alloc: IAlloc> Drop for WeakSlice<T, Alloc> {
         {
             return;
         }
-        let mut alloc = unsafe { core::ptr::read(&self.inner.start.prefix().alloc) };
+        let mut alloc = unsafe { self.inner.start.prefix().alloc.assume_init_read() };
         unsafe { self.inner.start.free(&mut alloc) }
     }
 }

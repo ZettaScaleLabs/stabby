@@ -19,11 +19,6 @@ use self::vec::ptr_diff;
 
 /// Allocators provided by `stabby`
 pub mod allocators;
-#[cfg(all(feature = "libc", not(any(target_arch = "wasm32"))))]
-/// The `libc_alloc` module, kept for API-stability.
-pub mod libc_alloc {
-    pub use super::allocators::libc_alloc::LibcAlloc;
-}
 
 /// A generic allocation error.
 #[crate::stabby]
@@ -50,11 +45,13 @@ pub mod sync;
 /// [`alloc::vec`](https://doc.rust-lang.org/stable/alloc/vec/), but ABI-stable
 pub mod vec;
 
-/// The default allocator: libc malloc based if the libc feature is enabled, or unavailable otherwise.
-#[cfg(all(feature = "libc", not(any(target_arch = "wasm32"))))]
-pub type DefaultAllocator = allocators::LibcAlloc;
-#[cfg(not(all(feature = "libc", not(any(target_arch = "wasm32")))))]
-pub type DefaultAllocator = core::convert::Infallible;
+/// The default allocator, depending on which of the following is available:
+/// - RustAlloc: Rust's `GlobalAlloc`, through a vtable that ensures FFI-safety.
+/// - LibcAlloc: libc::malloc, which is 0-sized.
+/// - None. I _am_ working on getting a 0-dependy allocator working, but you should probably go with `feature = "alloc-rs"` anyway.
+///
+/// You can also use the `stabby_default_alloc` cfg to override the default allocator regardless of feature flags.
+pub type DefaultAllocator = allocators::DefaultAllocator;
 
 #[crate::stabby]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -78,27 +75,20 @@ impl Layout {
     /// Note that while this ensures that even if `T`'s size is not a multiple of its alignment,
     /// the layout will have sufficient memory to store `n` of `T` in an aligned fashion.
     pub const fn array<T: Sized>(n: usize) -> Self {
-        let Self { mut size, align } = Self::of::<T>();
-        let sizemodalign = size % align;
-        if sizemodalign != 0 {
-            size += align;
-            size -= sizemodalign;
+        let Self { size, align } = Self::of::<T>();
+        Layout {
+            size: size * n,
+            align,
         }
-        size *= n;
-        Layout { size, align }
     }
     /// Concatenates a layout to `self`, ensuring that alignment padding is taken into account.
     pub const fn concat(mut self, other: Self) -> Self {
-        let sizemodalign = self.size % other.align;
-        if sizemodalign != 0 {
-            self.size += other.align;
-            self.size -= sizemodalign;
-        }
         self.size += other.size;
-        if other.align > self.align {
-            self.align = other.align;
-        }
-        self
+        self.realign(if self.align < other.align {
+            other.align
+        } else {
+            self.align
+        })
     }
     /// Returns the first pointer where `output >= ptr` such that `output % self.align == 0`.
     #[inline]
@@ -108,14 +98,19 @@ impl Layout {
         }
         next_matching(self.align, ptr.cast()).cast()
     }
-    pub(crate) const fn for_alloc(mut self) -> Self {
-        if self.align >= 8 {
-            return self;
-        }
-        self.align = 8;
-        self.size = self.size + (8 - self.size % 8) * ((self.size % 8 != 0) as usize);
+    /// Changes the alignment of the layout, adding padding if necessary.
+    pub const fn realign(mut self, new_align: usize) -> Self {
+        self.align = new_align;
+        self.size = self.size
+            + (new_align - (self.size % new_align)) * (((self.size % new_align) != 0) as usize);
         self
     }
+    // pub(crate) fn for_alloc(mut self) -> Self {
+    //     if self.align >= 8 {
+    //         return self;
+    //     }
+    //     self.realign(8)
+    // }
 }
 
 /// An interface to an allocator.
@@ -242,8 +237,10 @@ pub struct AllocPrefix<Alloc> {
     pub weak: core::sync::atomic::AtomicUsize,
     /// A slot to store a vector's capacity when it's turned into a boxed/arced slice.
     pub capacity: core::sync::atomic::AtomicUsize,
+    /// The origin of the prefix
+    pub origin: NonNull<()>,
     /// A slot for the allocator.
-    pub alloc: Alloc,
+    pub alloc: core::mem::MaybeUninit<Alloc>,
 }
 impl<Alloc> AllocPrefix<Alloc> {
     /// The offset between the prefix and a field of type `T`.
@@ -311,21 +308,9 @@ impl<T, Alloc> AllocPtr<T, Alloc> {
             marker: PhantomData,
         }
     }
-    /// The offset between `self.ptr` and the prefix.
-    pub const fn prefix_skip() -> usize {
-        AllocPrefix::<Alloc>::skip_to::<T>()
-    }
     ///The pointer to the prefix for this allocation
     const fn prefix_ptr(&self) -> NonNull<AllocPrefix<Alloc>> {
-        unsafe {
-            NonNull::new_unchecked(
-                self.ptr
-                    .as_ptr()
-                    .cast::<u8>()
-                    .sub(Self::prefix_skip())
-                    .cast(),
-            )
-        }
+        unsafe { NonNull::new_unchecked(self.ptr.as_ptr().cast::<AllocPrefix<Alloc>>().sub(1)) }
     }
     /// A reference to the prefix for this allocation.
     /// # Safety
@@ -348,43 +333,47 @@ impl<T, Alloc> AllocPtr<T, Alloc> {
     pub unsafe fn prefix_mut(&mut self) -> &mut AllocPrefix<Alloc> {
         unsafe { self.prefix_ptr().as_mut() }
     }
+    /// Initializes any given pointer:
+    /// - The returned pointer is guaranteed to be correctly aligned for `T`
+    /// - It is guaranteed to preceded without padding by an `AllocPrefix<Alloc>`
+    /// # Safety
+    /// `ptr` MUST be word-aligned, and MUST be valid for writes for at least the size of
+    /// `#[repr(C)] struct { prefix: AllocPrefix<Alloc>, data: [T; capacity] }`
+    pub unsafe fn init(ptr: NonNull<()>, capacity: usize) -> Self {
+        let shifted_for_prefix = ptr
+            .as_ptr()
+            .cast::<AllocPrefix<Alloc>>()
+            .add(1)
+            .cast::<u8>();
+        let inited = shifted_for_prefix
+            .cast::<u8>()
+            .add(shifted_for_prefix.align_offset(core::mem::align_of::<T>()))
+            .cast::<T>();
+        let this: Self = AllocPtr {
+            ptr: NonNull::new_unchecked(inited),
+            marker: core::marker::PhantomData,
+        };
+        this.prefix_ptr().as_ptr().write(AllocPrefix {
+            strong: AtomicUsize::new(1),
+            weak: AtomicUsize::new(1),
+            capacity: AtomicUsize::new(capacity),
+            origin: ptr,
+            alloc: core::mem::MaybeUninit::uninit(),
+        });
+        this
+    }
 }
 impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
     /// Allocates a pointer to a single element of `T`, prefixed by an [`AllocPrefix`]
     pub fn alloc(alloc: &mut Alloc) -> Option<Self> {
-        let ptr = alloc.alloc(Layout::of::<AllocPrefix<Alloc>>().concat(Layout::of::<T>()));
-        NonNull::new(ptr).map(|prefix| unsafe {
-            prefix.cast::<AllocPrefix<Alloc>>().as_mut().capacity = AtomicUsize::new(1);
-            let this = Self {
-                ptr: NonNull::new_unchecked(
-                    prefix.as_ptr().cast::<u8>().add(Self::prefix_skip()).cast(),
-                ),
-                marker: PhantomData,
-            };
-            debug_assert!(core::ptr::eq(
-                prefix.as_ptr().cast(),
-                this.prefix() as *const _
-            ));
-            this
-        })
+        Self::alloc_array(alloc, 1)
     }
     /// Allocates a pointer to an array of `capacity` `T`, prefixed by an [`AllocPrefix`]
     pub fn alloc_array(alloc: &mut Alloc, capacity: usize) -> Option<Self> {
-        let ptr =
-            alloc.alloc(Layout::of::<AllocPrefix<Alloc>>().concat(Layout::array::<T>(capacity)));
-        NonNull::new(ptr).map(|prefix| unsafe {
-            prefix.cast::<AllocPrefix<Alloc>>().as_mut().capacity = AtomicUsize::new(capacity);
-            let ptr = prefix.as_ptr().cast::<u8>().add(Self::prefix_skip());
-            let this = Self {
-                ptr: NonNull::new_unchecked(ptr.cast()),
-                marker: PhantomData,
-            };
-            debug_assert!(core::ptr::eq(
-                prefix.as_ptr().cast(),
-                this.prefix() as *const _
-            ));
-            this
-        })
+        let mut layout = Layout::of::<AllocPrefix<Alloc>>().concat(Layout::array::<T>(capacity));
+        layout.align = core::mem::align_of::<AllocPrefix<Alloc>>();
+        let ptr = alloc.alloc(layout);
+        NonNull::new(ptr).map(|ptr| unsafe { Self::init(ptr, capacity) })
     }
     /// Reallocates a pointer to an array of `capacity` `T`, prefixed by an [`AllocPrefix`].
     ///
@@ -398,7 +387,9 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
         prev_capacity: usize,
         new_capacity: usize,
     ) -> Option<Self> {
-        let layout = Layout::of::<AllocPrefix<Alloc>>().concat(Layout::array::<T>(prev_capacity));
+        let mut layout =
+            Layout::of::<AllocPrefix<Alloc>>().concat(Layout::array::<T>(prev_capacity));
+        layout.align = core::mem::align_of::<AllocPrefix<Alloc>>();
         let ptr = alloc.realloc(
             (self.prefix() as *const AllocPrefix<Alloc>)
                 .cast_mut()
@@ -408,25 +399,13 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
                 .concat(Layout::array::<T>(new_capacity))
                 .size,
         );
-        NonNull::new(ptr).map(|prefix| unsafe {
-            prefix.cast::<AllocPrefix<Alloc>>().as_mut().capacity = AtomicUsize::new(new_capacity);
-            let ptr = prefix.as_ptr().cast::<u8>().add(Self::prefix_skip());
-            let this = Self {
-                ptr: NonNull::new_unchecked(ptr.cast()),
-                marker: PhantomData,
-            };
-            debug_assert!(core::ptr::eq(
-                prefix.as_ptr().cast(),
-                this.prefix() as *const _
-            ));
-            this
-        })
+        NonNull::new(ptr).map(|ptr| unsafe { Self::init(ptr, new_capacity) })
     }
     /// Reallocates a pointer to an array of `capacity` `T`, prefixed by an [`AllocPrefix`]
     /// # Safety
     /// `self` must not be dangling, and is freed after this returns.
     pub unsafe fn free(self, alloc: &mut Alloc) {
-        alloc.free(self.prefix() as *const _ as *mut _)
+        alloc.free(self.prefix().origin.as_ptr())
     }
 }
 
