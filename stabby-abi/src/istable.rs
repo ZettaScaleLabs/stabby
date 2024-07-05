@@ -385,9 +385,13 @@ unsafe impl<A: IStable, B: IStable> IStable for FieldPair<A, B> {
         <A::UnusedBits as IBitMask>::BitOr<<AlignedAfter<B, A::Size> as IStable>::UnusedBits>;
     type Size = <AlignedAfter<B, A::Size> as IStable>::Size;
     type Align = <A::Align as Alignment>::Max<B::Align>;
-    type HasExactlyOneNiche = <A::HasExactlyOneNiche as ISaturatingAdd>::SaturatingAdd<
-        <AlignedAfter<B, A::Size> as IStable>::HasExactlyOneNiche,
-    >;
+    type HasExactlyOneNiche =
+        <<Self::Size as Unsigned>::Equal<<A::Size as Unsigned>::Add<B::Size>> as Bit>::SaddTernary<
+            <A::HasExactlyOneNiche as ISaturatingAdd>::SaturatingAdd<
+                <AlignedAfter<B, A::Size> as IStable>::HasExactlyOneNiche,
+            >,
+            Saturator,
+        >;
     type ContainsIndirections = <A::ContainsIndirections as Bit>::Or<B::ContainsIndirections>;
     #[cfg(feature = "experimental-ctypes")]
     type CType = ();
@@ -426,6 +430,7 @@ impl ISaturatingAdd for Saturator {
     type SaturatingAddB1 = Saturator;
     type SaturatingAdd<B: ISaturatingAdd> = Saturator;
 }
+#[derive(Default)]
 /// An Exception-like value that indicates a computation can never succeed.
 pub struct Saturator;
 
@@ -553,7 +558,10 @@ unsafe impl<T: IStable> IStable for Struct<T> {
     type ForbiddenValues = T::ForbiddenValues;
     type UnusedBits = <T::UnusedBits as IBitMask>::BitOr<
         <<tyeval!(<T::Size as Unsigned>::NextMultipleOf<T::Align> - T::Size) as IUnsignedBase>::PaddingBitMask as IBitMask>::Shift<T::Size>>;
-    type HasExactlyOneNiche = Saturator;
+    type HasExactlyOneNiche = <<T::Size as Unsigned>::Equal<Self::Size> as Bit>::SaddTernary<
+        T::HasExactlyOneNiche,
+        Saturator,
+    >;
     type ContainsIndirections = T::ContainsIndirections;
     #[cfg(feature = "experimental-ctypes")]
     type CType = ();
