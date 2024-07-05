@@ -53,6 +53,7 @@ where
         <<Ok as IDeterminantProvider<Err>>::NicheExporter as IStable>::ForbiddenValues;
     type UnusedBits = <<Tuple<Determinant<Ok, Err>, <Self::Align as Alignment>::AsUint> as IStable>::UnusedBits as IBitMask>::BitOr<<<<Ok as IDeterminantProvider<Err>>::NicheExporter as IStable>::UnusedBits as IBitMask>::Shift<<<Determinant<Ok, Err> as IStable>::Size as Unsigned>::NextMultipleOf<Self::Align>>>;
     type HasExactlyOneNiche = B0;
+    #[cfg(feature = "experimental-ctypes")]
     type CType = <Storage<<Self as IStable>::Size, <Self as IStable>::Align> as IStable>::CType;
     const REPORT: &'static crate::report::TypeReport = &crate::report::TypeReport {
         name: Str::new("Result"),

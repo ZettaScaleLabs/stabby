@@ -38,11 +38,11 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 				/// [`core::ops::FnOnce`], but ABI-stable
 				pub trait #co<O #(, #argtys)* > {
 					/// Call the function
-					extern "C" fn call_once(self: #st::boxed::Box<Self> #(, #args: #argtys)*) -> O;
+					extern "C" fn call_once(self: #st::alloc::boxed::Box<Self> #(, #args: #argtys)*) -> O;
 				}
 				impl<O #(, #argtys)* , F: FnOnce(#(#argtys,)*) -> O> #co<O #(, #argtys)*> for F {
 					/// Call the function
-					extern "C" fn call_once(self: #st::boxed::Box<Self> #(, #args: #argtys)*) -> O {
+					extern "C" fn call_once(self: #st::alloc::boxed::Box<Self> #(, #args: #argtys)*) -> O {
 						self(#(#args,)*)
 					}
 				}
@@ -50,7 +50,7 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 				/// The v-table for [`core::ops::FnOnce`]
 				#[crate::stabby]
 				pub struct #covt<O #(, #argtys)* > {
-					call_once: StableIf<StableLike<unsafe extern "C" fn(#st::boxed::Box<()>  #(, #argtys)* ) -> O, &'static ()>, O>,
+					call_once: StableIf<StableLike<unsafe extern "C" fn(#st::alloc::boxed::Box<()>  #(, #argtys)* ) -> O, &'static ()>, O>,
 				}
 				impl<O #(, #argtys)* > Copy for #covt<O #(, #argtys)* > {}
 				impl<O #(, #argtys)* > Clone for #covt<O #(, #argtys)* > {
@@ -82,7 +82,7 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 				{
 					const VTABLE: &'a Self = &Self {
 						call_once: unsafe {
-							core::mem::transmute(<F as #co< O #(, #argtys)* >>::call_once as extern "C" fn(#st::boxed::Box<F> #(, #argtys)* ) -> O)
+							core::mem::transmute(<F as #co< O #(, #argtys)* >>::call_once as extern "C" fn(#st::alloc::boxed::Box<F> #(, #argtys)* ) -> O)
 						},
 					};
 				}

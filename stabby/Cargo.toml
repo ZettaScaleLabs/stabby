@@ -24,8 +24,10 @@ readme = { workspace = true }
 description = "A Stable ABI for Rust with compact sum-types."
 
 [features]
-default = ["std", "libc", "serde"]
-std = ["libc", "stabby-abi/std"]
+default = ["std"]
+std = ["stabby-abi/std", "alloc-rs"]
+alloc-rs = ["stabby-abi/alloc-rs"]
+experimental-ctypes = ["stabby-abi/experimental-ctypes"]
 libloading = ["dep:libloading", "std"]
 libc = ["stabby-abi/libc"]
 serde = ["stabby-abi/serde"]
@@ -57,3 +59,9 @@ harness = false
 [[bench]]
 name = "enums"
 harness = false
+
+
+[[bench]]
+name = "allocators"
+harness = false
+required-features = ["libc"]

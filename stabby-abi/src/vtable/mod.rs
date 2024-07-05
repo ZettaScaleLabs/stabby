@@ -41,10 +41,10 @@ pub trait IConstConstructor<'a, Source>: 'a + Copy {
     }
 }
 
-#[cfg(all(feature = "libc", feature = "test"))]
+#[cfg(all(any(feature = "libc", feature = "alloc-rs"), feature = "test"))]
 pub use internal::{VTableRegistry, VtBtree, VtVec};
 
-#[cfg(feature = "libc")]
+#[cfg(any(feature = "libc", feature = "alloc-rs"))]
 pub(crate) mod internal {
     use crate::alloc::{boxed::BoxedSlice, collections::arc_btree::AtomicArcBTreeSet};
     use core::ptr::NonNull;
@@ -212,7 +212,7 @@ pub(crate) mod internal {
 }
 
 #[cfg(all(
-    feature = "libc",
+    any(feature = "libc", feature = "alloc-rs"),
     any(stabby_vtables = "vec", stabby_vtables = "btree", not(stabby_vtables))
 ))]
 #[rustversion::all(not(nightly), since(1.78.0))]

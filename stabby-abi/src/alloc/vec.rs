@@ -55,8 +55,10 @@ pub(crate) const fn ptr_add<T>(lhs: NonNull<T>, rhs: usize) -> NonNull<T> {
     }
 }
 
-#[cfg(feature = "libc")]
-impl<T> Vec<T> {
+impl<T> Vec<T>
+where
+    super::DefaultAllocator: Default,
+{
     /// Constructs a new vector with the default allocator. This doesn't actually allocate.
     pub const fn new() -> Self {
         Self::new_in(super::DefaultAllocator::new())
@@ -204,12 +206,14 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     /// otherwise returns Err(AllocationError)
     pub fn try_reserve(&mut self, additional: usize) -> Result<NonMaxUsize, AllocationError> {
         if self.remaining_capacity() < additional {
-            let new_capacity = self.len() + additional;
-            let start = if self.capacity() != 0 {
+            let len = self.len();
+            let new_capacity = len + additional;
+            let old_capacity = self.capacity();
+            let start = if old_capacity != 0 {
                 unsafe {
                     self.inner
                         .start
-                        .realloc(&mut self.inner.alloc, new_capacity)
+                        .realloc(&mut self.inner.alloc, old_capacity, new_capacity)
                 }
             } else {
                 AllocPtr::alloc_array(&mut self.inner.alloc, new_capacity)
@@ -217,7 +221,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
             let Some(start) = start else {
                 return Err(AllocationError());
             };
-            let end = ptr_add(*start, self.len());
+            let end = ptr_add(*start, len);
             let capacity = ptr_add(*start, new_capacity);
             self.inner.start = start;
             self.inner.end = end;
@@ -790,7 +794,7 @@ impl<Alloc: IAlloc> std::io::Write for Vec<u8, Alloc> {
     }
 }
 
-#[cfg(all(feature = "std", feature = "libc"))]
+#[cfg(feature = "std")]
 #[test]
 fn test() {
     use rand::Rng;

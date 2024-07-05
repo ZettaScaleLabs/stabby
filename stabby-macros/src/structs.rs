@@ -16,6 +16,8 @@ use proc_macro2::Ident;
 use quote::quote;
 use syn::{Attribute, DataStruct, Generics, Visibility};
 
+use crate::Unself;
+
 struct Args {
     optimize: bool,
     version: u32,
@@ -81,7 +83,7 @@ pub fn stabby(
         syn::Fields::Named(fields) => {
             let fields = &fields.named;
             for field in fields {
-                let ty = &field.ty;
+                let ty = field.ty.unself(&ident);
                 layout = Some(layout.map_or_else(
                     || quote!(#ty),
                     |layout| quote!(#st::FieldPair<#layout, #ty>),
@@ -99,7 +101,7 @@ pub fn stabby(
         syn::Fields::Unnamed(fields) => {
             let fields = &fields.unnamed;
             for (i, field) in fields.iter().enumerate() {
-                let ty = &field.ty;
+                let ty = field.ty.unself(&ident);
                 layout = Some(layout.map_or_else(
                     || quote!(#ty),
                     |layout| quote!(#st::FieldPair<#layout, #ty>),
@@ -144,7 +146,15 @@ pub fn stabby(
         }
     });
     let report_bounds = report.bounds();
-    let ctype = report.crepr();
+    let ctype = cfg!(feature = "experimental-ctypes").then(|| {
+        let ctype = report.crepr();
+        quote! {type CType = #ctype;}
+    });
+    let ctype_assert = cfg!(feature = "experimental-ctypes").then(|| {
+        quote! {if core::mem::size_of::<Self>() != core::mem::size_of::<<Self as #st::IStable>::CType>() || core::mem::align_of::<Self>() != core::mem::align_of::<<Self as #st::IStable>::CType>() {
+            panic!(#reprc_bug)
+        }}
+    });
     let optdoc = format!("Returns true if the layout for [`{ident}`] is smaller or equal to that Rust would have generated for it.");
     quote! {
         #struct_code
@@ -157,12 +167,10 @@ pub fn stabby(
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = <#layout as #st::IStable>::HasExactlyOneNiche;
             type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
-            type CType = #ctype;
+            #ctype
             const REPORT: &'static #st::report::TypeReport = &#report;
             const ID: u64 = {
-                if core::mem::size_of::<Self>() != core::mem::size_of::<<Self as #st::IStable>::CType>() || core::mem::align_of::<Self>() != core::mem::align_of::<<Self as #st::IStable>::CType>() {
-                    panic!(#reprc_bug)
-                }
+                #ctype_assert
                 if core::mem::size_of::<Self>() != <<Self as #st::IStable>::Size as #st::Unsigned>::USIZE {
                     panic!(#size_bug)
                 }

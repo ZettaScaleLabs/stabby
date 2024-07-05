@@ -110,6 +110,9 @@ fn main() {
     tuples(max_tuple).unwrap();
     println!("cargo:rustc-check-cfg=cfg(stabby_nightly, values(none()))");
     println!(
+        r#"cargo:rustc-check-cfg=cfg(stabby_default_alloc, values(none(), "RustAlloc", "LibcAlloc"))"#
+    );
+    println!(
         r#"cargo:rustc-check-cfg=cfg(stabby_check_unreachable, values(none(), "true", "false"))"#
     );
     println!(r#"cargo:rustc-check-cfg=cfg(stabby_unsafe_wakers, values(none(), "true", "false"))"#);

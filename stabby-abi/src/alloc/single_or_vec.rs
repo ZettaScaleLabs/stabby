@@ -26,9 +26,9 @@ where
     inner: crate::Result<Single<T, Alloc>, Vec<T, Alloc>>,
 }
 
-#[cfg(feature = "libc")]
 impl<T: IStable> SingleOrVec<T>
 where
+    DefaultAllocator: Default,
     Single<T, DefaultAllocator>: IDeterminantProvider<Vec<T, DefaultAllocator>>,
     Vec<T, DefaultAllocator>: IStable,
     crate::Result<Single<T, DefaultAllocator>, Vec<T, DefaultAllocator>>: IStable,

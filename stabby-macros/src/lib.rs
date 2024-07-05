@@ -258,17 +258,17 @@ pub fn gen_closures_impl(_: TokenStream) -> TokenStream {
 }
 
 #[derive(Clone)]
-enum Type<'a> {
-    Syn(&'a syn::Type),
-    Report(Report<'a>),
+enum Type {
+    Syn(syn::Type),
+    Report(Report),
 }
-impl<'a> From<&'a syn::Type> for Type<'a> {
-    fn from(value: &'a syn::Type) -> Self {
+impl From<syn::Type> for Type {
+    fn from(value: syn::Type) -> Self {
         Self::Syn(value)
     }
 }
-impl<'a> From<Report<'a>> for Type<'a> {
-    fn from(value: Report<'a>) -> Self {
+impl From<Report> for Type {
+    fn from(value: Report) -> Self {
         Self::Report(value)
     }
 }
@@ -294,14 +294,14 @@ impl ToTokens for Tyty {
     }
 }
 #[derive(Clone)]
-pub(crate) struct Report<'a> {
+pub(crate) struct Report {
     name: String,
-    fields: Vec<(String, Type<'a>)>,
+    fields: Vec<(String, Type)>,
     version: u32,
     module: proc_macro2::TokenStream,
     pub tyty: Tyty,
 }
-impl<'a> Report<'a> {
+impl Report {
     pub fn r#struct(
         name: impl Into<String>,
         version: u32,
@@ -349,19 +349,19 @@ impl<'a> Report<'a> {
             tyty: Tyty::Union,
         }
     }
-    pub fn add_field(&mut self, name: String, ty: impl Into<Type<'a>>) {
+    pub fn add_field(&mut self, name: String, ty: impl Into<Type>) {
         self.fields.push((name, ty.into()));
     }
     fn __bounds(
         &self,
-        bounded_types: &mut HashSet<&'a syn::Type>,
+        bounded_types: &mut HashSet<syn::Type>,
         mut report_bounds: proc_macro2::TokenStream,
         st: &proc_macro2::TokenStream,
     ) -> proc_macro2::TokenStream {
         for (_, ty) in self.fields.iter() {
             match ty {
                 Type::Syn(ty) => {
-                    if bounded_types.insert(*ty) {
+                    if bounded_types.insert(ty.clone()) {
                         report_bounds = quote!(#ty: #st::IStable, #report_bounds);
                     }
                 }
@@ -422,7 +422,7 @@ impl<'a> Report<'a> {
         }
     }
 }
-impl ToTokens for Report<'_> {
+impl ToTokens for Report {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let st = crate::tl_mod();
         let mut fields = quote!(None);
@@ -481,4 +481,233 @@ pub fn canary_suffixes(_: TokenStream) -> TokenStream {
         stream.extend(quote::quote!(pub const #id: &'static str = #suffix;));
     }
     stream.into()
+}
+
+trait Unself {
+    fn unself(&self, this: &syn::Ident) -> Self;
+}
+impl Unself for syn::Path {
+    fn unself(&self, this: &syn::Ident) -> Self {
+        let syn::Path {
+            leading_colon,
+            segments,
+        } = self;
+        if self.is_ident("Self") || self.is_ident(this) {
+            let st = crate::tl_mod();
+            return syn::parse2(quote! {#st::istable::_Self}).unwrap();
+        }
+        syn::Path {
+            leading_colon: *leading_colon,
+            segments: segments
+                .iter()
+                .map(|syn::PathSegment { ident, arguments }| syn::PathSegment {
+                    ident: ident.clone(),
+                    arguments: match arguments {
+                        syn::PathArguments::None => syn::PathArguments::None,
+                        syn::PathArguments::AngleBracketed(
+                            syn::AngleBracketedGenericArguments {
+                                colon2_token,
+                                lt_token,
+                                args,
+                                gt_token,
+                            },
+                        ) => syn::PathArguments::AngleBracketed(
+                            syn::AngleBracketedGenericArguments {
+                                colon2_token: *colon2_token,
+                                lt_token: *lt_token,
+                                args: args
+                                    .iter()
+                                    .map(|arg| match arg {
+                                        syn::GenericArgument::Type(ty) => {
+                                            syn::GenericArgument::Type(ty.unself(this))
+                                        }
+                                        syn::GenericArgument::Binding(syn::Binding {
+                                            ident,
+                                            eq_token,
+                                            ty,
+                                        }) => syn::GenericArgument::Binding(syn::Binding {
+                                            ident: ident.clone(),
+                                            eq_token: *eq_token,
+                                            ty: ty.unself(this),
+                                        }),
+                                        syn::GenericArgument::Constraint(syn::Constraint {
+                                            ident,
+                                            colon_token,
+                                            bounds,
+                                        }) => syn::GenericArgument::Constraint(syn::Constraint {
+                                            ident: ident.clone(),
+                                            colon_token: *colon_token,
+                                            bounds: bounds.iter().map(|b| b.unself(this)).collect(),
+                                        }),
+                                        other => other.clone(),
+                                    })
+                                    .collect(),
+                                gt_token: *gt_token,
+                            },
+                        ),
+                        syn::PathArguments::Parenthesized(syn::ParenthesizedGenericArguments {
+                            paren_token,
+                            inputs,
+                            output,
+                        }) => {
+                            syn::PathArguments::Parenthesized(syn::ParenthesizedGenericArguments {
+                                paren_token: *paren_token,
+                                inputs: inputs.iter().map(|t| t.unself(this)).collect(),
+                                output: match output {
+                                    syn::ReturnType::Default => syn::ReturnType::Default,
+                                    syn::ReturnType::Type(arrow, ty) => {
+                                        syn::ReturnType::Type(*arrow, Box::new(ty.unself(this)))
+                                    }
+                                },
+                            })
+                        }
+                    },
+                })
+                .collect(),
+        }
+    }
+}
+impl Unself for syn::TypeParamBound {
+    fn unself(&self, this: &syn::Ident) -> Self {
+        match self {
+            TypeParamBound::Trait(syn::TraitBound {
+                paren_token,
+                modifier,
+                lifetimes,
+                path,
+            }) => TypeParamBound::Trait(syn::TraitBound {
+                paren_token: *paren_token,
+                modifier: *modifier,
+                lifetimes: lifetimes.clone(),
+                path: path.unself(this),
+            }),
+            TypeParamBound::Lifetime(l) => TypeParamBound::Lifetime(l.clone()),
+        }
+    }
+}
+impl Unself for syn::Type {
+    fn unself(&self, this: &syn::Ident) -> syn::Type {
+        match self {
+            syn::Type::Array(syn::TypeArray {
+                elem,
+                len,
+                bracket_token,
+                semi_token,
+            }) => syn::Type::Array(syn::TypeArray {
+                elem: Box::new(elem.unself(this)),
+                len: len.clone(),
+                bracket_token: *bracket_token,
+                semi_token: *semi_token,
+            }),
+            syn::Type::BareFn(syn::TypeBareFn {
+                lifetimes,
+                unsafety,
+                abi,
+                inputs,
+                output,
+                fn_token,
+                paren_token,
+                variadic,
+            }) => syn::Type::BareFn(syn::TypeBareFn {
+                lifetimes: lifetimes.clone(),
+                unsafety: *unsafety,
+                abi: abi.clone(),
+                inputs: inputs
+                    .iter()
+                    .map(|syn::BareFnArg { attrs, name, ty }| syn::BareFnArg {
+                        attrs: attrs.clone(),
+                        name: name.clone(),
+                        ty: ty.unself(this),
+                    })
+                    .collect(),
+                output: match output {
+                    syn::ReturnType::Default => syn::ReturnType::Default,
+                    syn::ReturnType::Type(arrow, ret) => {
+                        syn::ReturnType::Type(*arrow, Box::new(ret.unself(this)))
+                    }
+                },
+                fn_token: *fn_token,
+                paren_token: *paren_token,
+                variadic: variadic.clone(),
+            }),
+            syn::Type::Group(syn::TypeGroup { group_token, elem }) => {
+                syn::Type::Group(syn::TypeGroup {
+                    group_token: *group_token,
+                    elem: Box::new(elem.unself(this)),
+                })
+            }
+            syn::Type::ImplTrait(syn::TypeImplTrait { impl_token, bounds }) => {
+                syn::Type::ImplTrait(syn::TypeImplTrait {
+                    impl_token: *impl_token,
+                    bounds: bounds.into_iter().map(|p| p.unself(this)).collect(),
+                })
+            }
+            syn::Type::Paren(syn::TypeParen { paren_token, elem }) => {
+                syn::Type::Paren(syn::TypeParen {
+                    paren_token: *paren_token,
+                    elem: Box::new(elem.unself(this)),
+                })
+            }
+            syn::Type::Path(syn::TypePath { qself, path }) => syn::Type::Path(syn::TypePath {
+                qself: qself.as_ref().map(
+                    |syn::QSelf {
+                         lt_token,
+                         ty,
+                         position,
+                         as_token,
+                         gt_token,
+                     }| syn::QSelf {
+                        lt_token: *lt_token,
+                        ty: Box::new(ty.unself(this)),
+                        position: *position,
+                        as_token: *as_token,
+                        gt_token: *gt_token,
+                    },
+                ),
+                path: path.unself(this),
+            }),
+            syn::Type::Ptr(syn::TypePtr {
+                star_token,
+                const_token,
+                mutability,
+                elem,
+            }) => syn::Type::Ptr(syn::TypePtr {
+                star_token: *star_token,
+                const_token: *const_token,
+                mutability: *mutability,
+                elem: Box::new(elem.unself(this)),
+            }),
+            syn::Type::Reference(syn::TypeReference {
+                and_token,
+                lifetime,
+                mutability,
+                elem,
+            }) => syn::Type::Reference(syn::TypeReference {
+                and_token: *and_token,
+                lifetime: lifetime.clone(),
+                mutability: *mutability,
+                elem: Box::new(elem.unself(this)),
+            }),
+            syn::Type::Slice(syn::TypeSlice {
+                bracket_token,
+                elem,
+            }) => syn::Type::Slice(syn::TypeSlice {
+                bracket_token: *bracket_token,
+                elem: Box::new(elem.unself(this)),
+            }),
+            syn::Type::TraitObject(syn::TypeTraitObject { dyn_token, bounds }) => {
+                syn::Type::TraitObject(syn::TypeTraitObject {
+                    dyn_token: *dyn_token,
+                    bounds: bounds.iter().map(|b| b.unself(this)).collect(),
+                })
+            }
+            syn::Type::Tuple(syn::TypeTuple { paren_token, elems }) => {
+                syn::Type::Tuple(syn::TypeTuple {
+                    paren_token: *paren_token,
+                    elems: elems.iter().map(|ty| ty.unself(this)).collect(),
+                })
+            }
+            o => o.clone(),
+        }
+    }
 }

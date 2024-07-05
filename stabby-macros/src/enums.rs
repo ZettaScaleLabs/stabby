@@ -18,6 +18,8 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Attribute, DataEnum, Generics, Ident, Visibility};
 
+use crate::Unself;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Repr {
     Stabby,
@@ -174,7 +176,7 @@ pub fn stabby(
     let mut layout = quote!(());
     let DataEnum { variants, .. } = &data;
     let mut has_non_empty_fields = false;
-    let unit = syn::parse2(quote!(())).unwrap();
+    let unit: syn::Type = syn::parse2(quote!(())).unwrap();
     let mut report = crate::Report::r#enum(ident.to_string(), version, module.clone());
     for variant in variants {
         match &variant.fields {
@@ -184,7 +186,7 @@ pub fn stabby(
                     crate::Report::r#struct(variant.ident.to_string(), version, module.clone());
                 let mut variant_layout = quote!(());
                 for f in &f.named {
-                    let ty = &f.ty;
+                    let ty = f.ty.unself(&ident);
                     variant_layout = quote!(#st::FieldPair<#variant_layout, #ty>);
                     variant_report.add_field(f.ident.as_ref().unwrap().to_string(), ty);
                 }
@@ -202,7 +204,7 @@ pub fn stabby(
                         crate::Report::r#struct(variant.ident.to_string(), version, module.clone());
                     let mut variant_layout = quote!(());
                     for (n, f) in f.unnamed.iter().enumerate() {
-                        let ty = &f.ty;
+                        let ty = f.ty.unself(&ident);
                         variant_layout = quote!(#st::FieldPair<#variant_layout, #ty>);
                         variant_report.add_field(n.to_string(), ty);
                     }
@@ -217,13 +219,13 @@ pub fn stabby(
                     );
                     has_non_empty_fields = true;
                     let f = f.unnamed.first().unwrap();
-                    let ty = &f.ty;
+                    let ty = f.ty.unself(&ident);
                     layout = quote!(#st::Union<#layout, core::mem::ManuallyDrop<#ty>>);
                     report.add_field(variant.ident.to_string(), ty);
                 }
             }
             syn::Fields::Unit => {
-                report.add_field(variant.ident.to_string(), &unit);
+                report.add_field(variant.ident.to_string(), unit.clone());
             }
         }
     }
@@ -271,7 +273,10 @@ pub fn stabby(
     layout = quote!(#st::Tuple<#reprid, #layout>);
     report.tyty = crate::Tyty::Enum(trepr);
     let report_bounds = report.bounds();
-    let ctype = report.crepr();
+    let ctype = cfg!(feature = "experimental-ctypes").then(|| {
+        let ctype = report.crepr();
+        quote! {type CType = #ctype;}
+    });
     let size_bug = format!(
         "{ident}'s size was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
     );
@@ -281,6 +286,11 @@ pub fn stabby(
     let reprc_bug = format!(
         "{ident}'s CType was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
     );
+    let ctype_assert = cfg!(feature = "experimental-ctypes").then(|| {
+        quote! {if core::mem::size_of::<Self>() != core::mem::size_of::<<Self as #st::IStable>::CType>() || core::mem::align_of::<Self>() != core::mem::align_of::<<Self as #st::IStable>::CType>() {
+            panic!(#reprc_bug)
+        }}
+    });
     let assertion = generics
         .params
         .is_empty()
@@ -302,12 +312,10 @@ pub fn stabby(
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
             type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
-            type CType = #ctype;
+            #ctype
             const REPORT: &'static #st::report::TypeReport = & #report;
             const ID: u64 ={
-                if core::mem::size_of::<Self>() != core::mem::size_of::<<Self as #st::IStable>::CType>() || core::mem::align_of::<Self>() != core::mem::align_of::<<Self as #st::IStable>::CType>() {
-                    panic!(#reprc_bug)
-                }
+                #ctype_assert
                 if core::mem::size_of::<Self>() != <<Self as #st::IStable>::Size as #st::Unsigned>::USIZE {
                     panic!(#size_bug)
                 }
@@ -551,6 +559,9 @@ pub(crate) fn repr_stabby(
             }
         }
     });
+    let ctype = cfg!(feature = "experimental-ctypes").then(|| {
+        quote! {type CType = <#layout as #st::IStable>::CType;}
+    });
     let assertions= generics.params.is_empty().then(||{
         let check = check.is_some().then(||{
             let sub_optimal_message = format!(
@@ -591,7 +602,7 @@ pub(crate) fn repr_stabby(
             type Align = <#layout as #st::IStable>::Align;
             type HasExactlyOneNiche = #st::B0;
             type ContainsIndirections = <#layout as #st::IStable>::ContainsIndirections;
-            type CType = <#layout as #st::IStable>::CType;
+            #ctype
             const REPORT: &'static #st::report::TypeReport = & #report;
             const ID: u64 = #st::report::gen_id(Self::REPORT);
         }

@@ -1,3 +1,22 @@
+# 36.1.1-rc1 (api=2.0.0, abi=2.0.0)
+- BREAKING CHANGES: A large rework of allocation occurred, breaking both API and ABI compatibility with the previous version:
+	- `RustAlloc` is the new default allocator of `stabby`: this allocator is a simple pointer to a v-table allowing cross-ffi use of Rust's `alloc::GlobalAlloc`.
+		- This allocator is global, thread-safe, and guaranteed to work properly with pointers passed across the FFI.
+		- Benchmarks indicate that performance between `RustAlloc` and `LibcAlloc` is equivalent.
+		- However, it is non-zero-sized, and therefore makes types that don't always shove it into their `AllocPrefix` are slightly bigger when using `RustAlloc` rather than `LibcAlloc`.
+		- The reason for this change is that `LibcAlloc` isn't available on certain platforms, whereas `RustAlloc` is available on any platform supported by Rust. Importantly, the `wasm32` architecture was unsupported until now.
+	- The `libc_alloc` module was replaced by the `allocators` module to improve readability.
+	- While the previous `IAlloc` version was fine to interface with `libc::malloc`'s API, it actually had a few big holes that required patching for custom allocators to be able to do interesting stuff.
+		- This was unearthed by implementing `RustAlloc`
+	- The `AllocPrefix`'s location relative to prefixed allocations (such as those used by all of `stabby`'s container types) has changed for types with alignments greater than pointer-size.
+		- The prefix was previously placed as if the allocation held `Tuple2<AllocPrefix, T>`, meaning that for larger alignments, there could be padding between the prefix and the pointed value.
+		- This padding has been removed, as it could cause soundness issues when the pointer was opacified, such as for trait objects.
+	- `serde` and `libc` features are no longer part of the default features set.
+- `stabby::collections::arc_btree`'s types are now ABI-stable.
+- `#[stabby::stabby]` can now understand when a type refers to itself to avoid forming proof cycles.
+- The `experimental-ctypes` feature-flag was added to mark the integration between `stabby` and `safer-ffi` as experimental.
+	- Experimental feature-flags and any API/ABI they annotate are allowed to be broken without triggering a `major` update, but a `minor` instead. If you rely on these features, pinning your minor is advised.
+
 # 6.2.2 (api=1.1.1, abi=1.0.0)
 - Relax many dependency requirements to help avoid conflicts with crates that pin them
 

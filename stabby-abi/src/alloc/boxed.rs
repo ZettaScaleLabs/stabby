@@ -26,8 +26,11 @@ unsafe impl<T: Send, Alloc: IAlloc + Send> Send for Box<T, Alloc> {}
 unsafe impl<T: Sync, Alloc: IAlloc> Sync for Box<T, Alloc> {}
 unsafe impl<T: Send, Alloc: IAlloc + Send> Send for BoxedSlice<T, Alloc> {}
 unsafe impl<T: Sync, Alloc: IAlloc> Sync for BoxedSlice<T, Alloc> {}
-#[cfg(feature = "libc")]
-impl<T> Box<T> {
+
+impl<T> Box<T>
+where
+    super::DefaultAllocator: Default,
+{
     /// Attempts to allocate [`Self`], initializing it with `constructor`.
     ///
     /// Note that the allocation may or may not be zeroed.
@@ -67,7 +70,7 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
     ) -> Result<Self, (F, Alloc)> {
         let mut ptr = match AllocPtr::alloc(&mut alloc) {
             Some(mut ptr) => {
-                unsafe { core::ptr::write(&mut ptr.prefix_mut().alloc, alloc) };
+                unsafe { ptr.prefix_mut().alloc.write(alloc) };
                 ptr
             }
             None => return Err((constructor, alloc)),
@@ -106,7 +109,7 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
     ) -> Self {
         let mut ptr = match AllocPtr::alloc(&mut alloc) {
             Some(mut ptr) => {
-                unsafe { core::ptr::write(&mut ptr.prefix_mut().alloc, alloc) };
+                unsafe { ptr.prefix_mut().alloc.write(alloc) };
                 ptr
             }
             None => panic!("Allocation failed"),
@@ -155,14 +158,17 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
 
 impl<T, Alloc: IAlloc> Box<T, Alloc> {
     fn free(&mut self) {
-        let mut alloc = unsafe { core::ptr::read(&self.ptr.prefix().alloc) };
+        let mut alloc = unsafe { self.ptr.prefix().alloc.assume_init_read() };
         unsafe { self.ptr.free(&mut alloc) }
     }
 }
 
 impl<T: Clone, Alloc: IAlloc + Clone> Clone for Box<T, Alloc> {
     fn clone(&self) -> Self {
-        Box::new_in(T::clone(self), unsafe { self.ptr.prefix() }.alloc.clone())
+        Box::new_in(
+            T::clone(self),
+            unsafe { self.ptr.prefix().alloc.assume_init_ref() }.clone(),
+        )
     }
 }
 impl<T, Alloc: IAlloc> core::ops::Deref for Box<T, Alloc> {
