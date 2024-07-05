@@ -236,7 +236,7 @@ variant's data.
 This is actually optimal for `AllInts`, as there isn't any niche to exploit in the largest variants' data (`u64` and `i64` both are types whose range of valid values covers all the values that the memory they occupy can take).
 
 However, `Poll<T>` could have more efficient representations if `T` has "niches": binary patterns that do not correspond to any valid value of `T`. For example, `core::num::NonZeroU64` occupies 64 bits in memory, but is never allowed to be
-`0`, which means that we could set all 64 bits to `0` as a way of indicating `Pending`. This is generally refered to as "niche optimizations" in Rust, and is something that normal Rust enums perform, but not `repr(uX/iX/C)`.
+`0`, which means that we could set all 64 bits to `0` as a way of indicating `Pending`. This is generally referred to as "niche optimizations" in Rust, and is something that normal Rust enums perform, but not `repr(uX/iX/C)`.
 
 #### Stable niche optimizations: `repr(stabby)`
 
@@ -351,6 +351,8 @@ stabby::abi::Dyn<
 	stabby::abi::VTable<VtVolume, VtDrop>
 >
 ```
+
+You can also add your own attributes to the generated v-table struct (`VtVolume` in our example) by using `#[stabby::vt_attr(your_attribute = "goes here")]`.
 
 ### Common pitfalls
 An error you may quickly run into when working with multiple trait objects is that you can't just use `stabby::dynptr` (or any other macro, for that matter) in the function signatures, because `stabby` cannot see through macros:
