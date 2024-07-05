@@ -555,10 +555,9 @@ impl Unself for syn::Path {
                                 inputs: inputs.iter().map(|t| t.unself(this)).collect(),
                                 output: match output {
                                     syn::ReturnType::Default => syn::ReturnType::Default,
-                                    syn::ReturnType::Type(arrow, ty) => syn::ReturnType::Type(
-                                        *arrow,
-                                        Box::new(ty.unself(this)),
-                                    ),
+                                    syn::ReturnType::Type(arrow, ty) => {
+                                        syn::ReturnType::Type(*arrow, Box::new(ty.unself(this)))
+                                    }
                                 },
                             })
                         }
