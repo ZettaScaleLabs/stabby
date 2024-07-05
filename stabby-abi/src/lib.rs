@@ -365,6 +365,9 @@ pub struct FieldPair<A, B>(core::marker::PhantomData<(A, B)>);
 #[repr(transparent)]
 pub struct Struct<T>(T);
 
+/// Used by proc-macros to ensure a list of fields gets the proper end padding when specific alignments are requested.
+pub struct AlignedStruct<T, Align>(core::marker::PhantomData<(T, Align)>);
+
 /// Used by [`crate::result::Result`]
 #[repr(C)]
 pub union Union<A, B> {

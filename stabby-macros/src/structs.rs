@@ -14,7 +14,7 @@
 
 use proc_macro2::Ident;
 use quote::quote;
-use syn::{Attribute, DataStruct, Generics, Visibility};
+use syn::{spanned::Spanned, Attribute, DataStruct, Generics, Visibility};
 
 use crate::Unself;
 
@@ -55,6 +55,49 @@ impl syn::parse::Parse for Args {
         Ok(this)
     }
 }
+#[derive(Copy, Clone)]
+enum AllowedRepr {
+    C,
+    Transparent,
+    Align(usize),
+}
+impl syn::parse::Parse for AllowedRepr {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let mut content = input.fork();
+        if input.peek(syn::token::Paren) {
+            syn::parenthesized!(content in input);
+        }
+        let ident: Ident = content.parse()?;
+        Ok(match ident.to_string().as_str() {
+            "C" => AllowedRepr::C,
+            "transparent" => AllowedRepr::Transparent,
+            "packed" => return Err(input.error("stabby does not support packed structs, though you may implement IStable manually if you're very comfident")),
+            "align" => {
+                let input = content;
+                syn::parenthesized!(content in input);
+                let lit: syn::LitInt = content.parse()?;
+                AllowedRepr::Align(lit.base10_parse()?)
+            }
+            _ => {
+                return Err(input.error(
+                    "Only #[repr(C)] and #[repr(transparent)] are allowed for stabby structs",
+                ))
+            }
+        })
+    }
+}
+impl quote::ToTokens for AllowedRepr {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        tokens.extend(match self {
+            AllowedRepr::C => quote!(#[repr(C)]),
+            AllowedRepr::Transparent => quote!(#[repr(transparent)]),
+            AllowedRepr::Align(n) => {
+                let n = syn::LitInt::new(&format!("{n}"), tokens.span());
+                quote!(#[repr(align(#n))])
+            }
+        })
+    }
+}
 
 pub fn stabby(
     attrs: Vec<Attribute>,
@@ -79,6 +122,17 @@ pub fn stabby(
     let clauses = where_clause.as_ref().map(|w| &w.predicates);
     let mut layout = None;
     let mut report = crate::Report::r#struct(ident.to_string(), version, module);
+    let repr = attrs
+        .iter()
+        .find_map(|attr| {
+            if attr.path.is_ident("repr") {
+                syn::parse2::<AllowedRepr>(attr.tokens.clone()).ok()
+            } else {
+                None
+            }
+        })
+        .unwrap_or(AllowedRepr::C);
+    optimize &= !matches!(repr, AllowedRepr::Align(_));
     let struct_code = match &fields {
         syn::Fields::Named(fields) => {
             let fields = &fields.named;
@@ -92,7 +146,7 @@ pub fn stabby(
             }
             quote! {
                 #(#attrs)*
-                #[repr(C)]
+                #repr
                 #vis struct #ident #generics #where_clause {
                     #fields
                 }
@@ -110,19 +164,33 @@ pub fn stabby(
             }
             quote! {
                 #(#attrs)*
-                #[repr(C)]
+                #repr
                 #vis struct #ident #generics #where_clause (#fields);
             }
         }
         syn::Fields::Unit => {
             quote! {
                 #(#attrs)*
-                #[repr(C)]
+                #repr
                 #vis struct #ident #generics #where_clause;
             }
         }
     };
-    let layout = layout.map_or_else(|| quote!(()), |layout| quote!(#st::Struct<#layout>));
+    let layout = layout.map_or_else(
+        || quote!(()),
+        |layout| {
+            if let AllowedRepr::Align(mut n) = repr {
+                let mut align = quote!(#st::U1);
+                while n > 1 {
+                    n /= 2;
+                    align = quote!(#st::UInt<#align, #st::B0>);
+                }
+                quote!(#st::AlignedStruct<#layout, #align>)
+            } else {
+                quote!(#st::Struct<#layout>)
+            }
+        },
+    );
     let opt_id = quote::format_ident!("OptimizedLayoutFor{ident}");
     let size_bug = format!(
         "{ident}'s size was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
