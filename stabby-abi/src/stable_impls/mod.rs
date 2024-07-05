@@ -20,7 +20,7 @@ macro_rules! same_as {
         type Size = <$t as IStable>::Size;
         type UnusedBits = <$t as IStable>::UnusedBits;
         type ForbiddenValues = <$t as IStable>::ForbiddenValues;
-        #[cfg(feature = "ctypes")]
+        #[cfg(feature = "experimental-ctypes")]
         type CType = <$t as IStable>::CType;
         primitive_report!($($name)*);
     };
@@ -30,7 +30,7 @@ macro_rules! same_as {
         type UnusedBits = <$t as IStable>::UnusedBits;
         type ForbiddenValues = <$t as IStable>::ForbiddenValues;
         type HasExactlyOneNiche = <$t as IStable>::HasExactlyOneNiche;
-        #[cfg(feature = "ctypes")]
+        #[cfg(feature = "experimental-ctypes")]
         type CType = <$t as IStable>::CType;
     };
 }
@@ -233,7 +233,7 @@ unsafe impl IStable for () {
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = ();
     primitive_report!("()");
 }
@@ -244,7 +244,7 @@ unsafe impl<T> IStable for core::marker::PhantomData<T> {
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = ();
     primitive_report!("core::marker::PhantomData");
 }
@@ -255,7 +255,7 @@ unsafe impl IStable for core::marker::PhantomPinned {
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = ();
     primitive_report!("core::marker::PhantomPinned");
 }
@@ -266,7 +266,7 @@ unsafe impl IStable for bool {
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = <Self::Align as Alignment>::AsUint;
     primitive_report!("bool");
 }
@@ -278,7 +278,7 @@ unsafe impl IStable for u8 {
     type Size = U1;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = <Self::Align as Alignment>::AsUint;
     primitive_report!("u8");
 }
@@ -290,7 +290,7 @@ unsafe impl IStable for core::num::NonZeroU8 {
     type ForbiddenValues = nz_holes!(U0);
     type HasExactlyOneNiche = B1;
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = <Self::Align as Alignment>::AsUint;
     primitive_report!("core::num::NonZeroU8");
 }
@@ -301,7 +301,7 @@ unsafe impl IStable for u16 {
     type Size = U2;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = <Self::Align as Alignment>::AsUint;
     primitive_report!("u16");
 }
@@ -313,7 +313,7 @@ unsafe impl IStable for core::num::NonZeroU16 {
     type Size = U2;
     type HasExactlyOneNiche = B1;
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = <Self::Align as Alignment>::AsUint;
     primitive_report!("core::num::NonZeroU16");
 }
@@ -324,7 +324,7 @@ unsafe impl IStable for u32 {
     type Size = U4;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = <Self::Align as Alignment>::AsUint;
     primitive_report!("u32");
 }
@@ -336,7 +336,7 @@ unsafe impl IStable for core::num::NonZeroU32 {
     type Size = U4;
     type HasExactlyOneNiche = B1;
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = <Self::Align as Alignment>::AsUint;
     primitive_report!("core::num::NonZeroU32");
 }
@@ -347,7 +347,7 @@ unsafe impl IStable for u64 {
     type Size = U8;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = <Self::Align as Alignment>::AsUint;
     primitive_report!("u64");
 }
@@ -359,7 +359,7 @@ unsafe impl IStable for core::num::NonZeroU64 {
     type Size = U8;
     type HasExactlyOneNiche = B1;
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = <Self::Align as Alignment>::AsUint;
     primitive_report!("core::num::NonZeroU64");
 }
@@ -384,7 +384,7 @@ unsafe impl IStable for u128 {
     type Align = U8;
 
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = <Self::Align as Alignment>::AsUint;
     #[rustversion::before(1.77)]
     #[cfg(not(target_arch = "aarch64"))]
@@ -409,7 +409,7 @@ unsafe impl IStable for core::num::NonZeroU128 {
     type Size = U16;
     type HasExactlyOneNiche = B1;
     type Align = <u128 as IStable>::Align;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = <Self::Align as Alignment>::AsUint;
     type ContainsIndirections = B0;
     primitive_report!("core::num::NonZeroU128");
@@ -634,7 +634,7 @@ unsafe impl<T: IStable> IStable for HasExactlyOneNiche<core::option::Option<T>, 
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = T::ContainsIndirections;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = T::CType;
     const REPORT: &'static report::TypeReport = &report::TypeReport {
         name: Str::new("Option"),
@@ -675,7 +675,7 @@ unsafe impl<Ok: IStable, Err: IStable> IStable
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = Ok::CType;
     type ContainsIndirections = <Ok::ContainsIndirections as Bit>::Or<Err::ContainsIndirections>;
     const REPORT: &'static report::TypeReport = &report::TypeReport {
@@ -710,7 +710,7 @@ unsafe impl<Ok: IStable, Err: IStable, T> IStable
     type ForbiddenValues = End;
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = Err::CType;
     type ContainsIndirections = <Ok::ContainsIndirections as Bit>::Or<Err::ContainsIndirections>;
     const REPORT: &'static report::TypeReport = &report::TypeReport {
@@ -735,7 +735,7 @@ unsafe impl<L: IStable, R: IStable> IStable for NameAggregator<L, R> {
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = ();
     const REPORT: &'static report::TypeReport = &report::TypeReport {
         name: Str::new("signature"),
@@ -863,7 +863,7 @@ macro_rules! sliceimpl {
                 <<$size as Unsigned>::Equal<U1> as Bit>::SaddTernary<T::HasExactlyOneNiche, Saturator>,
             >;
             type ContainsIndirections = T::ContainsIndirections;
-            #[cfg(feature = "ctypes")]
+            #[cfg(feature = "experimental-ctypes")]
             type CType = [T::CType; <$size as Unsigned>::USIZE];
             primitive_report!(ARRAY_NAME[<$size as Unsigned>::USIZE], T);
         }
@@ -894,7 +894,7 @@ unsafe impl IStable for core::cmp::Ordering {
     type UnusedBits = End;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = u8;
     primitive_report!("core::cmp::Ordering");
 }

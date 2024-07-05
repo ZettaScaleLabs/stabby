@@ -146,11 +146,11 @@ pub fn stabby(
         }
     });
     let report_bounds = report.bounds();
-    let ctype = cfg!(feature = "ctypes").then(|| {
+    let ctype = cfg!(feature = "experimental-ctypes").then(|| {
         let ctype = report.crepr();
         quote! {type CType = #ctype;}
     });
-    let ctype_assert = cfg!(feature = "ctypes").then(|| {
+    let ctype_assert = cfg!(feature = "experimental-ctypes").then(|| {
         quote! {if core::mem::size_of::<Self>() != core::mem::size_of::<<Self as #st::IStable>::CType>() || core::mem::align_of::<Self>() != core::mem::align_of::<<Self as #st::IStable>::CType>() {
             panic!(#reprc_bug)
         }}

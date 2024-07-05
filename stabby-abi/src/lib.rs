@@ -264,7 +264,7 @@ unsafe impl<T, As: IStable> IStable for StableLike<T, As> {
     type UnusedBits = As::UnusedBits;
     type HasExactlyOneNiche = As::HasExactlyOneNiche;
     type ContainsIndirections = As::ContainsIndirections;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = As::CType;
     const ID: u64 = crate::report::gen_id(Self::REPORT);
     const REPORT: &'static report::TypeReport = As::REPORT;
@@ -298,7 +298,7 @@ unsafe impl<
     type UnusedBits = End;
     type HasExactlyOneNiche = HasExactlyOneNiche;
     type ContainsIndirections = ContainsIndirections;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = ();
     primitive_report!("NoNiches");
 }
@@ -351,7 +351,7 @@ unsafe impl<T: IStable, Cond: IStable> IStable for StableIf<T, Cond> {
     type UnusedBits = T::UnusedBits;
     type HasExactlyOneNiche = T::HasExactlyOneNiche;
     type ContainsIndirections = T::ContainsIndirections;
-    #[cfg(feature = "ctypes")]
+    #[cfg(feature = "experimental-ctypes")]
     type CType = T::CType;
     const REPORT: &'static report::TypeReport = T::REPORT;
     const ID: u64 = crate::report::gen_id(Self::REPORT);

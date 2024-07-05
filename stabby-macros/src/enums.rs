@@ -273,7 +273,7 @@ pub fn stabby(
     layout = quote!(#st::Tuple<#reprid, #layout>);
     report.tyty = crate::Tyty::Enum(trepr);
     let report_bounds = report.bounds();
-    let ctype = cfg!(feature = "ctypes").then(|| {
+    let ctype = cfg!(feature = "experimental-ctypes").then(|| {
         let ctype = report.crepr();
         quote! {type CType = #ctype;}
     });
@@ -286,7 +286,7 @@ pub fn stabby(
     let reprc_bug = format!(
         "{ident}'s CType was mis-evaluated by stabby, this is definitely a bug and may cause UB, please file an issue"
     );
-    let ctype_assert = cfg!(feature = "ctypes").then(|| {
+    let ctype_assert = cfg!(feature = "experimental-ctypes").then(|| {
         quote! {if core::mem::size_of::<Self>() != core::mem::size_of::<<Self as #st::IStable>::CType>() || core::mem::align_of::<Self>() != core::mem::align_of::<<Self as #st::IStable>::CType>() {
             panic!(#reprc_bug)
         }}
@@ -559,7 +559,7 @@ pub(crate) fn repr_stabby(
             }
         }
     });
-    let ctype = cfg!(feature = "ctypes").then(|| {
+    let ctype = cfg!(feature = "experimental-ctypes").then(|| {
         quote! {type CType = <#layout as #st::IStable>::CType;}
     });
     let assertions= generics.params.is_empty().then(||{

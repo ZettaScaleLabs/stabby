@@ -75,7 +75,7 @@ pub fn stabby(
         report.add_field(field.ident.as_ref().unwrap().to_string(), ty);
     }
     let report_bounds = report.bounds();
-    let ctype = cfg!(feature = "ctypes").then(|| {
+    let ctype = cfg!(feature = "experimental-ctypes").then(|| {
         quote! {type CType = <#layout as #st::IStable>::CType;}
     });
     quote! {

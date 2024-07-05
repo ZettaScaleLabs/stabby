@@ -24,10 +24,10 @@ readme = { workspace = true }
 description = "A Stable ABI for Rust with compact sum-types."
 
 [features]
-default = ["std", "libc", "serde"]
-std = ["libc", "stabby-abi/std", "alloc-rs"]
+default = ["std", "serde"]
+std = ["stabby-abi/std", "alloc-rs"]
 alloc-rs = ["stabby-abi/alloc-rs"]
-ctypes = ["stabby-abi/ctypes"]
+experimental-ctypes = ["stabby-abi/experimental-ctypes"]
 libloading = ["dep:libloading", "std"]
 libc = ["stabby-abi/libc"]
 serde = ["stabby-abi/serde"]
