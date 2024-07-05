@@ -539,7 +539,7 @@ macro_rules! gen_align {
         #[crate::stabby]
         #[repr(align($n))]
         #[derive(Debug, Default, Copy, Clone)]
-        pub struct $path($backing);
+        pub struct $path(pub $backing);
         impl Alignment for $u {
             type Max<T: Alignment> = <Self::Greater<T> as IBitBase>::_ATernary<Self, T>;
             type AsUint = $path;
