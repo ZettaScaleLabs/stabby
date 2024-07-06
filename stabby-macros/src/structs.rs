@@ -122,17 +122,15 @@ pub fn stabby(
     let clauses = where_clause.as_ref().map(|w| &w.predicates);
     let mut layout = None;
     let mut report = crate::Report::r#struct(ident.to_string(), version, module);
-    let repr = attrs
-        .iter()
-        .find_map(|attr| {
-            if attr.path.is_ident("repr") {
-                syn::parse2::<AllowedRepr>(attr.tokens.clone()).ok()
-            } else {
-                None
-            }
-        })
-        .unwrap_or(AllowedRepr::C);
-    optimize &= !matches!(repr, AllowedRepr::Align(_));
+    let repr = attrs.iter().find_map(|attr| {
+        if attr.path.is_ident("repr") {
+            syn::parse2::<AllowedRepr>(attr.tokens.clone()).ok()
+        } else {
+            None
+        }
+    });
+    let repr_attr = repr.is_none().then(|| quote! {#[repr(C)]});
+    optimize &= !matches!(repr, Some(AllowedRepr::Align(_)));
     let struct_code = match &fields {
         syn::Fields::Named(fields) => {
             let fields = &fields.named;
@@ -146,7 +144,7 @@ pub fn stabby(
             }
             quote! {
                 #(#attrs)*
-                #repr
+                #repr_attr
                 #vis struct #ident #generics #where_clause {
                     #fields
                 }
@@ -164,14 +162,14 @@ pub fn stabby(
             }
             quote! {
                 #(#attrs)*
-                #repr
+                #repr_attr
                 #vis struct #ident #generics #where_clause (#fields);
             }
         }
         syn::Fields::Unit => {
             quote! {
                 #(#attrs)*
-                #repr
+                #repr_attr
                 #vis struct #ident #generics #where_clause;
             }
         }
@@ -179,7 +177,7 @@ pub fn stabby(
     let layout = layout.map_or_else(
         || quote!(()),
         |layout| {
-            if let AllowedRepr::Align(mut n) = repr {
+            if let Some(AllowedRepr::Align(mut n)) = repr {
                 let mut align = quote!(#st::U1);
                 while n > 1 {
                     n /= 2;

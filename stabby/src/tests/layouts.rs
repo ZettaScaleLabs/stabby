@@ -127,6 +127,12 @@ pub struct EndPadding {
     a: usize,
     b: u8,
 }
+#[allow(dead_code)]
+#[stabby::stabby]
+#[repr(transparent)]
+pub struct Transparent {
+    a: usize,
+}
 
 #[test]
 fn layouts() {
@@ -255,6 +261,8 @@ fn layouts() {
         3 * 16
     );
     let _ = Align1024::ID;
+    let _: U1024 = <Align1024 as IStable>::Align::default();
+    let _: U1024 = <Align1024 as IStable>::Size::default();
 }
 
 #[allow(dead_code)]
