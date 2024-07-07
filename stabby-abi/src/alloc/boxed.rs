@@ -22,9 +22,13 @@ use core::{fmt::Debug, ptr::NonNull};
 pub struct Box<T, Alloc: IAlloc = super::DefaultAllocator> {
     ptr: AllocPtr<T, Alloc>,
 }
+// SAFETY: Same constraints as `std::boxed::Box`
 unsafe impl<T: Send, Alloc: IAlloc + Send> Send for Box<T, Alloc> {}
+// SAFETY: Same constraints as `std::boxed::Box`
 unsafe impl<T: Sync, Alloc: IAlloc> Sync for Box<T, Alloc> {}
+// SAFETY: Same constraints as `std::boxed::Box`
 unsafe impl<T: Send, Alloc: IAlloc + Send> Send for BoxedSlice<T, Alloc> {}
+// SAFETY: Same constraints as `std::boxed::Box`
 unsafe impl<T: Sync, Alloc: IAlloc> Sync for BoxedSlice<T, Alloc> {}
 
 impl<T> Box<T>

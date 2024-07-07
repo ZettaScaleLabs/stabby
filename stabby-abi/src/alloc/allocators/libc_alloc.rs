@@ -18,6 +18,7 @@ use crate::alloc::Layout;
 use libc::posix_memalign;
 #[cfg(windows)]
 unsafe fn posix_memalign(this: &mut *mut core::ffi::c_void, size: usize, align: usize) -> i32 {
+    // SAFETY: `aligned_malloc` is always safe.
     let ptr = unsafe { libc::aligned_malloc(size, align) };
     if ptr.is_null() {
         return libc::ENOMEM;
@@ -57,6 +58,7 @@ impl crate::alloc::IAlloc for LibcAlloc {
             return core::ptr::null_mut();
         }
         let mut ptr = core::ptr::null_mut();
+        // SAFETY: `posix_memalign` is always safe.
         let err = unsafe { posix_memalign(&mut ptr, layout.align, layout.size) };
         if err != 0 && (ptr as usize % layout.align != 0) {
             ptr = core::ptr::null_mut();
@@ -64,6 +66,7 @@ impl crate::alloc::IAlloc for LibcAlloc {
         ptr.cast()
     }
     unsafe fn free(&mut self, ptr: *mut ()) {
+        // SAFETY: `aligned_free` must be called by a pointer allocated by the corresponding allocator, which is already a safety condition of `IAlloc::free`
         unsafe { aligned_free(ptr.cast()) }
     }
     unsafe fn realloc(&mut self, ptr: *mut (), prev: Layout, new_size: usize) -> *mut () {
@@ -72,9 +75,11 @@ impl crate::alloc::IAlloc for LibcAlloc {
         }
         let mut new_ptr = core::ptr::null_mut::<core::ffi::c_void>();
         if prev.align <= 8 {
+            // SAFETY: `realloc` must be called by a pointer allocated by the corresponding allocator, which is already a safety condition of `IAlloc::free`. It may also fail if the alignment is not correct on some systems, so we avoid calling it if it's too great.
             new_ptr = unsafe { realloc(ptr.cast(), new_size) };
         };
         if new_ptr.is_null() {
+            // SAFETY: `posix_memalign` is always safe.
             let err = unsafe { posix_memalign(&mut new_ptr, prev.align, new_size) };
             if err == 0 {
                 unsafe {

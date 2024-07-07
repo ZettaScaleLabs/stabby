@@ -27,8 +27,10 @@ pub struct Slice<'a, T: 'a> {
     /// Ensures the slice has correct lifetime and variance.
     pub marker: core::marker::PhantomData<&'a ()>,
 }
-unsafe impl<'a, T: 'a + Sync> Send for Slice<'a, T> {}
-unsafe impl<'a, T: 'a + Sync> Sync for Slice<'a, T> {}
+// SAFETY: Slices are analogous to references.
+unsafe impl<'a, T: 'a> Send for Slice<'a, T> where &'a T: Send {}
+// SAFETY: Slices are analogous to references.
+unsafe impl<'a, T: 'a> Sync for Slice<'a, T> where &'a T: Sync {}
 impl<'a, T: 'a> Clone for Slice<'a, T> {
     fn clone(&self) -> Self {
         *self
@@ -120,8 +122,10 @@ pub struct SliceMut<'a, T: 'a> {
     /// Ensures the slice has correct lifetime and variance.
     pub marker: core::marker::PhantomData<&'a mut ()>,
 }
-unsafe impl<'a, T: 'a + Sync> Send for SliceMut<'a, T> {}
-unsafe impl<'a, T: 'a + Sync> Sync for SliceMut<'a, T> {}
+// SAFETY: SliceMut is analogous to a mutable reference
+unsafe impl<'a, T: 'a> Send for SliceMut<'a, T> where &'a mut T: Send {}
+// SAFETY: SliceMut is analogous to a mutable reference
+unsafe impl<'a, T: 'a> Sync for SliceMut<'a, T> where &'a mut T: Sync {}
 impl<'a, T> Deref for SliceMut<'a, T> {
     type Target = [T];
     fn deref(&self) -> &Self::Target {

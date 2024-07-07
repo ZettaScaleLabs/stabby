@@ -60,7 +60,9 @@ pub(crate) mod internal {
             self.0.eq(*other)
         }
     }
+    // SAFETY: VTables are always `Send + Sync`
     unsafe impl Send for VTable {}
+    // SAFETY: VTables are always `Send + Sync`
     unsafe impl Sync for VTable {}
     use crate::alloc::{vec::Vec, DefaultAllocator};
     /// A BTree used to store VTables.

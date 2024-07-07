@@ -105,12 +105,6 @@ impl Layout {
             + (new_align - (self.size % new_align)) * (((self.size % new_align) != 0) as usize);
         self
     }
-    // pub(crate) fn for_alloc(mut self) -> Self {
-    //     if self.align >= 8 {
-    //         return self;
-    //     }
-    //     self.realign(8)
-    // }
 }
 
 /// An interface to an allocator.

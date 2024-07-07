@@ -23,7 +23,9 @@ pub struct CanariedImport<F> {
     checked: AtomicU8,
     canary: extern "C" fn(),
 }
+// SAFETY: `CanariedImport`s always refer to `Send + Sync` things.
 unsafe impl<F> Send for CanariedImport<F> {}
+// SAFETY: `CanariedImport`s always refer to `Send + Sync` things.
 unsafe impl<F> Sync for CanariedImport<F> {}
 impl<F> CanariedImport<F> {
     /// Used in `#[stabby::import(canaries)]`
@@ -55,7 +57,9 @@ pub struct CheckedImport<F> {
     get_report: unsafe extern "C" fn() -> &'static crate::report::TypeReport,
     local_report: &'static crate::report::TypeReport,
 }
+// SAFETY: `CheckedImport`s always refer to functions.
 unsafe impl<F> Send for CheckedImport<F> {}
+// SAFETY: `CheckedImport`s always refer to functions.
 unsafe impl<F> Sync for CheckedImport<F> {}
 
 /// When reports mismatch between loader and loadee, both reports are exposed to allow debuging the issue.

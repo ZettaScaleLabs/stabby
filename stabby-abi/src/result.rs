@@ -41,17 +41,24 @@ where
 {
 }
 type Determinant<Ok, Err> = <Ok as IDeterminantProvider<Err>>::Determinant;
+// SAFETY: See fields
 unsafe impl<Ok, Err> IStable for Result<Ok, Err>
 where
     Ok: IDeterminantProvider<Err>,
     Err: IStable,
 {
+    /// The size is the max of the variants' sizes, plus the size of the determinant upgraded to a multiple of the alignment.
     type Size = tyeval!(<<Determinant<Ok, Err> as IStable>::Size as Unsigned>::NextMultipleOf<Self::Align> + <Ok::Size as Unsigned>::Max<Err::Size>);
+    /// The alignment is the max of the variants' alignments.
     type Align = <Ok::Align as Alignment>::Max<Err::Align>;
+    // If either variant may contain an indirection, so may their sum-type.
     type ContainsIndirections = <Ok::ContainsIndirections as Bit>::Or<Err::ContainsIndirections>;
+    // We trust the DeterminantProvider with this computation, it usually just discards the values for safety.
     type ForbiddenValues =
         <<Ok as IDeterminantProvider<Err>>::NicheExporter as IStable>::ForbiddenValues;
+    // OH NO! But we have lots of testing.
     type UnusedBits = <<Tuple<Determinant<Ok, Err>, <Self::Align as Alignment>::AsUint> as IStable>::UnusedBits as IBitMask>::BitOr<<<<Ok as IDeterminantProvider<Err>>::NicheExporter as IStable>::UnusedBits as IBitMask>::Shift<<<Determinant<Ok, Err> as IStable>::Size as Unsigned>::NextMultipleOf<Self::Align>>>;
+    // Rust doesn't know `stabby` Results may have niches.
     type HasExactlyOneNiche = B0;
     #[cfg(feature = "experimental-ctypes")]
     type CType = <Storage<<Self as IStable>::Size, <Self as IStable>::Align> as IStable>::CType;

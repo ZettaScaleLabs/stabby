@@ -732,10 +732,16 @@ impl<'a> DynTraitDescription<'a> {
                 #[doc = #vt_doc]
                 #st::impl_vtable_constructor!(
                     const VTABLE_REF: &'stabby_vt_lt #vt_signature =  &#vtid {
-                        #(#all_fn_ids: unsafe {core::mem::transmute(#self_as_trait::#all_fn_ids as #fn_ptrs)},)*
+                        #(
+                            // SAFETY: We unsafely construct `stabby::abi::StableLike`
+                            #all_fn_ids: unsafe {core::mem::transmute(#self_as_trait::#all_fn_ids as #fn_ptrs)},
+                        )*
                     };=>
                     const VTABLE: #vt_signature =  #vtid {
-                        #(#all_fn_ids: unsafe {core::mem::transmute(#self_as_trait::#all_fn_ids as #fn_ptrs)},)*
+                        #(
+                            // SAFETY: We unsafely construct `stabby::abi::StableLike`
+                            #all_fn_ids: unsafe {core::mem::transmute(#self_as_trait::#all_fn_ids as #fn_ptrs)},
+                        )*
                     };
                 );
             }
@@ -877,6 +883,7 @@ impl<'a> DynTraitDescription<'a> {
                 #(
                     #[doc = #vt_doc]
                     #mut_fns {
+                        // SAFETY: We simply observe the internals of an unsafe `stabby::abi::StableLike`
                         unsafe {(self.vtable().tderef().#mut_fn_ids.as_ref_unchecked())(self.ptr_mut().as_mut(), #mut_fn_args)}
                     }
                 )*

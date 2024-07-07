@@ -27,8 +27,16 @@ mod seal {
         pub(crate) capacity: NonNull<T>,
         pub(crate) alloc: Alloc,
     }
-    unsafe impl<T: Send, Alloc: IAlloc + Send> Send for VecInner<T, Alloc> {}
-    unsafe impl<T: Sync, Alloc: IAlloc + Sync> Sync for VecInner<T, Alloc> {}
+    // SAFETY: This is analogous to a BoxedSlice.
+    unsafe impl<T: Send, Alloc: IAlloc + Send> Send for VecInner<T, Alloc> where
+        crate::alloc::boxed::BoxedSlice<T, Alloc>: Send
+    {
+    }
+    // SAFETY: This is analogous to a BoxedSlice.
+    unsafe impl<T: Sync, Alloc: IAlloc + Sync> Sync for VecInner<T, Alloc> where
+        crate::alloc::boxed::BoxedSlice<T, Alloc>: Sync
+    {
+    }
 }
 pub(crate) use seal::*;
 
