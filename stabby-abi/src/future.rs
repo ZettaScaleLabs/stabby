@@ -67,8 +67,10 @@ mod stable_waker {
             pub wake_by_ref: StableLike<for<'b> unsafe extern "C" fn(&'b Waker), &'static ()>,
             pub drop: StableLike<unsafe extern "C" fn(&mut ManuallyDrop<Waker>), &'static ()>,
         }
-        unsafe impl Send for StableWakerInner {}
-        unsafe impl Sync for StableWakerInner {}
+        // SAFETY: this is a wrapper around Send and Sync Wakers
+        unsafe impl Send for StableWakerInner where core::task::Waker: Send {}
+        // SAFETY: this is a wrapper around Send and Sync Wakers
+        unsafe impl Sync for StableWakerInner where core::task::Waker: Sync {}
         impl Drop for StableWakerInner {
             fn drop(&mut self) {
                 unsafe { (self.drop.as_mut_unchecked())(self.waker.as_mut_unchecked()) }

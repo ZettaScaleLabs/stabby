@@ -33,7 +33,9 @@ use super::{
 pub struct Arc<T, Alloc: IAlloc = super::DefaultAllocator> {
     ptr: AllocPtr<T, Alloc>,
 }
+// SAFETY: Same constraints as in `std`.
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Send for Arc<T, Alloc> {}
+// SAFETY: Same constraints as in `std`.
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Sync for Arc<T, Alloc> {}
 const USIZE_TOP_BIT: usize = 1 << (core::mem::size_of::<usize>() as i32 * 8 - 1);
 
@@ -279,7 +281,9 @@ impl<T, Alloc: IAlloc> core::ops::Deref for Arc<T, Alloc> {
 pub struct Weak<T, Alloc: IAlloc = super::DefaultAllocator> {
     ptr: AllocPtr<T, Alloc>,
 }
+// SAFETY: Same constraints as in `std`.
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Send for Weak<T, Alloc> {}
+// SAFETY: Same constraints as in `std`.
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Sync for Weak<T, Alloc> {}
 impl<T, Alloc: IAlloc> From<&Arc<T, Alloc>> for Weak<T, Alloc> {
     fn from(value: &Arc<T, Alloc>) -> Self {
@@ -352,9 +356,13 @@ impl<T, Alloc: IAlloc> Drop for Weak<T, Alloc> {
 pub struct ArcSlice<T, Alloc: IAlloc = super::DefaultAllocator> {
     pub(crate) inner: AllocSlice<T, Alloc>,
 }
+// SAFETY: Same constraints as in `std`.
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Send for ArcSlice<T, Alloc> {}
+// SAFETY: Same constraints as in `std`.
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Sync for ArcSlice<T, Alloc> {}
+// SAFETY: Same constraints as in `std`.
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Send for WeakSlice<T, Alloc> {}
+// SAFETY: Same constraints as in `std`.
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Sync for WeakSlice<T, Alloc> {}
 
 impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
@@ -761,7 +769,9 @@ pub struct AtomicArc<T, Alloc: IAlloc> {
     ptr: AtomicPtr<T>,
     alloc: core::marker::PhantomData<*const Alloc>,
 }
+// SAFETY: Same constraints as in `std`.
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Send for AtomicArc<T, Alloc> {}
+// SAFETY: Same constraints as in `std`.
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Sync for AtomicArc<T, Alloc> {}
 
 impl<T, Alloc: IAlloc> Drop for AtomicArc<T, Alloc> {

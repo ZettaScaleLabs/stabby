@@ -48,6 +48,7 @@ pub enum BitDeterminant {
     /// The union is in the `err` state.
     Err = 1,
 }
+// SAFETY: This is core to stabby's sum types: any sum type is a test of this.
 unsafe impl IStable for BitDeterminant {
     type Size = U1;
     type Align = U1;
@@ -90,6 +91,7 @@ impl IDeterminant for End {
 #[repr(C)]
 pub struct ValueIsErr<Offset, Value, Tail: IStable>(PhantomData<(Offset, Value)>, Tail);
 impl<Offset, Value, Tail: IStable> Unpin for ValueIsErr<Offset, Value, Tail> {}
+// SAFETY: This is core to stabby's sum types: any sum type is a test of this.
 unsafe impl<Offset, Value, Tail: IStable> IStable for ValueIsErr<Offset, Value, Tail> {
     type Size = Tail::Size;
     type Align = Tail::Align;
@@ -183,6 +185,7 @@ impl<Offset: Unsigned, Mask: Unsigned> IDeterminant for BitIsErr<Offset, Mask> {
 #[derive(Debug, Clone, Copy)]
 pub struct Not<Determinant>(Determinant);
 impl<Determinant> Unpin for Not<Determinant> {}
+// SAFETY: This is core to stabby's sum types: any sum type is a test of this.
 unsafe impl<Determinant: IStable> IStable for Not<Determinant> {
     type Size = Determinant::Size;
     type Align = Determinant::Align;

@@ -37,11 +37,17 @@ pub struct UInt<Msbs: IUnsignedBase, Bit: IBit>(Msbs, Bit);
 #[repr(transparent)]
 #[derive(Debug, Default, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PadByte(u8);
+// SAFETY: See fields
 unsafe impl IStable for PadByte {
+    // Trivial
     type Size = U1;
+    // Trivial
     type Align = U1;
+    // Trivial
     type ForbiddenValues = End;
+    // A padding byte uses none of its bits
     type UnusedBits = Array<U0, UxFF, End>;
+    // Rust doesn't know there's a niche here
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
     #[cfg(feature = "experimental-ctypes")]
@@ -233,7 +239,7 @@ pub trait IUnsignedBase {
     /// Support for [`IUnsigned`]
     type Increment: IUnsigned;
     /// Support for [`IUnsigned`]
-    type _Padding: IStable + Default + Copy + Unpin;
+    type _Padding: IStable<Align = U1> + Default + Copy + Unpin;
     /// Support for [`IUnsigned`]
     type _SatDecrement: IUnsigned;
     /// Support for [`IUnsigned`]
@@ -299,7 +305,7 @@ pub trait IUnsigned: IUnsignedBase {
     /// Self % T
     type Mod<T: IPowerOf2>: IUnsigned;
     /// Constructs a type with alignment 1 and size Self.
-    type Padding: IStable + Sized + Default + Copy + Unpin;
+    type Padding: IStable<Align = U1> + Sized + Default + Copy + Unpin;
     /// Coerces Self into [`NonZero`]
     type NonZero: NonZero;
     /// Finds the smallest `n` such that `n = T * k` and `n >= Self`
@@ -423,16 +429,23 @@ impl NonZero for Saturator {
 /// Adds a byte to a padding `L`
 #[repr(C)]
 #[derive(Default, Clone, Copy)]
-pub struct OneMoreByte<L: IStable + Copy + Default> {
+pub struct OneMoreByte<L: IStable<Align = U1> + Copy + Default> {
     l: L,
     r: PadByte,
 }
-unsafe impl<L: IStable + Copy + Default> IStable for OneMoreByte<L> {
+// SAFETY: See each field
+unsafe impl<L: IStable<Align = U1> + Copy + Default> IStable for OneMoreByte<L> {
+    // L::Align = U1 => adding a single byte increments the size
     type Size = <L::Size as IUnsignedBase>::Increment;
-    type Align = L::Align;
+    // L::Align = U1, adding a single byte doesn't change that.
+    type Align = U1;
+    // The added byte has no forbidden values, so we only keep L's
     type ForbiddenValues = L::ForbiddenValues;
+    // The enhtire added byte is unused, since it's padding.
     type UnusedBits = <L::UnusedBits as IBitMask>::BitOr<Array<L::Size, UxFF, End>>;
+    // Rust doesn't know the padding byte is padding.
     type HasExactlyOneNiche = L::HasExactlyOneNiche;
+    // The padding byte doesn't contain indirections.
     type ContainsIndirections = L::ContainsIndirections;
     #[cfg(feature = "experimental-ctypes")]
     type CType = Tuple<L, u8>;

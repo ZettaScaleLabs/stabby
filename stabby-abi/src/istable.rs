@@ -96,6 +96,7 @@ pub unsafe trait IPod: Copy {
     /// Produces an identifier for the type, allowing to check type at runtime (barring collisions).
     fn identifier() -> u64;
 }
+// SAFETY: Stabby has proven the type does not contain indirections.
 unsafe impl<T: IStable<ContainsIndirections = B0> + Copy> IPod for T {
     fn identifier() -> u64 {
         T::ID
@@ -117,6 +118,7 @@ impl<T> core::ops::DerefMut for NotPod<T> {
         &mut self.0
     }
 }
+// SAFETY: Simply hides the fact that `T` might not actually contain indirections.
 unsafe impl<T: IStable> IStable for NotPod<T> {
     type Size = T::Size;
     type Align = T::Align;
@@ -178,6 +180,7 @@ impl<
         Self(core::marker::PhantomData)
     }
 }
+// SAFETY: This is purely computational
 unsafe impl<
         ForbiddenValues: IForbiddenValues,
         UnusedBits: IBitMask,
@@ -378,6 +381,7 @@ impl<O: Unsigned, T, R: IBitMask> IsEnd for Array<O, T, R> {
     type Output = B0;
 }
 
+// SAFETY: Purely computational. Heavily tested.
 unsafe impl<A: IStable, B: IStable> IStable for FieldPair<A, B> {
     type ForbiddenValues =
         Or<A::ForbiddenValues, <AlignedAfter<B, A::Size> as IStable>::ForbiddenValues>;
@@ -519,6 +523,7 @@ impl<O1: Unsigned, T1, O2: Unsigned, T2, R2: IBitMask> IncludesComputer<(O1, T1,
     type Output = End;
 }
 
+// SAFETY: Purely computational. Heavily tested.
 unsafe impl<A: IStable, B: IStable> IStable for Union<A, B> {
     type ForbiddenValues = End;
     type UnusedBits = End;
@@ -536,7 +541,7 @@ unsafe impl<A: IStable, B: IStable> IStable for Union<A, B> {
 /// Computes a `T`-typed field's layout when it's after `Start` bytes, taking `T`'s alignment into account.
 pub struct AlignedAfter<T, Start: Unsigned>(core::marker::PhantomData<(T, Start)>);
 
-// AlignedAfter a ZST
+// SAFETY: Purely computational. Heavily tested.
 unsafe impl<T: IStable, Start: Unsigned> IStable for AlignedAfter<T, Start> {
     type Align = T::Align;
     type Size = <T::Size as Unsigned>::Add<Start::NextMultipleOf<T::Align>>;
@@ -552,6 +557,7 @@ unsafe impl<T: IStable, Start: Unsigned> IStable for AlignedAfter<T, Start> {
     primitive_report!("FP");
 }
 
+// SAFETY: Purely computational. Heavily tested.
 unsafe impl<T: IStable> IStable for Struct<T> {
     type Size = <T::Size as Unsigned>::NextMultipleOf<T::Align>;
     type Align = T::Align;
@@ -568,6 +574,7 @@ unsafe impl<T: IStable> IStable for Struct<T> {
     primitive_report!("FP");
 }
 
+// SAFETY: Purely computational. Heavily tested.
 unsafe impl<T: IStable, Align: Alignment> IStable for AlignedStruct<T, Align> {
     type Size = <T::Size as Unsigned>::NextMultipleOf<Self::Align>;
     type Align = <Align as Alignment>::Max<T::Align>;

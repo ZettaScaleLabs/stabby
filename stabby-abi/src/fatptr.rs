@@ -369,8 +369,12 @@ impl<'a, T, Vt: Copy + IConstConstructor<'a, T>> From<&'a T> for DynRef<'a, Vt> 
     }
 }
 
+// SAFETY: This is analogous to a reference, and Vt proves the rest
 unsafe impl<'a, Vt: HasSendVt> Send for DynRef<'a, Vt> {}
+// SAFETY: This is analogous to a reference, and Vt proves the rest
 unsafe impl<'a, Vt: HasSyncVt> Sync for DynRef<'a, Vt> {}
 
+// SAFETY: The pointer must be `Send` and the pointee must me `Send` and `Sync`.
 unsafe impl<'a, P: IPtrOwned + Send, Vt: HasSendVt + HasDropVt> Send for Dyn<'a, P, Vt> {}
+// SAFETY: The pointer must be `Sync` and the pointee must me `Send` and `Sync`.
 unsafe impl<'a, P: IPtrOwned + Sync, Vt: HasSyncVt + HasDropVt> Sync for Dyn<'a, P, Vt> {}
