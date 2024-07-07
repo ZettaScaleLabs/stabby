@@ -24,7 +24,7 @@ extern "C" fn alloc(requested: crate::alloc::Layout) -> *mut () {
     let Ok(layout) = core::alloc::Layout::from_size_align(requested.size, requested.align) else {
         return core::ptr::null_mut();
     };
-    /// SAFETY: The layout is always non-zero-sized
+    // SAFETY: The layout is always non-zero-sized
     let alloc_start = unsafe { alloc_rs::alloc::alloc(layout) };
     let ret = // SAFETY: the addition is indeed in-bound.
         unsafe { alloc_start.add(layout.align().max(core::mem::size_of::<RustAllocPrefix>())) };
