@@ -357,6 +357,7 @@ macro_rules! makeumask {
         impl ::core::ops::Add for $name {
             type Output = $base;
             fn add(self, rhs: Self) -> $base {
+                // SAFETY: Since the type is masked, addition will never overflow.
                 unsafe { self.get().checked_add(rhs.get()).unwrap_unchecked() }
             }
         }

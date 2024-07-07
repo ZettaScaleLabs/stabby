@@ -68,6 +68,7 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 				{
 					fn call_once(self #(, #args: #argtys)*) -> O {
 						let o =
+                        // SAFETY: We simply observe the internals of an unsafe `stabby::abi::StableLike`
 							unsafe { (self.vtable().tderef().call_once.into_inner_unchecked())(core::ptr::read(self.ptr()) #(, #args)*)};
 						core::mem::forget(self);
 						o
@@ -81,6 +82,7 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 					for #covt<O #(, #argtys)* >
 				{
 					const VTABLE: &'a Self = &Self {
+                        // SAFETY: We unsafely construct `stabby::abi::StableLike`
 						call_once: unsafe {
 							core::mem::transmute(<F as #co< O #(, #argtys)* >>::call_once as extern "C" fn(#st::alloc::boxed::Box<F> #(, #argtys)* ) -> O)
 						},

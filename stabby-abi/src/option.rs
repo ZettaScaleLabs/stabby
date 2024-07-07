@@ -171,6 +171,7 @@ where
     /// # Safety
     /// Calling this on `Self::None()` is UB.
     pub unsafe fn unwrap_unchecked(self) -> T {
+        // SAFETY: Caller-guaranteed
         self.unwrap_or_else(|| unsafe { unreachable_unchecked!() })
     }
     /// # Panics

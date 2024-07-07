@@ -24,9 +24,11 @@ extern "C" fn alloc(requested: crate::alloc::Layout) -> *mut () {
     let Ok(layout) = core::alloc::Layout::from_size_align(requested.size, requested.align) else {
         return core::ptr::null_mut();
     };
+    /// SAFETY: The layout is always non-zero-sized
     let alloc_start = unsafe { alloc_rs::alloc::alloc(layout) };
-    let ret =
+    let ret = // SAFETY: the addition is indeed in-bound.
         unsafe { alloc_start.add(layout.align().max(core::mem::size_of::<RustAllocPrefix>())) };
+    // SAFETY: `ret` is allocated and _at least_ one `RustAllocPrefix` greater than the start of the allocation, so writing there is safe.
     unsafe {
         ret.cast::<RustAllocPrefix>().sub(1).write(RustAllocPrefix {
             layout: requested,
@@ -36,6 +38,7 @@ extern "C" fn alloc(requested: crate::alloc::Layout) -> *mut () {
     ret.cast()
 }
 extern "C" fn realloc(ptr: *mut (), prev_layout: crate::alloc::Layout, new_size: usize) -> *mut () {
+    // SAFETY: The corresponding `alloc` returns the allocation offset by this much (see the line where `ret` is constructed in both the `alloc` and `realloc` functions)
     let realloc_start = unsafe {
         ptr.cast::<u8>().sub(
             prev_layout
@@ -47,13 +50,17 @@ extern "C" fn realloc(ptr: *mut (), prev_layout: crate::alloc::Layout, new_size:
     else {
         return core::ptr::null_mut();
     };
+    let requested = Layout::of::<RustAllocPrefix>().concat(Layout {
+        size: new_size,
+        align: prev_layout.align,
+    });
+    // SAFETY: See each line
     unsafe {
-        let requested = Layout::of::<RustAllocPrefix>().concat(Layout {
-            size: new_size,
-            align: prev_layout.align,
-        });
+        // If `ptr` was indeed allocated on by this allocator, then `realloc_start` was indeed allocated by _our_ GlobalAlloc.
         let alloc_start = alloc_rs::alloc::realloc(realloc_start, layout, requested.size);
+        // We follow the same return-value shifting as in `alloc`
         let ret = alloc_start.add(layout.align().max(core::mem::size_of::<RustAllocPrefix>()));
+        // And prepend the same prefix
         ret.cast::<RustAllocPrefix>().sub(1).write(RustAllocPrefix {
             layout: requested,
             vtable: VTABLE,
@@ -62,6 +69,7 @@ extern "C" fn realloc(ptr: *mut (), prev_layout: crate::alloc::Layout, new_size:
     }
 }
 extern "C" fn free(ptr: *mut (), prev_layout: crate::alloc::Layout) {
+    // SAFETY: The corresponding `alloc` returns the allocation offset by this much (see the line where `ret` is constructed in both the `alloc` and `realloc` functions)
     let dealloc_start = unsafe {
         ptr.cast::<u8>().sub(
             prev_layout
@@ -69,6 +77,7 @@ extern "C" fn free(ptr: *mut (), prev_layout: crate::alloc::Layout) {
                 .max(core::mem::size_of::<RustAllocPrefix>()),
         )
     };
+    // If `ptr` was indeed allocated on by this allocator, then `dealloc_start` was indeed allocated by _our_ GlobalAlloc.
     unsafe {
         alloc_rs::alloc::dealloc(
             dealloc_start,
@@ -97,7 +106,7 @@ impl IAlloc for RustAlloc {
     }
 
     unsafe fn free(&mut self, ptr: *mut ()) {
-        let RustAllocPrefix { layout, vtable } =
+        let RustAllocPrefix { layout, vtable } = // SAFETY: if called with a `ptr` allocated by an instance of `self`, this read is valid.
             unsafe { ptr.cast::<RustAllocPrefix>().sub(1).read() };
         (vtable.free)(ptr, layout)
     }
@@ -108,7 +117,7 @@ impl IAlloc for RustAlloc {
         _prev_layout: crate::alloc::Layout,
         new_size: usize,
     ) -> *mut () {
-        let RustAllocPrefix { layout, vtable } =
+        let RustAllocPrefix { layout, vtable } = // SAFETY: if called with a `ptr` allocated by an instance of `self`, this read is valid.
             unsafe { ptr.cast::<RustAllocPrefix>().sub(1).read() };
         (vtable.realloc)(ptr, layout, new_size)
     }

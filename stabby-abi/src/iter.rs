@@ -31,10 +31,11 @@ impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>
 {
     type Item = Output;
     fn next(&mut self) -> Option<Self::Item> {
+        // SAFETY: we're accessing a `StableLike` that was unsafely but properly constructed.
         unsafe { (self.vtable().head.next.as_ref_unchecked())(self.ptr_mut().as_mut()).into() }
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let crate::Tuple(min, max) =
+        let crate::Tuple(min, max) = // SAFETY: we're accessing a `StableLike` that was unsafely but properly constructed.
             unsafe { (self.vtable().head.size_hint.as_ref_unchecked())(self.ptr().as_ref()) };
         (min, max.into())
     }

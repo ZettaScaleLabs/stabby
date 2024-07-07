@@ -209,7 +209,7 @@ macro_rules! check {
                 }
                 _ => {}
             }
-            if len != 0 {
+            if len != 0 { // SAFETY: the buffer is correctly constructed
                 panic!("{}", unsafe {
                     core::str::from_utf8_unchecked(core::slice::from_raw_parts(buffer.as_ptr(), len))
                 })

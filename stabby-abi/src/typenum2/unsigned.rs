@@ -724,7 +724,10 @@ fn ops() {
     assert_eq!(U4::_U128, 4);
     assert_eq!(U5::_U128, 5);
     assert_eq!(U10::_U128, 10);
+    // SAFETY: These are actually compile-time safety checks.
     unsafe { core::mem::transmute::<_, <U22 as IUnsignedBase>::Array<u8>>([0u8; 22]) };
+    // SAFETY: These are actually compile-time safety checks.
     unsafe { core::mem::transmute::<_, <U122 as IUnsignedBase>::Array<u16>>([0u16; 122]) };
+    // SAFETY: These are actually compile-time safety checks.
     unsafe { core::mem::transmute::<[u8; 0], <U0 as IUnsignedBase>::Array<u8>>([]) };
 }

@@ -22,7 +22,7 @@
     clippy::missing_const_for_fn,
     clippy::missing_safety_doc,
     clippy::missing_errors_doc,
-    clippy::undocumented_unsafe_blocks
+    // clippy::undocumented_unsafe_blocks
 )]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(stabby_nightly, feature(freeze))]
@@ -379,6 +379,7 @@ pub union Union<A, B> {
 }
 impl<A, B> Clone for Union<A, B> {
     fn clone(&self) -> Self {
+        // SAFETY: `Union` is actually `Copy`
         unsafe { core::ptr::read(self) }
     }
 }

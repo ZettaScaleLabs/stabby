@@ -33,6 +33,7 @@ impl<'a> Str<'a> {
     }
     /// Exposes `self` as a `&sr`.
     pub const fn as_str(self) -> &'a str {
+        // Safety: the UTF8 predicate is validaetd by the type.
         unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
     }
 }
@@ -48,7 +49,7 @@ impl<'a> From<&'a mut str> for Str<'a> {
 }
 impl<'a> From<Str<'a>> for &'a str {
     fn from(value: Str<'a>) -> Self {
-        unsafe { core::str::from_utf8_unchecked(value.inner.into()) }
+        value.as_str()
     }
 }
 impl AsRef<str> for Str<'_> {
@@ -59,7 +60,7 @@ impl AsRef<str> for Str<'_> {
 impl<'a> Deref for Str<'a> {
     type Target = str;
     fn deref(&self) -> &Self::Target {
-        unsafe { core::str::from_utf8_unchecked(&self.inner) }
+        self.as_str()
     }
 }
 impl core::fmt::Debug for Str<'_> {
@@ -91,11 +92,13 @@ impl AsRef<str> for StrMut<'_> {
 impl<'a> Deref for StrMut<'a> {
     type Target = str;
     fn deref(&self) -> &Self::Target {
+        // Safety: the UTF8 predicate is validaetd by the type.
         unsafe { core::str::from_utf8_unchecked(&self.inner) }
     }
 }
 impl<'a> DerefMut for StrMut<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        // Safety: the UTF8 predicate is validaetd by the type.
         unsafe { core::str::from_utf8_unchecked_mut(&mut self.inner) }
     }
 }
@@ -115,12 +118,14 @@ impl<'a> From<StrMut<'a>> for Str<'a> {
 }
 impl<'a> From<StrMut<'a>> for &'a mut str {
     fn from(value: StrMut<'a>) -> Self {
+        // Safety: the UTF8 predicate is validaetd by the type.
         unsafe { core::str::from_utf8_unchecked_mut(value.inner.into()) }
     }
 }
 
 impl<'a> From<StrMut<'a>> for &'a str {
     fn from(value: StrMut<'a>) -> Self {
+        // Safety: the UTF8 predicate is validaetd by the type.
         unsafe { core::str::from_utf8_unchecked(value.inner.into()) }
     }
 }

@@ -157,6 +157,7 @@ const ARCH_INFO: [u8; 8] = [
     core::mem::size_of::<&()>() as u8,
     core::mem::align_of::<&()>() as u8,
     core::mem::align_of::<u128>() as u8,
+    // SAFETY: allows us to observe the architecture's endianness
     unsafe { core::mem::transmute::<[u8; 2], u16>([0, 1]) } as u8,
     0,
 ];
