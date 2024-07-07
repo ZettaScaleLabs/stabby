@@ -51,6 +51,7 @@ where
                 core::sync::atomic::Ordering::Release,
                 core::sync::atomic::Ordering::Acquire,
             ) {
+                // SAFETY: we've just replaced the old pointer succesfully, we can now free it.
                 Ok(old) => unsafe {
                     core::mem::forget(new);
                     ArcBTreeSet::take_ownership_from_ptr(old);
@@ -158,7 +159,9 @@ pub struct ArcBTreeSet<
     const REPLACE_ON_INSERT: bool = { false },
     const SPLIT_LIMIT: usize = { 5 },
 > {
+    /// The root of the tree
     root: Option<ArcBTreeSetNode<T, Alloc, REPLACE_ON_INSERT, SPLIT_LIMIT>>,
+    /// The allocator of the tree, which is present iff the root is `None`
     alloc: core::mem::MaybeUninit<Alloc>,
 }
 impl<T, Alloc: IAlloc, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize> Clone
@@ -173,6 +176,7 @@ where
                 root: Some(root),
                 alloc: core::mem::MaybeUninit::uninit(),
             },
+            // SAFETY: if there is no root, then there's an allocator.
             None => unsafe {
                 Self {
                     root: None,
@@ -237,6 +241,7 @@ impl<T, Alloc: IAlloc, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize> 
 {
     fn drop(&mut self) {
         if self.root.is_none() {
+            // SAFETY: The root is `None`, hence the allocator is here.
             unsafe { self.alloc.assume_init_drop() }
         }
     }
@@ -247,9 +252,12 @@ where
     DefaultAllocator: core::default::Default,
 {
     /// Takes a pointer to the root.
+    ///
+    /// For the pointer to own the pointee of `self`, said pointee must be forgotten.
     const fn as_ptr(
         &self,
     ) -> *mut ArcBTreeSetNodeInner<T, DefaultAllocator, REPLACE_ON_INSERT, SPLIT_LIMIT> {
+        // SAFETY: the root is copied and transmuted to a pointer: the pointer is not considered to own the root yet.
         unsafe {
             core::mem::transmute::<
                 Option<ArcBTreeSetNode<T, DefaultAllocator, REPLACE_ON_INSERT, SPLIT_LIMIT>>,
@@ -267,6 +275,7 @@ where
                 alloc: core::mem::MaybeUninit::new(Default::default()),
             },
             Some(ptr) => {
+                // SAFETY: The pointer came from `as_ptr`, and is therefore of the correct layout. We use ManuallyDrop to avoid any risk of double-free
                 let owner: core::mem::ManuallyDrop<_> = unsafe {
                     core::mem::transmute::<
                         NonNull<
@@ -307,6 +316,7 @@ where
                 alloc: core::mem::MaybeUninit::new(Default::default()),
             },
             Some(ptr) => {
+                // SAFETY: The pointer came from `as_ptr`, which must have become the owner by the time this is called.
                 let root = unsafe {
                     core::mem::transmute::<
                         NonNull<
@@ -376,6 +386,7 @@ impl<T: Ord, Alloc: IAlloc, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: us
         match &mut self.root {
             Some(inner) => inner.insert(value),
             None => {
+                // SAFETY: root == None <=> allocator is can be taken to construct a node.
                 let alloc = unsafe { self.alloc.assume_init_read() };
                 self.root = Some(ArcBTreeSetNode(Arc::new_in(
                     ArcBTreeSetNodeInner::new(
@@ -468,6 +479,7 @@ mod seal {
         for ArcBTreeSetNodeInner<T, Alloc, REPLACE_ON_INSERT, SPLIT_LIMIT>
     {
         fn drop(&mut self) {
+            // SAFETY: This only yields back the existing entries that can be safetly dropped.
             unsafe { core::ptr::drop_in_place(self.entries_mut()) }
         }
     }
@@ -478,10 +490,9 @@ mod seal {
             let mut entries: [MaybeUninit<
                 ArcBTreeSetEntry<T, Alloc, REPLACE_ON_INSERT, SPLIT_LIMIT>,
             >; SPLIT_LIMIT] = [(); SPLIT_LIMIT].map(|_| core::mem::MaybeUninit::uninit());
-            unsafe {
-                for (i, entry) in self.entries().iter().enumerate() {
-                    *entries.get_unchecked_mut(i) = MaybeUninit::new(entry.clone())
-                }
+            for (i, entry) in self.entries().iter().enumerate() {
+                // SAFETY: the number of entries is guaranteed to be small enough.
+                unsafe { *entries.get_unchecked_mut(i) = MaybeUninit::new(entry.clone()) }
             }
             Self {
                 entries,
@@ -568,13 +579,12 @@ mod seal {
         {
             use core::cmp::Ordering;
             let inner = Arc::make_mut(&mut self.0);
-            let alloc = unsafe {
-                AllocPtr {
-                    ptr: NonNull::new_unchecked(inner),
-                    marker: PhantomData,
-                }
+            let arc = AllocPtr {
+                ptr: NonNull::from(&*inner),
+                marker: PhantomData,
             };
-            let alloc = unsafe { alloc.prefix().alloc.assume_init_ref() };
+            // SAFETY: `arc` is known to bg a valid `Arc`, meaning its prefix contains an initialized alloc.
+            let alloc = unsafe { arc.prefix().alloc.assume_init_ref() };
             let entries = inner.entries_mut();
             for (i, entry) in entries.iter_mut().enumerate() {
                 match entry.value.cmp(&value) {
@@ -640,12 +650,16 @@ mod seal {
         where
             Alloc: Clone,
         {
+            debug_assert!(i < self.len);
+            // SAFETY: See line comments
             unsafe {
-                for j in (i..self.len).rev() {
-                    *self.entries.get_unchecked_mut(j + 1) =
-                        MaybeUninit::new(self.entries.get_unchecked(j).assume_init_read());
-                }
-                self.len += 1;
+                // SAFETY: A node always has at least one slot free thanks to splitting being called at the end of any operations that may increase `self.len`
+                core::ptr::copy(
+                    self.entries.as_ptr().add(i),
+                    self.entries.as_mut_ptr().add(i + 1),
+                    self.len - i,
+                );
+                // SAFETY: A node always has at least one slot free thanks to splitting being called at the end of any operations that may increase `self.len`
                 *self.entries.get_unchecked_mut(i) = MaybeUninit::new(ArcBTreeSetEntry {
                     value,
                     smaller: core::mem::replace(
@@ -658,6 +672,7 @@ mod seal {
                     ),
                 });
             }
+            self.len += 1;
             self.split(alloc)
         }
         fn push(
@@ -669,6 +684,7 @@ mod seal {
         where
             Alloc: Clone,
         {
+            // SAFETY: A node always has at least one slot free thanks to splitting being called at the end of any operations that may increase `self.len`
             unsafe {
                 self.entries
                     .get_unchecked_mut(self.len)
@@ -676,8 +692,8 @@ mod seal {
                         value,
                         smaller: core::mem::replace(&mut self.greater, greater),
                     });
-                self.len += 1;
             }
+            self.len += 1;
             self.split(alloc)
         }
         fn split(
@@ -687,32 +703,36 @@ mod seal {
         where
             Alloc: Clone,
         {
-            unsafe {
-                if self.len == SPLIT_LIMIT {
-                    let ArcBTreeSetEntry {
-                        value: pivot,
-                        smaller,
-                    } = self
-                        .entries
+            if self.len == SPLIT_LIMIT {
+                // SAFETY: we've just confirmed the `SPLIT_LIMIT/2` node is initialized by checking the length
+                let pivot = unsafe {
+                    self.entries
                         .get_unchecked(SPLIT_LIMIT / 2)
-                        .assume_init_read();
-                    let mut right = Self {
-                        entries: [(); SPLIT_LIMIT].map(|_| core::mem::MaybeUninit::uninit()),
-                        len: SPLIT_LIMIT / 2,
-                        greater: self.greater.take(),
-                    };
+                        .assume_init_read()
+                };
+                let ArcBTreeSetEntry {
+                    value: pivot,
+                    smaller,
+                } = pivot;
+                let mut right = Self {
+                    entries: [(); SPLIT_LIMIT].map(|_| core::mem::MaybeUninit::uninit()),
+                    len: SPLIT_LIMIT / 2,
+                    greater: self.greater.take(),
+                };
+                // SAFETY: the left entries are all initialized, allowing to read `SPLIT_LIMIT/2` elements into `right`
+                unsafe {
                     core::ptr::copy_nonoverlapping(
                         self.entries.get_unchecked(SPLIT_LIMIT / 2 + 1),
                         right.entries.get_unchecked_mut(0),
-                        SPLIT_LIMIT / 2,
-                    );
-                    self.greater = smaller;
-                    self.len = SPLIT_LIMIT / 2;
-                    let right = ArcBTreeSetNode(Arc::new_in(right, alloc.clone()));
-                    Some((right, pivot))
-                } else {
-                    None
-                }
+                        right.len,
+                    )
+                };
+                self.greater = smaller;
+                self.len = SPLIT_LIMIT / 2;
+                let right = ArcBTreeSetNode(Arc::new_in(right, alloc.clone()));
+                Some((right, pivot))
+            } else {
+                None
             }
         }
     }
@@ -721,11 +741,13 @@ mod seal {
         ArcBTreeSetNodeInner<T, Alloc, REPLACE_ON_INSERT, SPLIT_LIMIT>
     {
         pub fn entries(&self) -> &[ArcBTreeSetEntry<T, Alloc, REPLACE_ON_INSERT, SPLIT_LIMIT>] {
+            // SAFETY: Entries up to `self.len` are always initialized.
             unsafe { core::mem::transmute(self.entries.get_unchecked(..self.len)) }
         }
         pub fn entries_mut(
             &mut self,
         ) -> &mut [ArcBTreeSetEntry<T, Alloc, REPLACE_ON_INSERT, SPLIT_LIMIT>] {
+            // SAFETY: Entries up to `self.len` are always initialized.
             unsafe { core::mem::transmute(self.entries.get_unchecked_mut(..self.len)) }
         }
     }

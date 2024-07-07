@@ -91,6 +91,8 @@ pub trait IBitBase {
     type _ATernary<A: Alignment, B: Alignment>: Alignment;
     /// Support for [`IBit`]
     type AsForbiddenValue: ISingleForbiddenValue;
+    /// u8 if B1, () otherwise
+    type _Padding: IStable<Align = U1> + Default + Copy + Unpin;
 }
 /// false
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -112,6 +114,7 @@ impl IBitBase for B0 {
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = B;
     type _StabTernary<A: IStable, B: IStable> = B;
     type _ATernary<A: Alignment, B: Alignment> = B;
+    type _Padding = ();
     type AsForbiddenValue = Saturator;
 }
 /// true
@@ -134,6 +137,7 @@ impl IBitBase for B1 {
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = A;
     type _StabTernary<A: IStable, B: IStable> = A;
     type _ATernary<A: Alignment, B: Alignment> = A;
+    type _Padding = PadByte;
     type AsForbiddenValue = End;
 }
 /// A boolean. [`B0`] and [`B1`] are the canonical members of this type-class
@@ -456,6 +460,31 @@ impl<Msb: IUnsigned, Bit: IBit> NonZero for UInt<Msb, Bit> {
         <Bit::UTernary<UInt<Msb, B0>, UInt<Msb::_SatDecrement, B1>> as IUnsignedBase>::_Simplified;
     type TruncateAtRightmostOne = Self::_TruncateAtRightmostOne;
 }
+/// A helper to generate padding of appropriate size.
+#[repr(C)]
+pub struct PaddingHelper<Double: IStable<Align = U1>, Bit: IBitBase>(Double, Double, Bit::_Padding);
+impl<Double: IStable<Align = U1> + Default, Bit: IBitBase> Default for PaddingHelper<Double, Bit> {
+    fn default() -> Self {
+        Self(Default::default(), Default::default(), Default::default())
+    }
+}
+impl<Double: IStable<Align = U1> + Copy, Bit: IBitBase> Copy for PaddingHelper<Double, Bit> {}
+impl<Double: IStable<Align = U1> + Copy, Bit: IBitBase> Clone for PaddingHelper<Double, Bit> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+unsafe impl<Double: IStable<Align = U1>, Bit: IBitBase> IStable for PaddingHelper<Double, Bit> {
+    type Align = U1;
+    type Size = <<U2 as IUnsigned>::Mul<Double::Size> as IUnsigned>::Add<Bit::_UTernary<U1, U0>>;
+    type ForbiddenValues = End;
+    type ContainsIndirections = B0;
+    type HasExactlyOneNiche = B0;
+    type UnusedBits = <crate::tuple::Tuple3<Double, Double, Bit::_Padding> as IStable>::UnusedBits;
+    #[cfg(feature = "experimental-ctypes")]
+    type CType = Tuple<L, u8>;
+    primitive_report!("Padding");
+}
 impl<Msb: IUnsigned, Bit: IBit> IUnsignedBase for UInt<Msb, Bit> {
     const _U128: u128 = (Msb::_U128 << 1) | (<Self::Bit as IBit>::BOOL as u128);
     type Bit = Bit;
@@ -476,8 +505,7 @@ impl<Msb: IUnsigned, Bit: IBit> IUnsignedBase for UInt<Msb, Bit> {
         <T::_IsUTerm as IBit>::UTernary<UTerm, UInt<Msb::_Truncate<T::AbsSub<U1>>, Bit>>;
     type _SatDecrement =
         <Bit::UTernary<UInt<Msb, B0>, UInt<Msb::_SatDecrement, B1>> as IUnsignedBase>::_Simplified;
-    type _Padding =
-        OneMoreByte<<<Self as IUnsignedBase>::_SatDecrement as IUnsignedBase>::_Padding>;
+    type _Padding = PaddingHelper<Msb::Padding, Bit>;
     type NextPow2 = <Msb::NextPow2 as IUnsigned>::Add<<Self::_IsUTerm as IBit>::UTernary<U0, U1>>;
     type _TruncateAtRightmostOne = Bit::NzTernary<U1, UInt<Msb::_TruncateAtRightmostOne, B0>>;
     type _NonZero = Self;
