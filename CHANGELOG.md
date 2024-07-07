@@ -1,3 +1,6 @@
+# 36.1.1-rc6 (api=2.0.0, abi=2.0.0)
+- Refine `RustAlloc`'s implementation such that it stays a ZST.
+
 # 36.1.1-rc5 (api=2.0.0, abi=2.0.0)
 - Refine support for `#[repr(transparent)]` and `#[repr(align(n))]` in `#[stabby::stabby]` structs up to n=64kiB.
 
