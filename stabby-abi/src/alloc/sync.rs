@@ -49,6 +49,9 @@ impl<T> Arc<T> {
     /// # Safety
     /// `constructor` MUST return `Err(())` if it failed to initialize the passed argument.
     ///
+    /// # Errors
+    /// Returns the uninitialized allocation if the constructor declares a failure.
+    ///
     /// # Panics
     /// If the allocator fails to provide an appropriate allocation.
     pub unsafe fn make<
@@ -84,6 +87,7 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     ///
     /// # Notes
     /// Note that the allocation may or may not be zeroed.
+    #[allow(clippy::type_complexity)]
     pub unsafe fn try_make_in<
         F: for<'a> FnOnce(&'a mut core::mem::MaybeUninit<T>) -> Result<&'a mut T, ()>,
     >(

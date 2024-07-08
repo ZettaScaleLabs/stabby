@@ -48,6 +48,9 @@ where
     /// # Safety
     /// `constructor` MUST return `Err(())` if it failed to initialize the passed argument.
     ///
+    /// # Errors
+    /// Returns the uninitialized allocation if the constructor declares a failure.
+    ///
     /// # Panics
     /// If the allocator fails to provide an appropriate allocation.
     pub unsafe fn make<
@@ -82,6 +85,7 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
     ///
     /// # Notes
     /// Note that the allocation may or may not be zeroed.
+    #[allow(clippy::type_complexity)]
     pub unsafe fn try_make_in<
         F: for<'a> FnOnce(&'a mut core::mem::MaybeUninit<T>) -> Result<&'a mut T, ()>,
     >(
@@ -171,7 +175,7 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
         // SAFETY: `this` is immediately forgotten as required.
         unsafe { this.free() };
         core::mem::forget(this);
-        ret.into_inner()
+        ManuallyDrop::into_inner(ret)
     }
     /// Returns the pointer to the inner raw allocation, leaking `this`.
     ///

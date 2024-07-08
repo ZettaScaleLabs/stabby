@@ -482,7 +482,7 @@ unsafe impl<Double: IStable<Align = U1>, Bit: IBitBase> IStable for PaddingHelpe
     type HasExactlyOneNiche = B0;
     type UnusedBits = <crate::tuple::Tuple3<Double, Double, Bit::_Padding> as IStable>::UnusedBits;
     #[cfg(feature = "experimental-ctypes")]
-    type CType = Tuple<L, u8>;
+    type CType = crate::tuple::Tuple3<Double, Double, Bit::_Padding>;
     primitive_report!("Padding");
 }
 impl<Msb: IUnsigned, Bit: IBit> IUnsignedBase for UInt<Msb, Bit> {
