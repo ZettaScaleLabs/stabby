@@ -13,10 +13,8 @@ pub struct String<Alloc: IAlloc = super::DefaultAllocator> {
     pub(crate) inner: Vec<u8, Alloc>,
 }
 
-impl String
-where
-    super::DefaultAllocator: Default,
-{
+#[cfg(not(stabby_default_alloc = "disabled"))]
+impl String {
     /// Constructs a new string using the default allocator.
     pub const fn new() -> Self {
         Self { inner: Vec::new() }

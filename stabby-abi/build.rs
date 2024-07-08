@@ -114,7 +114,7 @@ fn main() {
     tuples(max_tuple).unwrap();
     println!("cargo:rustc-check-cfg=cfg(stabby_nightly, values(none()))");
     println!(
-        r#"cargo:rustc-check-cfg=cfg(stabby_default_alloc, values(none(), "RustAlloc", "LibcAlloc"))"#
+        r#"cargo:rustc-check-cfg=cfg(stabby_default_alloc, values("RustAlloc", "LibcAlloc", "disabled"))"#
     );
     println!(
         r#"cargo:rustc-check-cfg=cfg(stabby_check_unreachable, values(none(), "true", "false"))"#
@@ -123,6 +123,15 @@ fn main() {
     println!(
         r#"cargo:rustc-check-cfg=cfg(stabby_vtables, values(none(), "vec", "btree", "no_alloc"))"#
     );
+    if std::env::var("CARGO_CFG_STABBY_DEFAULT_ALLOC").is_err() {
+        if std::env::var("CARGO_FEATURE_ALLOC_RS").is_ok() {
+            println!(r#"cargo:rustc-cfg=stabby_default_alloc="RustAlloc""#);
+        } else if std::env::var("CARGO_FEATURE_LIBC").is_ok() {
+            println!(r#"cargo:rustc-cfg=stabby_default_alloc="LibcAlloc""#);
+        } else {
+            println!(r#"cargo:rustc-cfg=stabby_default_alloc="disabled""#);
+        }
+    }
     if let Ok(toolchain) = std::env::var("RUSTUP_TOOLCHAIN") {
         if toolchain.starts_with("nightly") {
             println!("cargo:rustc-cfg=stabby_nightly");

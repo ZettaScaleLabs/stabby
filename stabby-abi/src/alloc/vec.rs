@@ -63,16 +63,13 @@ pub(crate) const fn ptr_add<T>(lhs: NonNull<T>, rhs: usize) -> NonNull<T> {
     }
 }
 
-impl<T> Vec<T>
-where
-    super::DefaultAllocator: Default,
-{
+#[cfg(not(stabby_default_alloc = "disabled"))]
+impl<T> Vec<T> {
     /// Constructs a new vector with the default allocator. This doesn't actually allocate.
     pub const fn new() -> Self {
         Self::new_in(super::DefaultAllocator::new())
     }
 }
-
 impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     /// Constructs a new vector in `alloc`. This doesn't actually allocate.
     pub const fn new_in(alloc: Alloc) -> Self {

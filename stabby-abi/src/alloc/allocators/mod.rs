@@ -10,7 +10,7 @@ mod rust_alloc;
 #[cfg(feature = "alloc-rs")]
 pub use rust_alloc::RustAlloc;
 
-#[cfg(any(stabby_default_alloc = "RustAlloc", feature = "alloc-rs"))]
+#[cfg(stabby_default_alloc = "RustAlloc")]
 /// The default allocator, depending on which of the following is available:
 /// - RustAlloc: Rust's `GlobalAlloc`, through a vtable that ensures FFI-safety.
 /// - LibcAlloc: libc::malloc, which is 0-sized.
@@ -19,10 +19,7 @@ pub use rust_alloc::RustAlloc;
 /// You can also use the `stabby_default_alloc` cfg to override the default allocator regardless of feature flags.
 pub(crate) type DefaultAllocator = RustAlloc;
 
-#[cfg(any(
-    stabby_default_alloc = "LibcAlloc",
-    all(feature = "libc", not(feature = "alloc-rs"))
-))]
+#[cfg(stabby_default_alloc = "LibcAlloc")]
 /// The default allocator, depending on which of the following is available:
 /// - RustAlloc: Rust's `GlobalAlloc`, through a vtable that ensures FFI-safety.
 /// - LibcAlloc: libc::malloc, which is 0-sized.
@@ -31,7 +28,7 @@ pub(crate) type DefaultAllocator = RustAlloc;
 /// You can also use the `stabby_default_alloc` cfg to override the default allocator regardless of feature flags.
 pub(crate) type DefaultAllocator = LibcAlloc;
 
-#[cfg(not(any(stabby_default_alloc, feature = "alloc-rs", feature = "libc")))]
+#[cfg(stabby_default_alloc = "disabled")]
 /// The default allocator, depending on which of the following is available:
 /// - RustAlloc: Rust's `GlobalAlloc`, through a vtable that ensures FFI-safety.
 /// - LibcAlloc: libc::malloc, which is 0-sized.

@@ -35,10 +35,8 @@ unsafe impl<T: Send, Alloc: IAlloc + Send> Send for BoxedSlice<T, Alloc> {}
 // SAFETY: Same constraints as `std::boxed::Box`
 unsafe impl<T: Sync, Alloc: IAlloc> Sync for BoxedSlice<T, Alloc> {}
 
-impl<T> Box<T>
-where
-    super::DefaultAllocator: Default,
-{
+#[cfg(not(stabby_default_alloc = "disabled"))]
+impl<T> Box<T> {
     /// Attempts to allocate [`Self`], initializing it with `constructor`.
     ///
     /// Note that the allocation may or may not be zeroed.

@@ -41,10 +41,10 @@ pub trait IConstConstructor<'a, Source>: 'a + Copy {
     }
 }
 
-#[cfg(all(any(feature = "libc", feature = "alloc-rs"), feature = "test"))]
+#[cfg(all(not(stabby_default_alloc = "disabled"), feature = "test"))]
 pub use internal::{VTableRegistry, VtBtree, VtVec};
 
-#[cfg(any(feature = "libc", feature = "alloc-rs"))]
+#[cfg(not(stabby_default_alloc = "disabled"))]
 pub(crate) mod internal {
     use crate::alloc::{boxed::BoxedSlice, collections::arc_btree::AtomicArcBTreeSet};
     use core::ptr::NonNull;
@@ -214,7 +214,7 @@ pub(crate) mod internal {
 }
 
 #[cfg(all(
-    any(feature = "libc", feature = "alloc-rs"),
+    not(stabby_default_alloc = "disabled"),
     any(stabby_vtables = "vec", stabby_vtables = "btree", not(stabby_vtables))
 ))]
 #[rustversion::all(not(nightly), since(1.78.0))]
@@ -227,6 +227,21 @@ pub trait IConstConstructor<'a, Source>: 'a + Copy {
     fn vtable() -> &'a Self {
         use internal::VTableRegistry;
         internal::VTABLES.insert_typed(&Self::VTABLE)
+    }
+}
+#[cfg(not(all(
+    not(stabby_default_alloc = "disabled"),
+    any(stabby_vtables = "vec", stabby_vtables = "btree", not(stabby_vtables))
+)))]
+#[rustversion::all(not(nightly), since(1.78.0))]
+/// Implementation detail for stabby's version of dyn traits.
+/// Any type that implements a trait `ITrait` must implement `IConstConstructor<VtITrait>` for `stabby::dyn!(Ptr<ITrait>)::from(value)` to work.
+pub trait IConstConstructor<'a, Source>: 'a + Copy {
+    /// The vtable.
+    const VTABLE: Self;
+    /// Returns the reference to the vtable
+    fn vtable() -> &'a Self {
+        core::compile_error!("stabby's dyn traits need an allocator for non-nightly versions of Rust starting `1.78.0` and until https://github.com/rust-lang/rfcs/pull/3633 lands in stable.")
     }
 }
 /// Implementation detail for stabby's version of dyn traits.
