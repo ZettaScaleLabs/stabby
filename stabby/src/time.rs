@@ -31,9 +31,12 @@ impl Duration {
             nanos: ((micros % 1000000) * 1000) as u32,
         }
     }
+
     /// Construct a new [`Duration`].
+    ///
     /// # Panics
     /// if `secs` is negative.
+    #[cfg(feature = "std")]
     pub fn from_secs_f64(secs: f64) -> Self {
         assert!(secs >= 0.);
         Self {

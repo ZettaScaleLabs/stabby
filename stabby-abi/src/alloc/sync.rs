@@ -39,6 +39,7 @@ unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Send for Arc<T, Alloc> 
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Sync for Arc<T, Alloc> {}
 const USIZE_TOP_BIT: usize = 1 << (core::mem::size_of::<usize>() as i32 * 8 - 1);
 
+#[cfg(not(stabby_default_alloc = "disabled"))]
 impl<T> Arc<T> {
     /// Attempts to allocate [`Self`], initializing it with `constructor`.
     ///
