@@ -1,3 +1,8 @@
+# 36.1.1-rc7 (api=2.0.0, abi=2.0.0)
+- BREAKING CHANGES:
+	- The in-place constructors for `Box` and `Arc` now require the initializer function to return a result, yielding the uninitialized allocation if allocation succeeded but initialization reported a failure. 
+- Added more constructors (such as `FromIterator`) for `BoxedSlice` and `ArcSlice`.
+
 # 36.1.1-rc6 (api=2.0.0, abi=2.0.0)
 - Refine `RustAlloc`'s implementation such that it stays a ZST.
 

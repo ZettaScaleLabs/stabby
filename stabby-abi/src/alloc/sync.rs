@@ -16,12 +16,12 @@ use core::{
     fmt::Debug,
     hash::Hash,
     marker::PhantomData,
-    mem::ManuallyDrop,
+    mem::{ManuallyDrop, MaybeUninit},
     ptr::NonNull,
     sync::atomic::{AtomicPtr, AtomicUsize, Ordering},
 };
 
-use crate::{vtable::HasDropVt, Dyn, IStable, IntoDyn};
+use crate::{unreachable_unchecked, vtable::HasDropVt, Dyn, IStable, IntoDyn};
 
 use super::{
     vec::{ptr_add, ptr_diff, Vec, VecInner},
@@ -44,10 +44,23 @@ impl<T> Arc<T> {
     ///
     /// Note that the allocation may or may not be zeroed.
     ///
+    /// If the allocation fails, the `constructor` will not be run.
+    ///
+    /// # Safety
+    /// `constructor` MUST return `Err(())` if it failed to initialize the passed argument.
+    ///
+    /// # Errors
+    /// Returns the uninitialized allocation if the constructor declares a failure.
+    ///
     /// # Panics
     /// If the allocator fails to provide an appropriate allocation.
-    pub fn make<F: FnOnce(&mut core::mem::MaybeUninit<T>)>(constructor: F) -> Self {
-        Self::make_in(constructor, DefaultAllocator::new())
+    pub unsafe fn make<
+        F: for<'a> FnOnce(&'a mut core::mem::MaybeUninit<T>) -> Result<&'a mut T, ()>,
+    >(
+        constructor: F,
+    ) -> Result<Self, Arc<MaybeUninit<T>>> {
+        // SAFETY: Ensured by parent fn
+        unsafe { Self::make_in(constructor, super::DefaultAllocator::new()) }
     }
     /// Attempts to allocate [`Self`] and store `value` in it.
     ///
@@ -61,83 +74,104 @@ impl<T> Arc<T> {
 impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     /// Attempts to allocate [`Self`], initializing it with `constructor`.
     ///
+    /// Note that the allocation may or may not be zeroed.
+    ///
+    /// If the `constructor` panics, the allocated memory will be leaked.
+    ///
     /// # Errors
-    /// Returns the constructor and the allocator in case of allocation failure.
+    /// - Returns the `constructor` and the allocator in case of allocation failure.
+    /// - Returns the uninitialized allocated memory if `constructor` fails.
+    ///
+    /// # Safety
+    /// `constructor` MUST return `Err(())` if it failed to initialize the passed argument.
     ///
     /// # Notes
     /// Note that the allocation may or may not be zeroed.
-    pub fn try_make_in<F: FnOnce(&mut core::mem::MaybeUninit<T>)>(
+    #[allow(clippy::type_complexity)]
+    pub unsafe fn try_make_in<
+        F: for<'a> FnOnce(&'a mut core::mem::MaybeUninit<T>) -> Result<&'a mut T, ()>,
+    >(
         constructor: F,
         mut alloc: Alloc,
-    ) -> Result<Self, (F, Alloc)> {
+    ) -> Result<Self, Result<Arc<MaybeUninit<T>, Alloc>, (F, Alloc)>> {
         let mut ptr = match AllocPtr::alloc(&mut alloc) {
             Some(mut ptr) => {
-                unsafe { ptr.prefix_mut().alloc.write(alloc) };
+                // SAFETY: `ptr` just got allocated via `AllocPtr::alloc`.
+                let prefix = unsafe { ptr.prefix_mut() };
+                prefix.alloc.write(alloc);
+                prefix.strong = AtomicUsize::new(1);
+                prefix.weak = AtomicUsize::new(1);
                 ptr
             }
-            None => return Err((constructor, alloc)),
+            None => return Err(Err((constructor, alloc))),
         };
-        unsafe {
-            constructor(ptr.as_mut());
-            ptr.prefix_mut().strong = AtomicUsize::new(1);
-            ptr.prefix_mut().weak = AtomicUsize::new(1)
-        }
-        Ok(Self {
-            ptr: unsafe { ptr.assume_init() },
-        })
+        // SAFETY: We are the sole owners of `ptr`
+        constructor(unsafe { ptr.as_mut() }).map_or_else(
+            |()| Err(Ok(Arc { ptr })),
+            |_| {
+                Ok(Self {
+                    // SAFETY: `constructor` reported success.
+                    ptr: unsafe { ptr.assume_init() },
+                })
+            },
+        )
     }
     /// Attempts to allocate a [`Self`] and store `value` in it
     /// # Errors
     /// Returns `value` and the allocator in case of failure.
     pub fn try_new_in(value: T, alloc: Alloc) -> Result<Self, (T, Alloc)> {
-        let this = Self::try_make_in(
-            |slot| unsafe {
-                slot.write(core::ptr::read(&value));
-            },
-            alloc,
-        );
+        // SAFETY: `ctor` is a valid constructor, always initializing the value.
+        let this = unsafe {
+            Self::try_make_in(
+                |slot: &mut core::mem::MaybeUninit<T>| {
+                    // SAFETY: `value` will be forgotten if the allocation succeeds and `read` is called.
+                    Ok(slot.write(core::ptr::read(&value)))
+                },
+                alloc,
+            )
+        };
         match this {
-            Ok(this) => Ok(this),
-            Err((_, a)) => Err((value, a)),
+            Ok(this) => {
+                core::mem::forget(value);
+                Ok(this)
+            }
+            Err(Err((_, a))) => Err((value, a)),
+            // SAFETY: the constructor is infallible.
+            Err(Ok(_)) => unsafe { unreachable_unchecked!() },
         }
     }
     /// Attempts to allocate [`Self`], initializing it with `constructor`.
     ///
     /// Note that the allocation may or may not be zeroed.
     ///
+    /// # Errors
+    /// Returns the uninitialized allocated memory if `constructor` fails.
+    ///
+    /// # Safety
+    /// `constructor` MUST return `Err(())` if it failed to initialize the passed argument.
+    ///
     /// # Panics
     /// If the allocator fails to provide an appropriate allocation.
-    pub fn make_in<F: FnOnce(&mut core::mem::MaybeUninit<T>)>(
+    pub unsafe fn make_in<
+        F: for<'a> FnOnce(&'a mut core::mem::MaybeUninit<T>) -> Result<&'a mut T, ()>,
+    >(
         constructor: F,
-        mut alloc: Alloc,
-    ) -> Self {
-        let mut ptr = match AllocPtr::alloc(&mut alloc) {
-            Some(mut ptr) => unsafe {
-                ptr.prefix_mut().alloc.write(alloc);
-                ptr
-            },
-            None => panic!("Allocation failed"),
-        };
-        unsafe {
-            constructor(ptr.as_mut());
-            ptr.prefix_mut().strong = AtomicUsize::new(1);
-            ptr.prefix_mut().weak = AtomicUsize::new(1)
-        }
-        Self {
-            ptr: unsafe { ptr.assume_init() },
-        }
+        alloc: Alloc,
+    ) -> Result<Self, Arc<MaybeUninit<T>, Alloc>> {
+        Self::try_make_in(constructor, alloc).map_err(|e| match e {
+            Ok(uninit) => uninit,
+            Err(_) => panic!("Allocation failed"),
+        })
     }
     /// Attempts to allocate [`Self`] and store `value` in it.
     ///
     /// # Panics
     /// If the allocator fails to provide an appropriate allocation.
     pub fn new_in(value: T, alloc: Alloc) -> Self {
-        Self::make_in(
-            move |slot| {
-                slot.write(value);
-            },
-            alloc,
-        )
+        // SAFETY: `constructor` fits the spec.
+        let this = unsafe { Self::make_in(move |slot| Ok(slot.write(value)), alloc) };
+        // SAFETY: `constructor` is infallible.
+        unsafe { this.unwrap_unchecked() }
     }
 
     /// Returns the pointer to the inner raw allocation, leaking `this`.
@@ -285,6 +319,16 @@ pub struct Weak<T, Alloc: IAlloc = super::DefaultAllocator> {
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Send for Weak<T, Alloc> {}
 // SAFETY: Same constraints as in `std`.
 unsafe impl<T: Send + Sync, Alloc: IAlloc + Send + Sync> Sync for Weak<T, Alloc> {}
+impl<T, Alloc: IAlloc> From<&Arc<T, Alloc>> for Arc<T, Alloc> {
+    fn from(value: &Arc<T, Alloc>) -> Self {
+        value.clone()
+    }
+}
+impl<T, Alloc: IAlloc> From<&Weak<T, Alloc>> for Weak<T, Alloc> {
+    fn from(value: &Weak<T, Alloc>) -> Self {
+        value.clone()
+    }
+}
 impl<T, Alloc: IAlloc> From<&Arc<T, Alloc>> for Weak<T, Alloc> {
     fn from(value: &Arc<T, Alloc>) -> Self {
         unsafe { value.ptr.prefix() }
@@ -586,6 +630,12 @@ impl<'a, T, Alloc: IAlloc> IntoIterator for &'a ArcSlice<T, Alloc> {
     }
 }
 
+impl<T, Alloc: IAlloc + Default> FromIterator<T> for ArcSlice<T, Alloc> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Vec::from_iter(iter).into()
+    }
+}
+
 /// A weak reference counted slice.
 #[crate::stabby]
 pub struct WeakSlice<T, Alloc: IAlloc = super::DefaultAllocator> {
@@ -635,6 +685,16 @@ impl<T, Alloc: IAlloc> Clone for WeakSlice<T, Alloc> {
             .weak
             .fetch_add(1, Ordering::Relaxed);
         Self { inner: self.inner }
+    }
+}
+impl<T, Alloc: IAlloc> From<&ArcSlice<T, Alloc>> for ArcSlice<T, Alloc> {
+    fn from(value: &ArcSlice<T, Alloc>) -> Self {
+        value.clone()
+    }
+}
+impl<T, Alloc: IAlloc> From<&WeakSlice<T, Alloc>> for WeakSlice<T, Alloc> {
+    fn from(value: &WeakSlice<T, Alloc>) -> Self {
+        value.clone()
     }
 }
 impl<T, Alloc: IAlloc> From<&ArcSlice<T, Alloc>> for WeakSlice<T, Alloc> {

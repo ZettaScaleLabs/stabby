@@ -213,6 +213,9 @@ pub fn stabby(
     });
     let report_bounds = report.bounds();
     let ctype = cfg!(feature = "experimental-ctypes").then(|| {
+        if matches!(repr, Some(AllowedRepr::Align(_))) {
+            return quote! {type CType = Self;};
+        }
         let ctype = report.crepr();
         quote! {type CType = #ctype;}
     });

@@ -10,11 +10,7 @@ fn bench_slices(c: &mut Criterion) {
         b.iter(|| stabby::boxed::Box::new(black_box(15)));
     });
     c.bench_function("stabby_box_make", |b| {
-        b.iter(|| {
-            stabby::boxed::Box::make(|slot| {
-                slot.write(black_box(15));
-            })
-        });
+        b.iter(|| unsafe { stabby::boxed::Box::make(|slot| Ok(slot.write(black_box(15)))) });
     });
     c.bench_function("std_box_big_new", |b| {
         b.iter(|| Box::<[usize; 10000]>::new([15; 10000]));
@@ -23,16 +19,16 @@ fn bench_slices(c: &mut Criterion) {
         b.iter(|| stabby::boxed::Box::<[usize; 10000]>::new([15; 10000]));
     });
     c.bench_function("stabby_box_big_make", |b| {
-        b.iter(|| {
+        b.iter(|| unsafe {
             stabby::boxed::Box::<[usize; 10000]>::make(|slot| {
-                for slot in unsafe {
-                    core::mem::transmute::<
-                        &mut MaybeUninit<[usize; 10000]>,
-                        &mut [MaybeUninit<usize>; 10000],
-                    >(slot)
-                } {
+                for slot in core::mem::transmute::<
+                    &mut MaybeUninit<[usize; 10000]>,
+                    &mut [MaybeUninit<usize>; 10000],
+                >(slot)
+                {
                     slot.write(15);
                 }
+                Ok(slot.assume_init_mut())
             })
         });
     });

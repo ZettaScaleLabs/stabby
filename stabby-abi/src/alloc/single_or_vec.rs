@@ -81,6 +81,7 @@ where
         Self::with_capacity_in(capacity, Alloc::default())
     }
     /// Constructs a new vector in `alloc`, allocating sufficient space for `capacity` elements.
+    ///
     /// # Errors
     /// Returns an [`AllocationError`] if the allocator couldn't provide a sufficient allocation.
     pub fn try_with_capacity_in(capacity: usize, alloc: Alloc) -> Result<Self, Alloc> {
@@ -89,6 +90,7 @@ where
         })
     }
     /// Constructs a new vector, allocating sufficient space for `capacity` elements.
+    ///
     /// # Errors
     /// Returns an [`AllocationError`] if the allocator couldn't provide a sufficient allocation.
     pub fn try_with_capacity(capacity: usize) -> Result<Self, Alloc>
@@ -107,6 +109,7 @@ where
         self.inner.match_ref(|_| false, |vec| vec.is_empty())
     }
     /// Adds `value` at the end of `self`.
+    ///
     /// # Panics
     /// This function panics if the vector tried to grow due to
     /// being full, and the allocator failed to provide a new allocation.
