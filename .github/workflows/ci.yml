@@ -80,6 +80,54 @@ jobs:
         with:
           command: clean
 
+  check-wasm:
+    name: Run wasm checks on ${{ matrix.os }}
+    runs-on: [self-hosted, "${{ matrix.os }}"]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust toolchain 1.72
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          target: wasm32-unknown-unknown
+      - name: Check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: -p stabby
+      - name: Clean artifacts
+        uses: actions-rs/cargo@v1
+        with:
+          command: clean
+
+  check-32bits:
+    name: Run 32bits checks on ${{ matrix.os }}
+    runs-on: [self-hosted, "${{ matrix.os }}"]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust toolchain 1.72
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          target: i686-unknown-linux-gnu
+      - name: Check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: -p stabby
+      - name: Clean artifacts
+        uses: actions-rs/cargo@v1
+        with:
+          command: clean
+
   test:
     name: Run tests on ${{ matrix.os }}
     runs-on: [self-hosted, "${{ matrix.os }}"]
