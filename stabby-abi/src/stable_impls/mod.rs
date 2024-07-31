@@ -106,8 +106,6 @@ const _ARCH: &[u8] = b"wasm64";
 const _ARCH: &[u8] = b"x86";
 #[cfg(target_arch = "x86_64")]
 const _ARCH: &[u8] = b"x86_64";
-#[cfg(target_arch = "xtensa")]
-const _ARCH: &[u8] = b"xtensa";
 #[cfg(not(any(
     target_arch = "aarch64",
     target_arch = "arm",
@@ -135,7 +133,6 @@ const _ARCH: &[u8] = b"xtensa";
     target_arch = "wasm64",
     target_arch = "x86",
     target_arch = "x86_64",
-    target_arch = "xtensa"
 )))]
 const _ARCH: &[u8] = b"unknown_arch";
 
