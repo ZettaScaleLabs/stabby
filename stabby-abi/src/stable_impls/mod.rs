@@ -12,6 +12,8 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+use unsigned::{Bool, IBitBase};
+
 use crate::{str::Str, *};
 
 macro_rules! same_as {
@@ -32,6 +34,21 @@ macro_rules! same_as {
         type HasExactlyOneNiche = <$t as IStable>::HasExactlyOneNiche;
         #[cfg(feature = "experimental-ctypes")]
         type CType = <$t as IStable>::CType;
+    };
+}
+
+macro_rules! expr_to_type {
+    ($e: expr) => {
+        <Bool<{ {$e == 8} }> as IBitBase>::_ATernary<
+            U8,
+            <Bool<{ {$e == 4} }> as IBitBase>::_ATernary<
+                U4,
+                <Bool<{ {$e == 2} }> as IBitBase>::_ATernary<
+                    U2,
+                    <Bool<{ {$e == 1} }> as IBitBase>::_ATernary<U1, U16>,
+                >,
+            >,
+        >
     };
 }
 
@@ -89,8 +106,6 @@ const _ARCH: &[u8] = b"wasm64";
 const _ARCH: &[u8] = b"x86";
 #[cfg(target_arch = "x86_64")]
 const _ARCH: &[u8] = b"x86_64";
-#[cfg(target_arch = "xtensa")]
-const _ARCH: &[u8] = b"xtensa";
 #[cfg(not(any(
     target_arch = "aarch64",
     target_arch = "arm",
@@ -118,7 +133,6 @@ const _ARCH: &[u8] = b"xtensa";
     target_arch = "wasm64",
     target_arch = "x86",
     target_arch = "x86_64",
-    target_arch = "xtensa"
 )))]
 const _ARCH: &[u8] = b"unknown_arch";
 
@@ -274,12 +288,13 @@ unsafe impl IStable for bool {
     type Size = U1;
     type ForbiddenValues = crate::istable::ForbiddenRange<U2, U255, U0>;
     type UnusedBits = End;
-    type HasExactlyOneNiche = B0;
+    type HasExactlyOneNiche = Saturator;
     type ContainsIndirections = B0;
     #[cfg(feature = "experimental-ctypes")]
     type CType = <Self::Align as Alignment>::AsUint;
     primitive_report!("bool");
 }
+check!(bool);
 
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for u8 {
@@ -360,7 +375,7 @@ unsafe impl IStable for core::num::NonZeroU32 {
 unsafe impl IStable for u64 {
     type UnusedBits = End;
     type ForbiddenValues = End;
-    type Align = U8;
+    type Align = expr_to_type!(core::mem::align_of::<Self>());
     type Size = U8;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
@@ -373,7 +388,7 @@ check!(u64);
 unsafe impl IStable for core::num::NonZeroU64 {
     type UnusedBits = End;
     type ForbiddenValues = nz_holes!(U0, U1, U2, U3, U4, U5, U6, U7);
-    type Align = U8;
+    type Align = expr_to_type!(core::mem::align_of::<Self>());
     type Size = U8;
     type HasExactlyOneNiche = B1;
     type ContainsIndirections = B0;
@@ -388,47 +403,28 @@ unsafe impl IStable for u128 {
     type ForbiddenValues = End;
     type Size = U16;
     type HasExactlyOneNiche = B0;
-
-    #[rustversion::before(1.77)]
-    #[cfg(not(target_arch = "aarch64"))]
-    type Align = U8;
-    #[rustversion::before(1.77)]
-    #[cfg(target_arch = "aarch64")]
-    type Align = U16;
-    #[rustversion::since(1.77)]
-    #[cfg(not(target_arch = "wasm32"))]
-    type Align = U16;
-    #[rustversion::since(1.77)]
-    #[cfg(target_arch = "wasm32")]
-    type Align = U8;
+    type Align = expr_to_type!(core::mem::align_of::<Self>());
 
     type ContainsIndirections = B0;
     #[cfg(feature = "experimental-ctypes")]
     type CType = <Self::Align as Alignment>::AsUint;
-    #[rustversion::before(1.77)]
-    #[cfg(not(target_arch = "aarch64"))]
-    primitive_report!("u128(8)");
-    #[rustversion::before(1.77)]
-    #[cfg(target_arch = "aarch64")]
-    primitive_report!("u128(16)");
-    #[rustversion::since(1.77)]
-    #[cfg(not(target_arch = "wasm32"))]
-    primitive_report!("u128(16)");
-    #[rustversion::since(1.77)]
-    #[cfg(target_arch = "wasm32")]
-    primitive_report!("u128(8)");
+    primitive_report!(if core::mem::align_of::<Self>() == 8 {
+        "u128(8)"
+    } else {
+        "u128(16)"
+    });
 }
 
 check!(u128);
 
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for core::num::NonZeroU128 {
+    type Size = expr_to_type!(core::mem::size_of::<Self>());
+    type Align = expr_to_type!(core::mem::align_of::<Self>());
     type UnusedBits = End;
     type ForbiddenValues =
         nz_holes!(U0, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11, U12, U13, U14, U15);
-    type Size = U16;
     type HasExactlyOneNiche = B1;
-    type Align = <u128 as IStable>::Align;
     #[cfg(feature = "experimental-ctypes")]
     type CType = <Self::Align as Alignment>::AsUint;
     type ContainsIndirections = B0;
@@ -437,14 +433,15 @@ unsafe impl IStable for core::num::NonZeroU128 {
 
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for usize {
-    #[cfg(target_pointer_width = "64")]
-    same_as!(u64, "usize");
-    #[cfg(target_pointer_width = "32")]
-    same_as!(u32, "usize");
-    #[cfg(target_pointer_width = "16")]
-    same_as!(u16, "usize");
+    type Size = expr_to_type!(core::mem::size_of::<Self>());
+    type Align = expr_to_type!(core::mem::align_of::<Self>());
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
+    type ForbiddenValues = End;
+    type UnusedBits = End;
+    #[cfg(feature = "experimental-ctypes")]
+    type CType = usize;
+    primitive_report!("usize");
 }
 
 check!(usize);
@@ -459,6 +456,7 @@ unsafe impl IStable for core::num::NonZeroUsize {
     type HasExactlyOneNiche = B1;
     type ContainsIndirections = B0;
 }
+check!(core::num::NonZeroUsize);
 
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for i8 {
@@ -579,69 +577,89 @@ unsafe impl<T: IStable> IStable for core::sync::atomic::AtomicPtr<T> {
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for core::sync::atomic::AtomicBool {
     same_as!(bool, "core::sync::atomic::AtomicBool");
-    type HasExactlyOneNiche = B0;
+    type HasExactlyOneNiche = Saturator;
     type ContainsIndirections = B0;
 }
+check!(core::sync::atomic::AtomicBool);
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for core::sync::atomic::AtomicI8 {
     same_as!(i8, "core::sync::atomic::AtomicI8");
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
 }
+check!(core::sync::atomic::AtomicI8);
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for core::sync::atomic::AtomicI16 {
     same_as!(i16, "core::sync::atomic::AtomicI16");
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
 }
+check!(core::sync::atomic::AtomicI16);
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for core::sync::atomic::AtomicI32 {
     same_as!(i32, "core::sync::atomic::AtomicI32");
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
 }
+check!(core::sync::atomic::AtomicI32);
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for core::sync::atomic::AtomicI64 {
-    same_as!(i64, "core::sync::atomic::AtomicI64");
+    type Size = U8;
+    type Align = expr_to_type!(core::mem::align_of::<Self>());
+    type ForbiddenValues = End;
+    type UnusedBits = End;
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
+    #[cfg(feature = "experimental-ctypes")]
+    type CType = <Self::Align as Alignment>::AsUint;
+    primitive_report!("core::sync::atomic::AtomicI64");
 }
+check!(core::sync::atomic::AtomicI64);
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for core::sync::atomic::AtomicIsize {
     same_as!(isize, "core::sync::atomic::AtomicIsize");
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
 }
+check!(core::sync::atomic::AtomicIsize);
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for core::sync::atomic::AtomicU8 {
     same_as!(u8, "core::sync::atomic::AtomicU8");
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
 }
+check!(core::sync::atomic::AtomicU8);
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for core::sync::atomic::AtomicU16 {
     same_as!(u16, "core::sync::atomic::AtomicU16");
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
 }
+check!(core::sync::atomic::AtomicU16);
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for core::sync::atomic::AtomicU32 {
     same_as!(u32, "core::sync::atomic::AtomicU32");
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
 }
+check!(core::sync::atomic::AtomicU32);
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for core::sync::atomic::AtomicU64 {
-    same_as!(u64, "core::sync::atomic::AtomicU64");
+    same_as!(
+        core::sync::atomic::AtomicI64,
+        "core::sync::atomic::AtomicU64"
+    );
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
 }
+check!(core::sync::atomic::AtomicU64);
 // SAFETY: Automatic checks verify this.
 unsafe impl IStable for core::sync::atomic::AtomicUsize {
     same_as!(usize, "core::sync::atomic::AtomicUsize");
     type HasExactlyOneNiche = B0;
     type ContainsIndirections = B0;
 }
+check!(core::sync::atomic::AtomicUsize);
 // SAFETY: Automatic checks verify this.
 unsafe impl<T: IStable> IStable for &T {
     same_as!(core::num::NonZeroUsize, "&", T);
@@ -933,7 +951,7 @@ macro_rules! sliceimpl {
             type Size = <T::Size as Unsigned>::Mul<$size>;
             type Align = T::Align;
             type ForbiddenValues = <<$size as Unsigned>::Equal<U1> as Bit>::FvTernary<T::ForbiddenValues, End>;
-            type UnusedBits = <<$size as Unsigned>::Equal<U1> as Bit>::UbTernary<T::UnusedBits, End>;
+            type UnusedBits = <<$size as Unsigned>::Equal<U1> as Bit>::BmTernary<T::UnusedBits, End>;
             type HasExactlyOneNiche = <<$size as Unsigned>::Equal<U0> as Bit>::SaddTernary<
                 B0,
                 <<$size as Unsigned>::Equal<U1> as Bit>::SaddTernary<T::HasExactlyOneNiche, Saturator>,

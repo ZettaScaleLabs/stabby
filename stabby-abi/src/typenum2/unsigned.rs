@@ -82,8 +82,6 @@ pub trait IBitBase {
     /// Support for [`IBit`]
     type _SfvTernary<A: ISingleForbiddenValue, B: ISingleForbiddenValue>: ISingleForbiddenValue;
     /// Support for [`IBit`]
-    type _UbTernary<A: IBitMask, B: IBitMask>: IBitMask;
-    /// Support for [`IBit`]
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd>: ISaturatingAdd;
     /// Support for [`IBit`]
     type _StabTernary<A: IStable, B: IStable>: IStable;
@@ -110,7 +108,6 @@ impl IBitBase for B0 {
     type _PTernary<A: IPowerOf2, B: IPowerOf2> = B;
     type _FvTernary<A: IForbiddenValues, B: IForbiddenValues> = B;
     type _SfvTernary<A: ISingleForbiddenValue, B: ISingleForbiddenValue> = B;
-    type _UbTernary<A: IBitMask, B: IBitMask> = B;
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = B;
     type _StabTernary<A: IStable, B: IStable> = B;
     type _ATernary<A: Alignment, B: Alignment> = B;
@@ -133,12 +130,44 @@ impl IBitBase for B1 {
     type _PTernary<A: IPowerOf2, B: IPowerOf2> = A;
     type _FvTernary<A: IForbiddenValues, B: IForbiddenValues> = A;
     type _SfvTernary<A: ISingleForbiddenValue, B: ISingleForbiddenValue> = A;
-    type _UbTernary<A: IBitMask, B: IBitMask> = A;
     type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = A;
     type _StabTernary<A: IStable, B: IStable> = A;
     type _ATernary<A: Alignment, B: Alignment> = A;
     type _Padding = PadByte;
     type AsForbiddenValue = End;
+}
+/// Equivalent to `B0` and `B1`, but can be constructed with a `const` expression.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Bool<const B: bool>;
+macro_rules! same_as_bitbase {
+    ($src: ty) => {
+        const _BOOL: bool = <$src as IBitBase>::_BOOL;
+        type _And<T: IBit> = <$src as IBitBase>::_And<T>;
+        type _Or<T: IBit> = <$src as IBitBase>::_Or<T>;
+        type _Not = <$src as IBitBase>::_Not;
+        type _Ternary<A, B> = <$src as IBitBase>::_Ternary<A, B>;
+        type _UTernary<A: IUnsigned, B: IUnsigned> = <$src as IBitBase>::_UTernary<A, B>;
+        type _NzTernary<A: NonZero, B: NonZero> = <$src as IBitBase>::_NzTernary<A, B>;
+        type _BTernary<A: IBit, B: IBit> = <$src as IBitBase>::_BTernary<A, B>;
+        type _BmTernary<A: IBitMask, B: IBitMask> = <$src as IBitBase>::_BmTernary<A, B>;
+        type _PTernary<A: IPowerOf2, B: IPowerOf2> = <$src as IBitBase>::_PTernary<A, B>;
+        type _FvTernary<A: IForbiddenValues, B: IForbiddenValues> =
+            <$src as IBitBase>::_FvTernary<A, B>;
+        type _SfvTernary<A: ISingleForbiddenValue, B: ISingleForbiddenValue> =
+            <$src as IBitBase>::_SfvTernary<A, B>;
+        type _SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> =
+            <$src as IBitBase>::_SaddTernary<A, B>;
+        type _StabTernary<A: IStable, B: IStable> = <$src as IBitBase>::_StabTernary<A, B>;
+        type _ATernary<A: Alignment, B: Alignment> = <$src as IBitBase>::_ATernary<A, B>;
+        type _Padding = <$src as IBitBase>::_Padding;
+        type AsForbiddenValue = <$src as IBitBase>::AsForbiddenValue;
+    };
+}
+impl IBitBase for Bool<false> {
+    same_as_bitbase!(B0);
+}
+impl IBitBase for Bool<true> {
+    same_as_bitbase!(B1);
 }
 /// A boolean. [`B0`] and [`B1`] are the canonical members of this type-class
 pub trait IBit: IBitBase {
@@ -164,8 +193,6 @@ pub trait IBit: IBitBase {
     type PTernary<A: IPowerOf2, B: IPowerOf2>: IPowerOf2 + Sized;
     /// Self ? A : B, preserving bounds.
     type FvTernary<A: IForbiddenValues, B: IForbiddenValues>: IForbiddenValues;
-    /// Self ? A : B, preserving bounds.
-    type UbTernary<A: IBitMask, B: IBitMask>: IBitMask;
     /// Self ? A : B, preserving bounds.
     type SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd>: ISaturatingAdd;
     /// Self ? A : B, preserving bounds.
@@ -197,7 +224,6 @@ impl<Bit: IBitBase> IBit for Bit {
     type BmTernary<A: IBitMask, B: IBitMask> = Self::_BmTernary<A, B>;
     type PTernary<A: IPowerOf2, B: IPowerOf2> = Self::_PTernary<A, B>;
     type FvTernary<A: IForbiddenValues, B: IForbiddenValues> = Self::_FvTernary<A, B>;
-    type UbTernary<A: IBitMask, B: IBitMask> = Self::_UbTernary<A, B>;
     type SaddTernary<A: ISaturatingAdd, B: ISaturatingAdd> = Self::_SaddTernary<A, B>;
     type StabTernary<A: IStable, B: IStable> = Self::_StabTernary<A, B>;
     type Nand<T: IBit> = <Self::_And<T> as IBitBase>::_Not;
