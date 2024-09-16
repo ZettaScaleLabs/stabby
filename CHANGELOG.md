@@ -1,3 +1,6 @@
+# 36.2.1 (api=2.1.0, abi=2.0.0)
+- Make `Box::into_raw` a const fn.
+
 # 36.1.1 (api=2.0.0, abi=2.0.0)
 `36.1.1` is the sum of all the previous release candidates. Here's a recap!
 - `#[stabby::stabby]` can now understand when a type refers to itself to avoid forming proof cycles.

@@ -167,18 +167,18 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
         unsafe { this.unwrap_unchecked() }
     }
     /// Extracts the value from the allocation, freeing said allocation.
-    pub fn into_inner(mut this: Self) -> T {
-        // SAFETY: `this` will be forgotten, preventing double-frees.
-        let ret = ManuallyDrop::new(unsafe { core::ptr::read(&*this) });
-        // SAFETY: `this` is immediately forgotten as required.
+    pub fn into_inner(this: Self) -> T {
+        let mut this = core::mem::ManuallyDrop::new(this);
+        // SAFETY: `this` will not be dropped, preventing double-frees.
+        let ret = ManuallyDrop::new(unsafe { core::ptr::read(&**this) });
+        // SAFETY: `Box::free` only frees the memory allocation, without calling the destructor for `ret`'s source.
         unsafe { this.free() };
-        core::mem::forget(this);
         ManuallyDrop::into_inner(ret)
     }
     /// Returns the pointer to the inner raw allocation, leaking `this`.
     ///
     /// Note that the pointer may be dangling if `T` is zero-sized.
-    pub fn into_raw(this: Self) -> AllocPtr<T, Alloc> {
+    pub const fn into_raw(this: Self) -> AllocPtr<T, Alloc> {
         let inner = this.ptr;
         core::mem::forget(this);
         inner
