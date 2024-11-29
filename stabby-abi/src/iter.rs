@@ -25,9 +25,8 @@ where
     }
 }
 
-impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>>
-    core::iter::Iterator
-    for crate::Dyn<'a, P, crate::vtable::VTable<StabbyVtableIterator<Output>, Vt>>
+impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> core::iter::Iterator
+    for crate::Dyn<'_, P, crate::vtable::VTable<StabbyVtableIterator<Output>, Vt>>
 {
     type Item = Output;
     fn next(&mut self) -> Option<Self::Item> {

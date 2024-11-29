@@ -57,7 +57,7 @@ impl AsRef<str> for Str<'_> {
         self
     }
 }
-impl<'a> Deref for Str<'a> {
+impl Deref for Str<'_> {
     type Target = str;
     fn deref(&self) -> &Self::Target {
         self.as_str()
@@ -89,14 +89,14 @@ impl AsRef<str> for StrMut<'_> {
         self
     }
 }
-impl<'a> Deref for StrMut<'a> {
+impl Deref for StrMut<'_> {
     type Target = str;
     fn deref(&self) -> &Self::Target {
         // Safety: the UTF8 predicate is validaetd by the type.
         unsafe { core::str::from_utf8_unchecked(&self.inner) }
     }
 }
-impl<'a> DerefMut for StrMut<'a> {
+impl DerefMut for StrMut<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         // Safety: the UTF8 predicate is validaetd by the type.
         unsafe { core::str::from_utf8_unchecked_mut(&mut self.inner) }

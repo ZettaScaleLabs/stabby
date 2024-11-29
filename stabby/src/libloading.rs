@@ -53,7 +53,7 @@ pub struct Symbol<'a, T> {
     inner: T,
     lt: core::marker::PhantomData<&'a ()>,
 }
-impl<'a, T> core::ops::Deref for Symbol<'a, T> {
+impl<T> core::ops::Deref for Symbol<'_, T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.inner

@@ -170,7 +170,6 @@ impl<
 /// some of Ok's forbidden values fit into Err's forbidden value
 ///
 /// If some forbidden values for Ok fit inside Err's unused bits, exit the recursion
-
 impl<
         UnionSize: Unsigned,
         Budget,

@@ -124,7 +124,7 @@ mod stable_waker {
         clone: unsafe extern "C" fn(StableLike<&'a Waker, &'a ()>) -> SharedStableWaker<Alloc>,
         wake_by_ref: StableLike<unsafe extern "C" fn(&Waker), &'a ()>,
     }
-    impl<'a, Alloc: IAlloc + Default> StableWaker<'a, Alloc> {
+    impl<Alloc: IAlloc + Default> StableWaker<'_, Alloc> {
         /// Turns this into a waker whose clone implementation is to clone the underlying waker into a stable Arc.
         pub fn with_waker<F: FnOnce(&Waker) -> U, U>(&self, f: F) -> U {
             const VTABLE: RawWakerVTable =
@@ -200,9 +200,8 @@ where
     }
 }
 
-impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>>
-    core::future::Future
-    for crate::Dyn<'a, P, crate::vtable::VTable<StabbyVtableFuture<Output>, Vt>>
+impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> core::future::Future
+    for crate::Dyn<'_, P, crate::vtable::VTable<StabbyVtableFuture<Output>, Vt>>
 {
     type Output = Output;
     fn poll(
@@ -217,10 +216,9 @@ impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>
     }
 }
 
-impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>>
-    core::future::Future
+impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> core::future::Future
     for crate::Dyn<
-        'a,
+        '_,
         P,
         crate::vtable::VtSend<crate::vtable::VTable<StabbyVtableFuture<Output>, Vt>>,
     >
@@ -241,10 +239,9 @@ impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>
     }
 }
 
-impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>>
-    core::future::Future
+impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> core::future::Future
     for crate::Dyn<
-        'a,
+        '_,
         P,
         crate::vtable::VtSync<crate::vtable::VTable<StabbyVtableFuture<Output>, Vt>>,
     >
@@ -265,10 +262,9 @@ impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>
     }
 }
 
-impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>>
-    core::future::Future
+impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> core::future::Future
     for crate::Dyn<
-        'a,
+        '_,
         P,
         crate::vtable::VtSync<
             crate::vtable::VtSend<crate::vtable::VTable<StabbyVtableFuture<Output>, Vt>>,
@@ -291,10 +287,9 @@ impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>
     }
 }
 
-impl<'a, Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>>
-    core::future::Future
+impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> core::future::Future
     for crate::Dyn<
-        'a,
+        '_,
         P,
         crate::vtable::VtSend<
             crate::vtable::VtSync<crate::vtable::VTable<StabbyVtableFuture<Output>, Vt>>,
