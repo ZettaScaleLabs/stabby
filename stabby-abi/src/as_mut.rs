@@ -54,14 +54,17 @@ pub struct RefAs<'a, T, As> {
     source: core::marker::PhantomData<&'a T>,
     target: core::mem::ManuallyDrop<As>,
 }
-impl<'a, T, As> Deref for RefAs<'a, T, As> {
+impl<T, As> Deref for RefAs<'_, T, As> {
     type Target = As;
     fn deref(&self) -> &Self::Target {
         &self.target
     }
 }
 impl<T: Into<As>, As: Into<T>> IGuardRef<As> for T {
-    type Guard<'a> = RefAs<'a, T, As> where Self: 'a;
+    type Guard<'a>
+        = RefAs<'a, T, As>
+    where
+        Self: 'a;
 
     fn guard_ref_inner(&self) -> Self::Guard<'_> {
         RefAs {
@@ -78,24 +81,27 @@ pub struct MutAs<'a, T, As: Into<T>> {
     source: &'a mut T,
     target: core::mem::ManuallyDrop<As>,
 }
-impl<'a, T, As: Into<T>> Deref for MutAs<'a, T, As> {
+impl<T, As: Into<T>> Deref for MutAs<'_, T, As> {
     type Target = As;
     fn deref(&self) -> &Self::Target {
         &self.target
     }
 }
-impl<'a, T, As: Into<T>> DerefMut for MutAs<'a, T, As> {
+impl<T, As: Into<T>> DerefMut for MutAs<'_, T, As> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.target
     }
 }
-impl<'a, T, As: Into<T>> Drop for MutAs<'a, T, As> {
+impl<T, As: Into<T>> Drop for MutAs<'_, T, As> {
     fn drop(&mut self) {
         unsafe { core::ptr::write(self.source, core::ptr::read(&*self.target).into()) }
     }
 }
 impl<T: Into<As>, As: Into<T>> IGuardMut<As> for T {
-    type GuardMut<'a> = MutAs<'a, T, As> where Self: 'a;
+    type GuardMut<'a>
+        = MutAs<'a, T, As>
+    where
+        Self: 'a;
 
     fn guard_mut_inner(&mut self) -> Self::GuardMut<'_> {
         MutAs {

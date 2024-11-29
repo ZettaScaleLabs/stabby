@@ -921,7 +921,7 @@ unsafe impl IStable for std::os::fd::OwnedFd {
 }
 #[cfg(all(feature = "std", target_family = "unix"))]
 // SAFETY: Automatic checks verify this.
-unsafe impl<'a> IStable for std::os::fd::BorrowedFd<'a> {
+unsafe impl IStable for std::os::fd::BorrowedFd<'_> {
     same_as!(core::ffi::c_int);
     type ContainsIndirections = B1;
     primitive_report!("std::os::fd::BorrowedFd");

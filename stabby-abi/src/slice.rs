@@ -72,7 +72,7 @@ impl<'a, T> From<Slice<'a, T>> for &'a [T] {
         unsafe { core::slice::from_raw_parts(value.start.as_ref(), value.len) }
     }
 }
-impl<'a, T> Deref for Slice<'a, T> {
+impl<T> Deref for Slice<'_, T> {
     type Target = [T];
     fn deref(&self) -> &Self::Target {
         unsafe { core::slice::from_raw_parts(self.start.as_ref(), self.len) }
@@ -126,13 +126,13 @@ pub struct SliceMut<'a, T: 'a> {
 unsafe impl<'a, T: 'a> Send for SliceMut<'a, T> where &'a mut T: Send {}
 // SAFETY: SliceMut is analogous to a mutable reference
 unsafe impl<'a, T: 'a> Sync for SliceMut<'a, T> where &'a mut T: Sync {}
-impl<'a, T> Deref for SliceMut<'a, T> {
+impl<T> Deref for SliceMut<'_, T> {
     type Target = [T];
     fn deref(&self) -> &Self::Target {
         unsafe { core::slice::from_raw_parts(self.start.as_ref(), self.len) }
     }
 }
-impl<'a, T> DerefMut for SliceMut<'a, T> {
+impl<T> DerefMut for SliceMut<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { core::slice::from_raw_parts_mut(self.start.as_mut(), self.len) }
     }

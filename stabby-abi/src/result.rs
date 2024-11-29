@@ -484,7 +484,7 @@ where
 {
     inner: &'a mut Result<Ok, Err>,
 }
-impl<'a, Ok, Err> core::ops::Deref for OkGuard<'a, Ok, Err>
+impl<Ok, Err> core::ops::Deref for OkGuard<'_, Ok, Err>
 where
     Ok: IDeterminantProvider<Err>,
     Err: IStable,
@@ -494,7 +494,7 @@ where
         unsafe { self.inner.ok_unchecked() }
     }
 }
-impl<'a, Ok, Err> core::ops::DerefMut for OkGuard<'a, Ok, Err>
+impl<Ok, Err> core::ops::DerefMut for OkGuard<'_, Ok, Err>
 where
     Ok: IDeterminantProvider<Err>,
     Err: IStable,
@@ -503,7 +503,7 @@ where
         unsafe { &mut *Result::<Ok, Err>::ok_ptr_mut(&mut self.inner.storage) }
     }
 }
-impl<'a, Ok, Err> Drop for OkGuard<'a, Ok, Err>
+impl<Ok, Err> Drop for OkGuard<'_, Ok, Err>
 where
     Ok: IDeterminantProvider<Err>,
     Err: IStable,
@@ -527,7 +527,7 @@ where
     inner: &'a mut Result<Ok, Err>,
 }
 
-impl<'a, Ok, Err> core::ops::Deref for ErrGuard<'a, Ok, Err>
+impl<Ok, Err> core::ops::Deref for ErrGuard<'_, Ok, Err>
 where
     Ok: IDeterminantProvider<Err>,
     Err: IStable,
@@ -537,7 +537,7 @@ where
         unsafe { self.inner.err_unchecked() }
     }
 }
-impl<'a, Ok, Err> core::ops::DerefMut for ErrGuard<'a, Ok, Err>
+impl<Ok, Err> core::ops::DerefMut for ErrGuard<'_, Ok, Err>
 where
     Ok: IDeterminantProvider<Err>,
     Err: IStable,
@@ -546,7 +546,7 @@ where
         unsafe { &mut *Result::<Ok, Err>::err_ptr_mut(&mut self.inner.storage) }
     }
 }
-impl<'a, Ok, Err> Drop for ErrGuard<'a, Ok, Err>
+impl<Ok, Err> Drop for ErrGuard<'_, Ok, Err>
 where
     Ok: IDeterminantProvider<Err>,
     Err: IStable,

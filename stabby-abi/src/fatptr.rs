@@ -50,12 +50,12 @@ pub trait IPtrClone: IPtrOwned {
     /// Clone the pointer.
     fn clone(this: &Self) -> Self;
 }
-impl<'a, T> IPtr for &'a T {
+impl<T> IPtr for &T {
     unsafe fn as_ref<U>(&self) -> &U {
         core::mem::transmute(self)
     }
 }
-impl<'a, T> IPtr for &'a mut T {
+impl<T> IPtr for &mut T {
     unsafe fn as_ref<U>(&self) -> &U {
         core::mem::transmute(self)
     }
@@ -349,7 +349,7 @@ where
     }
 }
 
-impl<'a, P: IPtrOwned, Vt: HasDropVt> Drop for Dyn<'a, P, Vt> {
+impl<P: IPtrOwned, Vt: HasDropVt> Drop for Dyn<'_, P, Vt> {
     fn drop(&mut self) {
         P::drop(&mut self.ptr, *unsafe {
             self.vtable.drop_vt().drop.as_ref_unchecked()
@@ -370,11 +370,11 @@ impl<'a, T, Vt: Copy + IConstConstructor<'a, T>> From<&'a T> for DynRef<'a, Vt> 
 }
 
 // SAFETY: This is analogous to a reference, and Vt proves the rest
-unsafe impl<'a, Vt: HasSendVt> Send for DynRef<'a, Vt> {}
+unsafe impl<Vt: HasSendVt> Send for DynRef<'_, Vt> {}
 // SAFETY: This is analogous to a reference, and Vt proves the rest
-unsafe impl<'a, Vt: HasSyncVt> Sync for DynRef<'a, Vt> {}
+unsafe impl<Vt: HasSyncVt> Sync for DynRef<'_, Vt> {}
 
 // SAFETY: The pointer must be `Send` and the pointee must me `Send` and `Sync`.
-unsafe impl<'a, P: IPtrOwned + Send, Vt: HasSendVt + HasDropVt> Send for Dyn<'a, P, Vt> {}
+unsafe impl<P: IPtrOwned + Send, Vt: HasSendVt + HasDropVt> Send for Dyn<'_, P, Vt> {}
 // SAFETY: The pointer must be `Sync` and the pointee must me `Send` and `Sync`.
-unsafe impl<'a, P: IPtrOwned + Sync, Vt: HasSyncVt + HasDropVt> Sync for Dyn<'a, P, Vt> {}
+unsafe impl<P: IPtrOwned + Sync, Vt: HasSyncVt + HasDropVt> Sync for Dyn<'_, P, Vt> {}

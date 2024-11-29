@@ -282,7 +282,7 @@ where
     #[allow(clippy::type_complexity)]
     inner: Result<OkGuard<'a, Single<T, Alloc>, Vec<T, Alloc>>, &'a mut [T]>,
 }
-impl<'a, T, Alloc> core::ops::Deref for SliceGuardMut<'a, T, Alloc>
+impl<T, Alloc> core::ops::Deref for SliceGuardMut<'_, T, Alloc>
 where
     Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
@@ -297,7 +297,7 @@ where
         }
     }
 }
-impl<'a, T, Alloc> core::ops::DerefMut for SliceGuardMut<'a, T, Alloc>
+impl<T, Alloc> core::ops::DerefMut for SliceGuardMut<'_, T, Alloc>
 where
     Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
@@ -513,7 +513,7 @@ where
     }
 }
 
-impl<'a, T, Alloc> DoubleEndedIterator for IterMut<'a, T, Alloc>
+impl<T, Alloc> DoubleEndedIterator for IterMut<'_, T, Alloc>
 where
     Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,
@@ -536,7 +536,7 @@ where
         self.next_back()
     }
 }
-impl<'a, T, Alloc> ExactSizeIterator for IterMut<'a, T, Alloc>
+impl<T, Alloc> ExactSizeIterator for IterMut<'_, T, Alloc>
 where
     Single<T, Alloc>: IDeterminantProvider<Vec<T, Alloc>>,
     Vec<T, Alloc>: IStable,

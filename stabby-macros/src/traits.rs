@@ -497,7 +497,7 @@ impl DynTraitFn<'_> {
         quote!(#forgen #generics #abi #unsafety fn(#receiver, #(#inputs),*) #output)
     }
 }
-impl<'a> DynTraitDescription<'a> {
+impl DynTraitDescription<'_> {
     fn vtid(&self) -> Ident {
         quote::format_ident!("StabbyVtable{}", self.ident)
     }
