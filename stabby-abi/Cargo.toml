@@ -53,5 +53,8 @@ sha2-const-stable = { workspace = true }
 [dev-dependencies]
 rand = { workspace = true }
 
+[build-dependencies]
+rustc_version = "0.4.1"
+
 [package.metadata.docs.rs]
 rustc-args = ["--cfg", "docsrs"]
