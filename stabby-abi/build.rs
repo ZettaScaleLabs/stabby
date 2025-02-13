@@ -19,6 +19,8 @@ use std::{
     path::PathBuf,
 };
 
+use rustc_version::{version_meta, Channel};
+
 fn u(mut i: u128) -> String {
     let mut result = "UTerm".into();
     let mut ids = Vec::new();
@@ -132,9 +134,7 @@ fn main() {
             println!(r#"cargo:rustc-cfg=stabby_default_alloc="disabled""#);
         }
     }
-    if let Ok(toolchain) = std::env::var("RUSTUP_TOOLCHAIN") {
-        if toolchain.starts_with("nightly") {
-            println!("cargo:rustc-cfg=stabby_nightly");
-        }
+    if let Channel::Nightly = version_meta().unwrap().channel {
+        println!("cargo:rustc-cfg=stabby_nightly");
     }
 }
