@@ -265,7 +265,7 @@ pub fn stabby(
         Some(Repr::Isize) => Repr::Isize,
     };
     let reprid = quote::format_ident!("{trepr:?}");
-    let reprattr = if repr.map_or(false, |r| r.is_c) {
+    let reprattr = if repr.is_some_and(|r| r.is_c) {
         quote!(#[repr(C, #reprid)])
     } else {
         quote!(#[repr(#reprid)])

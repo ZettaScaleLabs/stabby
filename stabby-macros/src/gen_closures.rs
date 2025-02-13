@@ -27,23 +27,23 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 		let argtys = (0..i).map(|i| quote::format_ident!("I{i}")).collect::<Vec<_>>();
 		let args = (0..i).map(|i| quote::format_ident!("_{i}")).collect::<Vec<_>>();
         quote! {
-			#[cfg(feature = "alloc")]
+			#[cfg(feature = "alloc-rs")]
 			pub use #com::*;
-			#[cfg(feature = "alloc")]
+			#[cfg(feature = "alloc-rs")]
 			mod #com {
 				use crate::{
 					vtable::{HasDropVt, TransitiveDeref},
 					StableIf, StableLike,
 				};
 				/// [`core::ops::FnOnce`], but ABI-stable
-				pub trait #co<O #(, #argtys)* > {
+				pub trait #co<O #(, #argtys)* >: Sized {
 					/// Call the function
-					extern "C" fn call_once(self: #st::alloc::boxed::Box<Self> #(, #args: #argtys)*) -> O;
+					extern "C" fn call_once(this: #st::alloc::boxed::Box<Self> #(, #args: #argtys)*) -> O;
 				}
-				impl<O #(, #argtys)* , F: FnOnce(#(#argtys,)*) -> O> #co<O #(, #argtys)*> for F {
+				impl<O #(, #argtys)* , F: FnOnce(#(#argtys,)*) -> O + Sized> #co<O #(, #argtys)*> for F {
 					/// Call the function
-					extern "C" fn call_once(self: #st::alloc::boxed::Box<Self> #(, #args: #argtys)*) -> O {
-						self(#(#args,)*)
+					extern "C" fn call_once(this: #st::alloc::boxed::Box<Self> #(, #args: #argtys)*) -> O {
+						(#st::alloc::boxed::Box::into_inner(this))(#(#args,)*)
 					}
 				}
 
@@ -64,13 +64,13 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 					fn call_once(self #(, _: #argtys)* ) -> O;
 				}
 				impl<'a, O #(, #argtys)* , Vt: TransitiveDeref<#covt<O #(, #argtys)* >, N> + HasDropVt, N> #cod<O #(, #argtys)* , N>
-					for crate::Dyn<'a, Box<()>, Vt>
+					for crate::Dyn<'a, #st::alloc::boxed::Box<()>, Vt>
 				{
 					fn call_once(self #(, #args: #argtys)*) -> O {
+						let this = core::mem::ManuallyDrop::new(self);
 						let o =
                         // SAFETY: We simply observe the internals of an unsafe `stabby::abi::StableLike`
-							unsafe { (self.vtable().tderef().call_once.into_inner_unchecked())(core::ptr::read(self.ptr()) #(, #args)*)};
-						core::mem::forget(self);
+							unsafe { (this.vtable().tderef().call_once.into_inner_unchecked())(core::ptr::read(this.ptr()) #(, #args)*)};
 						o
 					}
 				}
@@ -81,23 +81,31 @@ pub fn gen_closures() -> proc_macro2::TokenStream {
 				impl<'a, O: 'a #(, #argtys: 'a)* , F: FnOnce(#(#argtys, )*) -> O> crate::vtable::IConstConstructor<'a, F>
 					for #covt<O #(, #argtys)* >
 				{
-					const VTABLE: &'a Self = &Self {
-                        // SAFETY: We unsafely construct `stabby::abi::StableLike`
-						call_once: unsafe {
-							core::mem::transmute(<F as #co< O #(, #argtys)* >>::call_once as extern "C" fn(#st::alloc::boxed::Box<F> #(, #argtys)* ) -> O)
-						},
-					};
+					#st::impl_vtable_constructor!(
+						const VTABLE_REF: &'a Self = &Self {
+							// SAFETY: We unsafely construct `stabby::abi::StableLike`
+							call_once: unsafe {
+								core::mem::transmute(<F as #co< O #(, #argtys)* >>::call_once as extern "C" fn(#st::alloc::boxed::Box<F> #(, #argtys)* ) -> O)
+							},
+						}; =>
+						const VTABLE: Self = Self {
+							// SAFETY: We unsafely construct `stabby::abi::StableLike`
+							call_once: unsafe {
+								core::mem::transmute(<F as #co< O #(, #argtys)* >>::call_once as extern "C" fn(#st::alloc::boxed::Box<F> #(, #argtys)* ) -> O)
+							},
+						};
+					);
 				}
 			}
 
-			#[cfg(feature = "alloc")]
+			#[cfg(feature = "alloc-rs")]
 			#[crate::stabby]
 			/// [`core::ops::FnMut`], but ABI-stable
-			pub trait #cm<O #(, #argtys)* >: #co<O #(, #argtys)* > {
+			pub trait #cm<O #(, #argtys)* > {
 				/// Call the function
 				extern "C" fn call_mut(&mut self #(, #args: #argtys)*) -> O;
 			}
-			#[cfg(not(feature = "alloc"))]
+			#[cfg(not(feature = "alloc-rs"))]
 			#[crate::stabby]
 			/// [`core::ops::FnMut`], but ABI-stable
 			pub trait #cm<O #(, #argtys)* > {
