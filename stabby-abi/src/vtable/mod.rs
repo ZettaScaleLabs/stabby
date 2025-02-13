@@ -289,7 +289,8 @@ where
         };
     );
 }
-impl<T> IConstConstructor<'_, T> for () {
+#[allow(clippy::needless_lifetimes)]
+impl<'a, T> IConstConstructor<'a, T> for () {
     impl_vtable_constructor!(
         const VTABLE_REF: &'a () = &();=>
         const VTABLE: () = (););
@@ -372,8 +373,8 @@ unsafe extern "C" fn drop<T>(this: &mut T) {
     core::ptr::drop_in_place(this)
 }
 #[allow(unknown_lints)]
-#[allow(clippy::missing_transmute_annotations)]
-impl<T> IConstConstructor<'_, T> for VtDrop {
+#[allow(clippy::missing_transmute_annotations, clippy::needless_lifetimes)]
+impl<'a, T> IConstConstructor<'a, T> for VtDrop {
     impl_vtable_constructor!(
         const VTABLE_REF: &'a VtDrop = &VtDrop {
             drop: unsafe {
