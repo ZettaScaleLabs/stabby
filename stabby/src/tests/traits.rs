@@ -111,7 +111,7 @@ pub trait AsyncRead {
         buffer: stabby::slice::SliceMut<'a, u8>,
     ) -> stabby::future::DynFuture<'a, usize>;
 }
-impl<'b> AsyncRead for stabby::slice::Slice<'b, u8> {
+impl AsyncRead for stabby::slice::Slice<'_, u8> {
     extern "C" fn read<'a>(
         &'a mut self,
         mut buffer: stabby::slice::SliceMut<'a, u8>,
