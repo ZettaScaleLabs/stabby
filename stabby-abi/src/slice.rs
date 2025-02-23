@@ -204,7 +204,7 @@ impl<'a, T> From<SliceMut<'a, T>> for &'a [T] {
 mod serde_impl {
     use super::*;
     use serde::{de::Visitor, Deserialize, Serialize};
-    impl<'a, T: Serialize> Serialize for Slice<'a, T> {
+    impl<T: Serialize> Serialize for Slice<'_, T> {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
@@ -213,7 +213,7 @@ mod serde_impl {
             slice.serialize(serializer)
         }
     }
-    impl<'a, T: Serialize> Serialize for SliceMut<'a, T> {
+    impl<T: Serialize> Serialize for SliceMut<'_, T> {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,

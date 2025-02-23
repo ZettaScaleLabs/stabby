@@ -1,3 +1,7 @@
+# 36.2.2 (api=2.1.1, abi=2.0.0)
+- Ensure `stabby` compiles on non-rustup toolchains (thanks @fuzzypixelz).
+- Fix lints for CI.
+
 # 36.2.1 (api=2.1.0, abi=2.0.0)
 - Make `Box::into_raw` a const fn.
 
