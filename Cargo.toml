@@ -26,6 +26,10 @@ resolver = "2"
 [profile.dev]
 opt-level = 3
 
+[workspace.lints.clippy]
+needless_lifetimes = "allow"
+unnecessary_map_or = "allow"
+
 
 [workspace.package]
 authors = ["Pierre Avital <pierre.avital@gmail.com>"]
@@ -33,7 +37,7 @@ license = " EPL-2.0 OR Apache-2.0"
 categories = ["development-tools::ffi", "no-std::no-alloc"]
 repository = "https://github.com/ZettaScaleLabs/stabby"
 readme = "stabby/README.md"
-version = "36.2.2"                                      # Track
+version = "36.2.2"                                          # Track
 
 [workspace.dependencies]
 stabby-macros = { path = "./stabby-macros/", version = "36.2.2", default-features = false } # Track

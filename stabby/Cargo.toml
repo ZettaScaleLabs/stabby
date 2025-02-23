@@ -23,6 +23,9 @@ repository = { workspace = true }
 readme = { workspace = true }
 description = "A Stable ABI for Rust with compact sum-types."
 
+[lints]
+workspace = true
+
 [features]
 default = ["std"]
 std = ["stabby-abi/std", "alloc-rs"]
