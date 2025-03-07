@@ -17,7 +17,11 @@ use std::str::FromStr;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-include!(concat!(env!("OUT_DIR"), "/env_vars.rs"));
+#[cfg(not(windows))]
+include!(concat!(env!("OUT_DIR"), "/", "env_vars.rs"));
+
+#[cfg(windows)]
+include!(concat!(env!("OUT_DIR"), "\\", "env_vars.rs"));
 
 pub struct Attrs {
     unsend: bool,
