@@ -140,8 +140,9 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     /// Sets the length of the vector, not calling any destructors.
     /// # Safety
     /// This can lead to uninitialized memory being interpreted as an initialized value of `T`.
+    #[rustversion::attr(since(1.86), const)]
     pub unsafe fn set_len(&mut self, len: usize) {
-        self.inner.end = ptr_add(*self.inner.start, len);
+        self.inner.end = ptr_add(self.inner.start.ptr, len);
     }
     /// Adds `value` at the end of `self`.
     /// # Panics
@@ -253,16 +254,18 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         };
     }
     /// Returns a slice of the vector's elements.
+    #[rustversion::attr(since(1.86), const)]
     pub fn as_slice(&self) -> &[T] {
         let start = self.inner.start;
         let end = self.inner.end;
-        unsafe { core::slice::from_raw_parts(start.as_ptr(), ptr_diff(end, *start)) }
+        unsafe { core::slice::from_raw_parts(start.ptr.as_ptr(), ptr_diff(end, start.ptr)) }
     }
     /// Returns a mutable slice of the vector's elements.
+    #[rustversion::attr(since(1.86), const)]
     pub fn as_slice_mut(&mut self) -> &mut [T] {
         let start = self.inner.start;
         let end = self.inner.end;
-        unsafe { core::slice::from_raw_parts_mut(start.as_ptr(), ptr_diff(end, *start)) }
+        unsafe { core::slice::from_raw_parts_mut(start.ptr.as_ptr(), ptr_diff(end, start.ptr)) }
     }
     pub(crate) fn into_raw_components(self) -> (AllocSlice<T, Alloc>, usize, Alloc) {
         let VecInner {
@@ -383,13 +386,14 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         })
     }
     /// Removes the element at `index` without reordering.
+    #[rustversion::attr(since(1.86), const)]
     pub fn remove(&mut self, index: usize) -> Option<T> {
         if index < self.len() {
             unsafe {
-                let value = self.inner.start.as_ptr().add(index).read();
+                let value = self.inner.start.ptr.as_ptr().add(index).read();
                 core::ptr::copy(
-                    self.inner.start.as_ptr().add(index + 1),
-                    self.inner.start.as_ptr().add(index),
+                    self.inner.start.ptr.as_ptr().add(index + 1),
+                    self.inner.start.ptr.as_ptr().add(index),
                     self.len() - (index + 1),
                 );
                 self.set_len(self.len() - 1);
@@ -414,6 +418,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         };
     }
     /// Removes the last element of the vector, returning it if it exists.
+    #[rustversion::attr(since(1.86), const)]
     pub fn pop(&mut self) -> Option<T> {
         if self.is_empty() {
             None
@@ -440,6 +445,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         &self.inner.alloc
     }
     /// Returns a mutable reference to the vector's allocator.
+    #[rustversion::attr(since(1.86), const)]
     pub fn allocator_mut(&mut self) -> &mut Alloc {
         &mut self.inner.alloc
     }
@@ -681,6 +687,7 @@ impl<'a, T: 'a, Alloc: IAlloc + 'a> Drain<'a, T, Alloc> {
         self.to = self.index
     }
     /// Turns the drain into a double ended drain, which impls [`DoubleEndedIterator`]
+    #[rustversion::attr(since(1.86), const)]
     pub fn double_ended(self) -> DoubleEndedDrain<'a, T, Alloc> {
         let ret = DoubleEndedDrain {
             vec: unsafe { core::ptr::read(&self.vec) },

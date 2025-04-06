@@ -40,7 +40,7 @@ pub unsafe trait IStable: Sized {
     /// - [`B0`] if the type is known to have 0 niches knowable by rustc
     /// - [`B1`] if the type has exactly one niche value, and that niche is known by rustc
     /// - [`Saturator`] if the type has more than a single value, which would mean rustc could change its
-    ///     way of representing the [`None`] variant.
+    ///   way of representing the [`None`] variant.
     type HasExactlyOneNiche: ISaturatingAdd;
     /// Whether or not the type contains indirections (pointers, indices in independent data-structures...)
     type ContainsIndirections: Bit;

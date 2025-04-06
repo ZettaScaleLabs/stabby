@@ -209,10 +209,12 @@ impl<'a, P: IPtrOwned + IPtrClone, Vt: HasDropVt + 'a> Clone for Dyn<'a, P, Vt> 
 }
 impl<'a, P: IPtrOwned + IPtr, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
     /// Access the data pointer immutably.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn ptr(&self) -> &P {
         &self.ptr
     }
     /// Access the data pointer mutably.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn ptr_mut(&mut self) -> &mut P {
         &mut self.ptr
     }

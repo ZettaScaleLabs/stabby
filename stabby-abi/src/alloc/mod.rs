@@ -309,14 +309,7 @@ impl<T, Alloc> AllocPtr<T, Alloc> {
     /// A reference to the prefix for this allocation.
     /// # Safety
     /// `self` must not be dangling, and have been properly allocated, using [`Self::alloc`] or [`Self::realloc`] for example.
-    #[rustversion::since(1.73)]
-    pub const unsafe fn prefix(&self) -> &AllocPrefix<Alloc> {
-        unsafe { self.prefix_ptr().as_ref() }
-    }
-    /// A reference to the prefix for this allocation.
-    /// # Safety
-    /// `self` must not be dangling, and have been properly allocated, using [`Self::alloc`] or [`Self::realloc`] for example.
-    #[rustversion::before(1.73)]
+    #[rustversion::attr(since(1.73), const)]
     pub unsafe fn prefix(&self) -> &AllocPrefix<Alloc> {
         unsafe { self.prefix_ptr().as_ref() }
     }
@@ -324,6 +317,7 @@ impl<T, Alloc> AllocPtr<T, Alloc> {
     /// # Safety
     /// `self` must not be dangling, and have been properly allocated, using [`Self::alloc`] or [`Self::realloc`] for example.
     /// Since this type is [`Copy`], the `&mut self` is not a sufficient guarantee of uniqueness.
+    #[rustversion::attr(since(1.86), const)]
     pub unsafe fn prefix_mut(&mut self) -> &mut AllocPrefix<Alloc> {
         unsafe { self.prefix_ptr().as_mut() }
     }

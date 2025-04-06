@@ -28,10 +28,12 @@ impl<Alloc: IAlloc> String<Alloc> {
         }
     }
     /// Returns self as a borrowed string
+    #[rustversion::attr(since(1.86), const)]
     pub fn as_str(&self) -> &str {
         unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
     }
     /// Returns self as a mutably borrowed string
+    #[rustversion::attr(since(1.86), const)]
     pub fn as_str_mut(&mut self) -> &mut str {
         unsafe { core::str::from_utf8_unchecked_mut(self.inner.as_slice_mut()) }
     }
@@ -148,12 +150,14 @@ pub struct ArcStr<Alloc: IAlloc = super::DefaultAllocator> {
 }
 impl<Alloc: IAlloc> ArcStr<Alloc> {
     /// Returns a borrow to the inner string.
+    #[rustversion::attr(since(1.86), const)]
     pub fn as_str(&self) -> &str {
         unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
     }
     /// Returns a mutably borrow to the inner str.
     /// # Safety
     /// [`Self::is_unique`] must be true.
+    #[rustversion::attr(since(1.86), const)]
     pub unsafe fn as_str_mut_unchecked(&mut self) -> &mut str {
         unsafe { core::str::from_utf8_unchecked_mut(self.inner.as_slice_mut_unchecked()) }
     }
@@ -274,10 +278,12 @@ pub struct BoxedStr<Alloc: IAlloc = super::DefaultAllocator> {
 }
 impl<Alloc: IAlloc> BoxedStr<Alloc> {
     /// Returns a borrow to the inner string.
+    #[rustversion::attr(since(1.86), const)]
     pub fn as_str(&self) -> &str {
         unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
     }
     /// Returns a mutable borrow to the inner string.
+    #[rustversion::attr(since(1.86), const)]
     pub fn as_str_mut(&mut self) -> &mut str {
         unsafe { core::str::from_utf8_unchecked_mut(self.inner.as_slice_mut()) }
     }
