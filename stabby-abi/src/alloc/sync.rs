@@ -203,8 +203,9 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     /// # Safety
     /// If used carelessly, this can cause mutable references and immutable references to the same value to appear,
     /// causing undefined behaviour.
+    #[rustversion::attr(since(1.86), const)]
     pub unsafe fn get_mut_unchecked(this: &mut Self) -> &mut T {
-        unsafe { this.ptr.as_mut() }
+        unsafe { this.ptr.ptr.as_mut() }
     }
 
     /// Returns the strong count.
@@ -420,9 +421,10 @@ impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
         self.len() == 0
     }
     /// Returns a borrow to the slice.
+    #[rustversion::attr(since(1.86), const)]
     pub fn as_slice(&self) -> &[T] {
         let start = self.inner.start;
-        unsafe { core::slice::from_raw_parts(start.as_ptr(), self.len()) }
+        unsafe { core::slice::from_raw_parts(start.ptr.as_ptr(), self.len()) }
     }
     /// Returns a mutable borrow to the slice if no other references to it may exist.
     pub fn as_slice_mut(&mut self) -> Option<&mut [T]> {
@@ -432,9 +434,10 @@ impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
     /// Returns a mutable borrow to the slice.
     /// # Safety
     /// This can easily create aliased mutable references, which would be undefined behaviour.
+    #[rustversion::attr(since(1.86), const)]
     pub unsafe fn as_slice_mut_unchecked(&mut self) -> &mut [T] {
         let start = self.inner.start;
-        unsafe { core::slice::from_raw_parts_mut(start.as_ptr(), self.len()) }
+        unsafe { core::slice::from_raw_parts_mut(start.ptr.as_ptr(), self.len()) }
     }
     /// Returns the strong count to the slice.
     pub fn strong_count(this: &Self) -> usize {

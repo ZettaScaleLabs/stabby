@@ -92,6 +92,7 @@ impl<Size: Unsigned, Align: Alignment + Alignment> Storage<Size, Align> {
     const fn as_ptr(&self) -> *const u8 {
         self as *const Self as *const _
     }
+    #[rustversion::attr(since(1.86), const)]
     fn as_mut_ptr(&mut self) -> *mut u8 {
         self as *mut Self as *mut _
     }
@@ -465,9 +466,11 @@ where
     const unsafe fn err_unchecked(&self) -> &Err {
         &*Self::err_ptr(&self.storage)
     }
+    #[rustversion::attr(since(1.86), const)]
     unsafe fn ok_mut_unchecked(&mut self) -> OkGuard<'_, Ok, Err> {
         OkGuard { inner: self }
     }
+    #[rustversion::attr(since(1.86), const)]
     unsafe fn err_mut_unchecked(&mut self) -> ErrGuard<Ok, Err> {
         ErrGuard { inner: self }
     }

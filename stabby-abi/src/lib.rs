@@ -240,6 +240,7 @@ impl<T, As: IStable> StableLike<T, As> {
     /// # Safety
     /// This is only safe if `T` is FFI-safe, or if this `self` was constructed from a value
     /// of `T` that was instanciated within the same shared object.
+    #[rustversion::attr(since(1.86), const)]
     pub unsafe fn as_mut_unchecked(&mut self) -> &mut T {
         &mut self.value
     }
