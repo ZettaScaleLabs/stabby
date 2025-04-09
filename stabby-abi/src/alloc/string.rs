@@ -396,7 +396,7 @@ mod serde_impl {
         }
 
         fn visit_bytes<E: Error>(self, v: &[u8]) -> Result<Self::Value, E> {
-            str::from_utf8(v)
+            core::str::from_utf8(v)
                 .map_err(|_| Error::invalid_value(Unexpected::Bytes(v), &self))
                 .map(Into::into)
         }
