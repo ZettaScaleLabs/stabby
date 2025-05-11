@@ -69,13 +69,13 @@ impl<'a, T> From<&'a mut [T]> for Slice<'a, T> {
 
 impl<'a, T> From<Slice<'a, T>> for &'a [T] {
     fn from(value: Slice<'a, T>) -> Self {
-        unsafe { core::slice::from_raw_parts(value.start.as_ref(), value.len) }
+        unsafe { core::slice::from_raw_parts(value.start.as_ptr(), value.len) }
     }
 }
 impl<T> Deref for Slice<'_, T> {
     type Target = [T];
     fn deref(&self) -> &Self::Target {
-        unsafe { core::slice::from_raw_parts(self.start.as_ref(), self.len) }
+        unsafe { core::slice::from_raw_parts(self.start.as_ptr(), self.len) }
     }
 }
 impl<'a, T: 'a> Eq for Slice<'a, T> where for<'b> &'b [T]: Eq {}
