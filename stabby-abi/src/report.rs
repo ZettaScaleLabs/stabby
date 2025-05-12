@@ -150,6 +150,8 @@ const fn hash_report(mut hash: Sha256, report: &TypeReport) -> Sha256 {
     }
     hash
 }
+
+#[rustversion::attr(nightly, allow(unnecessary_transmutes))]
 const ARCH_INFO: [u8; 8] = [
     0,
     core::mem::size_of::<usize>() as u8,

@@ -81,10 +81,19 @@ where
 }
 use seal::Storage;
 mod seal {
+    use core::mem::MaybeUninit;
+
     use super::*;
     #[stabby::stabby]
     pub struct Storage<Size: Unsigned, Align: Alignment + Alignment> {
-        inner: <Align::Divide<Size> as IUnsignedBase>::Array<Align::AsUint>,
+        inner: MaybeUninit<<Align::Divide<Size> as IUnsignedBase>::Array<Align::AsUint>>,
+    }
+    impl<Size: Unsigned, Align: Alignment + Alignment> Storage<Size, Align> {
+        pub const fn zeroed() -> Self {
+            Self {
+                inner: MaybeUninit::zeroed(),
+            }
+        }
     }
 }
 
@@ -238,27 +247,23 @@ where
     /// Construct the `Ok` variant.
     #[allow(non_snake_case)]
     pub fn Ok(value: Ok) -> Self {
-        let mut storage = core::mem::MaybeUninit::zeroed();
+        let mut storage = Storage::zeroed();
+        let storage_ptr = &mut storage as *mut _;
         unsafe {
-            let storage_ptr = storage.as_mut_ptr();
             Self::ok_ptr_mut(storage_ptr).write(value);
             Self::det_ptr_mut(storage_ptr).write(Determinant::<Ok, Err>::ok(storage_ptr.cast()));
-            Self {
-                storage: storage.assume_init(),
-            }
+            Self { storage }
         }
     }
     /// Construct the `Err` variant.
     #[allow(non_snake_case)]
     pub fn Err(value: Err) -> Self {
-        let mut storage = core::mem::MaybeUninit::zeroed();
+        let mut storage = Storage::zeroed();
         unsafe {
-            let storage_ptr = storage.as_mut_ptr();
+            let storage_ptr = &mut storage as *mut _;
             Self::err_ptr_mut(storage_ptr).write(value);
             Self::det_ptr_mut(storage_ptr).write(Determinant::<Ok, Err>::err(storage_ptr.cast()));
-            Self {
-                storage: storage.assume_init(),
-            }
+            Self { storage }
         }
     }
     /// Converts to a standard [`Result`](core::result::Result) of immutable references to the variants.

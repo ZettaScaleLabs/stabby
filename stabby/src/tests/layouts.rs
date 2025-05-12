@@ -12,11 +12,10 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use core::num::{NonZeroU16, NonZeroU32, NonZeroU8};
+use core::num::{NonZeroU16, NonZeroU32};
 
 use crate as stabby;
-use stabby::tuple::{Tuple2, Tuple3, Tuple8};
-use stabby_abi::{istable::Saturator, typenum2::*, Array, End, IStable, Result};
+use stabby::tuple::{Tuple2, Tuple3};
 
 #[stabby::stabby]
 pub union UnionTest {
@@ -136,7 +135,11 @@ pub struct Transparent {
 
 #[test]
 fn layouts() {
+    use core::num::NonZeroU8;
     use stabby::abi::istable::IForbiddenValues;
+    use stabby::abi::{istable::Saturator, typenum2::*, Array, End, IStable, Result};
+    use stabby::tuple::Tuple8;
+
     let _: B1 = <<SingleNiche as IStable>::HasExactlyOneNiche>::default();
     let _: Saturator = <<EndPadding as IStable>::HasExactlyOneNiche>::default();
     let _: B0 = <<Tuple3<u32, u32, u32> as IStable>::HasExactlyOneNiche>::default();

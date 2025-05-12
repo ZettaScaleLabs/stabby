@@ -12,30 +12,104 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+use core::ptr::NonNull;
+
 use crate as stabby;
 use crate::vtable::*;
+
+/// An anonimized reference to a value.
+#[stabby::stabby]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct AnonymRef<'a> {
+    /// The address of the reference.
+    pub ptr: NonNull<()>,
+    /// A marker to indicate the lifetime of the reference.
+    pub _marker: core::marker::PhantomData<&'a ()>,
+}
+impl<T> From<&T> for AnonymRef<'_> {
+    fn from(value: &T) -> Self {
+        Self {
+            ptr: NonNull::from(value).cast(),
+            _marker: core::marker::PhantomData,
+        }
+    }
+}
+impl core::ops::Deref for AnonymRef<'_> {
+    type Target = NonNull<()>;
+    fn deref(&self) -> &Self::Target {
+        &self.ptr
+    }
+}
+
+/// An anonimized mutable reference to a value.
+#[stabby::stabby]
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct AnonymRefMut<'a> {
+    /// The address of the reference.
+    pub ptr: NonNull<()>,
+    /// A marker to indicate the lifetime of the reference.
+    pub _marker: core::marker::PhantomData<&'a mut ()>,
+}
+impl<T> From<&mut T> for AnonymRefMut<'_> {
+    fn from(value: &mut T) -> Self {
+        Self {
+            ptr: NonNull::from(value).cast(),
+            _marker: core::marker::PhantomData,
+        }
+    }
+}
+impl core::ops::Deref for AnonymRefMut<'_> {
+    type Target = NonNull<()>;
+    fn deref(&self) -> &Self::Target {
+        &self.ptr
+    }
+}
+impl core::ops::DerefMut for AnonymRefMut<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.ptr
+    }
+}
+impl IPtrOwned for AnonymRefMut<'_> {
+    fn drop(_: &mut core::mem::ManuallyDrop<Self>, _: unsafe extern "C" fn(AnonymRefMut<'_>)) {}
+}
+impl IPtr for AnonymRefMut<'_> {
+    unsafe fn as_ref(&self) -> AnonymRef<'_> {
+        AnonymRef {
+            ptr: self.ptr,
+            _marker: core::marker::PhantomData,
+        }
+    }
+}
+impl IPtrMut for AnonymRefMut<'_> {
+    unsafe fn as_mut(&mut self) -> AnonymRefMut<'_> {
+        AnonymRefMut {
+            ptr: self.ptr,
+            _marker: core::marker::PhantomData,
+        }
+    }
+}
 
 /// Indicates that `Self` can be used as a pointer in dynptrs.
 pub trait IPtr {
     /// # Safety
     /// This function implies an implicit cast of the reference
-    unsafe fn as_ref<U: Sized>(&self) -> &U;
+    unsafe fn as_ref(&self) -> AnonymRef<'_>;
 }
 /// Indicates that `Self` can be used as an unconditionally mutable pointer in dynptrs.
 pub trait IPtrMut: IPtr {
     /// # Safety
     /// This function implies an implicit cast of the reference
-    unsafe fn as_mut<U: Sized>(&mut self) -> &mut U;
+    unsafe fn as_mut(&mut self) -> AnonymRefMut<'_>;
 }
 /// Indicates that `Self` can be used as a conditionally mutable pointer in dynptrs.
 pub trait IPtrTryAsMut {
     /// # Safety
     /// This function implies an implicit cast of the reference
-    unsafe fn try_as_mut<U: Sized>(&mut self) -> Option<&mut U>;
+    unsafe fn try_as_mut(&mut self) -> Option<AnonymRefMut<'_>>;
 }
 impl<T: IPtrMut> IPtrTryAsMut for T {
-    unsafe fn try_as_mut<U>(&mut self) -> Option<&mut U> {
-        Some(self.as_mut())
+    unsafe fn try_as_mut(&mut self) -> Option<AnonymRefMut<'_>> {
+        Some(self.into())
     }
 }
 /// Provides drop support in dynptr for pointers that have at least partial ownership of their pointee.
@@ -43,7 +117,7 @@ impl<T: IPtrMut> IPtrTryAsMut for T {
 /// `drop` is the drop function of the pointee.
 pub trait IPtrOwned {
     /// Called instead of `Drop::drop` when the dynptr is dropped.
-    fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ()));
+    fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(AnonymRefMut<'_>));
 }
 /// Provides Clone support for smart pointers that allow it.
 pub trait IPtrClone: IPtrOwned {
@@ -51,22 +125,22 @@ pub trait IPtrClone: IPtrOwned {
     fn clone(this: &Self) -> Self;
 }
 impl<T> IPtr for &T {
-    unsafe fn as_ref<U>(&self) -> &U {
-        core::mem::transmute(self)
+    unsafe fn as_ref(&self) -> AnonymRef<'_> {
+        self.into()
     }
 }
 impl<T> IPtr for &mut T {
-    unsafe fn as_ref<U>(&self) -> &U {
-        core::mem::transmute(self)
+    unsafe fn as_ref(&self) -> AnonymRef<'_> {
+        self.into()
     }
 }
 impl<T> IPtrMut for &mut T {
-    unsafe fn as_mut<U>(&mut self) -> &mut U {
-        core::mem::transmute(self)
+    unsafe fn as_mut(&mut self) -> AnonymRefMut<'_> {
+        self.into()
     }
 }
 impl<T> IPtrOwned for &mut T {
-    fn drop(_: &mut core::mem::ManuallyDrop<Self>, _: unsafe extern "C" fn(&mut ())) {}
+    fn drop(_: &mut core::mem::ManuallyDrop<Self>, _: unsafe extern "C" fn(AnonymRefMut<'_>)) {}
 }
 
 /// Used to turn a pointer into a dynamic pointer.
@@ -97,14 +171,14 @@ impl<'a, T> IntoDyn for &'a mut T {
 #[derive(Clone, Copy)]
 /// A stable `&'a dyn Traits`
 pub struct DynRef<'a, Vt: 'static> {
-    ptr: &'a (),
+    ptr: AnonymRef<'a>,
     vtable: &'a Vt,
     unsend: core::marker::PhantomData<*mut ()>,
 }
 
 impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
     /// Access the data pointer.
-    pub const fn ptr(&self) -> &() {
+    pub const fn ptr(&self) -> AnonymRef<'a> {
         self.ptr
     }
     /// Access the vtable.
@@ -140,14 +214,14 @@ impl<'a, Vt: Copy + 'a> DynRef<'a, Vt> {
     where
         Vt: PartialEq + IConstConstructor<'a, T>,
     {
-        (self.vtable == Vt::vtable()).then(|| unsafe { self.ptr.as_ref() })
+        (self.vtable == Vt::vtable()).then(|| unsafe { self.ptr.cast().as_ref() })
     }
     /// Downcasts the reference based on its reflection report.
     pub fn stable_downcast<T: crate::IStable, Path>(&self) -> Option<&T>
     where
-        Vt: TransitiveDeref<crate::vtable::StabbyVtableAny, Path>,
+        Vt: TransitiveDeref<crate::vtable::StabbyVtableAny<'a>, Path>,
     {
-        (self.report() == T::REPORT).then(|| unsafe { self.ptr.as_ref() })
+        (self.report() == T::REPORT).then(|| unsafe { self.ptr.cast().as_ref() })
     }
 }
 #[stabby::stabby]
@@ -231,7 +305,7 @@ impl<'a, P: IPtrOwned + IPtr, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
         }
     }
     /// Borrow into an ABI-stable `&mut dyn Traits`
-    pub fn as_mut(&mut self) -> Dyn<&mut (), Vt>
+    pub fn as_mut(&mut self) -> Dyn<AnonymRefMut<'_>, Vt>
     where
         P: IPtrMut,
     {
@@ -242,7 +316,7 @@ impl<'a, P: IPtrOwned + IPtr, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
         }
     }
     /// Attempt to borrow into an ABI-stable `&mut dyn Traits`
-    pub fn try_as_mut(&mut self) -> Option<Dyn<&mut (), Vt>>
+    pub fn try_as_mut(&mut self) -> Option<Dyn<AnonymRefMut<'_>, Vt>>
     where
         P: IPtrTryAsMut,
     {
@@ -288,14 +362,15 @@ impl<'a, P: IPtrOwned + IPtr, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
     where
         Vt: PartialEq + Copy + IConstConstructor<'a, T>,
     {
-        (self.vtable == Vt::vtable()).then(|| unsafe { self.ptr.as_ref() })
+        (self.vtable == Vt::vtable()).then(|| unsafe { self.ptr.as_ref().cast::<T>().as_ref() })
     }
     /// Downcasts the reference based on its reflection report.
     pub fn stable_downcast_ref<T: crate::IStable, Path>(&self) -> Option<&T>
     where
-        Vt: TransitiveDeref<crate::vtable::StabbyVtableAny, Path> + IConstConstructor<'a, T>,
+        Vt: TransitiveDeref<crate::vtable::StabbyVtableAny<'a>, Path> + IConstConstructor<'a, T>,
     {
-        (self.id() == T::ID && self.report() == T::REPORT).then(|| unsafe { self.ptr.as_ref() })
+        (self.id() == T::ID && self.report() == T::REPORT)
+            .then(|| unsafe { self.ptr.as_ref().cast::<T>().as_ref() })
     }
     /// Downcasts the mutable reference based on vtable equality.
     ///
@@ -322,15 +397,16 @@ impl<'a, P: IPtrOwned + IPtr, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
         Vt: PartialEq + Copy + IConstConstructor<'a, T>,
         P: IPtrMut,
     {
-        (self.vtable == Vt::vtable()).then(|| unsafe { self.ptr.as_mut() })
+        (self.vtable == Vt::vtable()).then(|| unsafe { self.ptr.as_mut().cast::<T>().as_mut() })
     }
     /// Downcasts the mutable reference based on its reflection report.
     pub fn stable_downcast_mut<T: crate::IStable, Path>(&mut self) -> Option<&mut T>
     where
-        Vt: TransitiveDeref<crate::vtable::StabbyVtableAny, Path> + IConstConstructor<'a, T>,
+        Vt: TransitiveDeref<crate::vtable::StabbyVtableAny<'a>, Path> + IConstConstructor<'a, T>,
         P: IPtrMut,
     {
-        (self.id() == T::ID && self.report() == T::REPORT).then(|| unsafe { self.ptr.as_mut() })
+        (self.id() == T::ID && self.report() == T::REPORT)
+            .then(|| unsafe { self.ptr.as_mut().cast::<T>().as_mut() })
     }
 }
 
@@ -361,12 +437,10 @@ impl<P: IPtrOwned, Vt: HasDropVt> Drop for Dyn<'_, P, Vt> {
 
 impl<'a, T, Vt: Copy + IConstConstructor<'a, T>> From<&'a T> for DynRef<'a, Vt> {
     fn from(value: &'a T) -> Self {
-        unsafe {
-            DynRef {
-                ptr: core::mem::transmute::<&'a T, &'a ()>(value),
-                vtable: Vt::vtable(),
-                unsend: core::marker::PhantomData,
-            }
+        DynRef {
+            ptr: value.into(),
+            vtable: Vt::vtable(),
+            unsend: core::marker::PhantomData,
         }
     }
 }

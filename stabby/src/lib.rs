@@ -83,7 +83,7 @@ macro_rules! format {
 #[cfg(doc)]
 #[doc = include_str!("../TUTORIAL.md")]
 pub mod _tutorial_ {}
-#[cfg(test)]
+// #[cfg(test)]
 mod tests {
     mod enums;
     mod layouts;

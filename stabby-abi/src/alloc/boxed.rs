@@ -12,11 +12,12 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use crate::{unreachable_unchecked, IntoDyn};
+use crate::{unreachable_unchecked, AnonymRef, AnonymRefMut, IPtrMut, IntoDyn};
 
 use super::{vec::*, AllocPtr, AllocSlice, IAlloc};
 use core::{
     fmt::Debug,
+    marker::PhantomData,
     mem::{ManuallyDrop, MaybeUninit},
     ptr::NonNull,
 };
@@ -224,21 +225,29 @@ impl<T, Alloc: IAlloc> core::ops::DerefMut for Box<T, Alloc> {
     }
 }
 impl<T, Alloc: IAlloc> crate::IPtr for Box<T, Alloc> {
-    unsafe fn as_ref<U: Sized>(&self) -> &U {
-        self.ptr.cast().as_ref()
+    unsafe fn as_ref(&self) -> AnonymRef<'_> {
+        AnonymRef {
+            ptr: self.ptr.ptr.cast(),
+            _marker: PhantomData,
+        }
     }
 }
 impl<T, Alloc: IAlloc> crate::IPtrMut for Box<T, Alloc> {
-    unsafe fn as_mut<U: Sized>(&mut self) -> &mut U {
-        self.ptr.cast().as_mut()
+    unsafe fn as_mut(&mut self) -> AnonymRefMut<'_> {
+        AnonymRefMut {
+            ptr: self.ptr.ptr.cast(),
+            _marker: PhantomData,
+        }
     }
 }
 impl<T, Alloc: IAlloc> crate::IPtrOwned for Box<T, Alloc> {
-    fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ())) {
-        let rthis = &mut ***this;
+    fn drop(
+        mut this: &mut core::mem::ManuallyDrop<Self>,
+        drop: unsafe extern "C" fn(AnonymRefMut<'_>),
+    ) {
         // SAFETY: This is evil casting shenanigans, but `IPtrOwned` is a type anonimization primitive.
         unsafe {
-            drop(core::mem::transmute::<&mut T, &mut ()>(rthis));
+            drop(this.as_mut());
         }
         // SAFETY: `this` is immediately forgotten.
         unsafe { this.free() }

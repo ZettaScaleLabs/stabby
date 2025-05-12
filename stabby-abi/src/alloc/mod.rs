@@ -321,6 +321,15 @@ impl<T, Alloc> AllocPtr<T, Alloc> {
     pub unsafe fn prefix_mut(&mut self) -> &mut AllocPrefix<Alloc> {
         unsafe { self.prefix_ptr().as_mut() }
     }
+    /// Returns mutable access to the prefix and the data.
+    /// # Safety
+    /// `self` must not be dangling, and have been properly allocated, using [`Self::alloc`] or [`Self::realloc`] for example.
+    #[rustversion::attr(since(1.86), const)]
+    pub unsafe fn split_mut(&mut self) -> (&mut AllocPrefix<Alloc>, &mut T) {
+        let prefix = self.prefix_ptr().as_mut();
+        let data = self.ptr.as_mut();
+        (prefix, data)
+    }
     /// Initializes any given pointer:
     /// - The returned pointer is guaranteed to be correctly aligned for `T`
     /// - It is guaranteed to preceded without padding by an `AllocPrefix<Alloc>`
@@ -379,9 +388,7 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
             Layout::of::<AllocPrefix<Alloc>>().concat(Layout::array::<T>(prev_capacity));
         layout.align = core::mem::align_of::<AllocPrefix<Alloc>>();
         let ptr = alloc.realloc(
-            (self.prefix() as *const AllocPrefix<Alloc>)
-                .cast_mut()
-                .cast(),
+            self.prefix_ptr().cast().as_ptr(),
             layout,
             Layout::of::<AllocPrefix<Alloc>>()
                 .concat(Layout::array::<T>(new_capacity))

@@ -26,23 +26,29 @@ where
 }
 
 impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> core::iter::Iterator
-    for crate::Dyn<'_, P, crate::vtable::VTable<StabbyVtableIterator<Output>, Vt>>
+    for crate::Dyn<'_, P, crate::vtable::VTable<StabbyVtableIterator<'_, Output>, Vt>>
 {
     type Item = Output;
     fn next(&mut self) -> Option<Self::Item> {
         // SAFETY: we're accessing a `StableLike` that was unsafely but properly constructed.
-        unsafe { (self.vtable().head.next.as_ref_unchecked())(self.ptr_mut().as_mut()).into() }
+        unsafe {
+            (self.vtable().head.next.as_ref_unchecked())(
+                self.ptr_mut().as_mut(),
+                core::marker::PhantomData,
+            )
+            .into()
+        }
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
         let crate::Tuple(min, max) = // SAFETY: we're accessing a `StableLike` that was unsafely but properly constructed.
-            unsafe { (self.vtable().head.size_hint.as_ref_unchecked())(self.ptr().as_ref()) };
+            unsafe { (self.vtable().head.size_hint.as_ref_unchecked())(self.ptr().as_ref(), core::marker::PhantomData) };
         (min, max.into())
     }
 }
 
-impl<Output> crate::vtable::CompoundVt for dyn core::iter::Iterator<Item = Output>
+impl<'a, Output> crate::vtable::CompoundVt<'a> for dyn core::iter::Iterator<Item = Output>
 where
-    dyn Iterator<Item = Output>: crate::vtable::CompoundVt,
+    dyn Iterator<Item = Output>: crate::vtable::CompoundVt<'a>,
 {
-    type Vt<T> = <dyn Iterator<Item = Output> as crate::vtable::CompoundVt>::Vt<T>;
+    type Vt<T> = <dyn Iterator<Item = Output> as crate::vtable::CompoundVt<'a>>::Vt<T>;
 }
