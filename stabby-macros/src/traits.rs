@@ -18,7 +18,11 @@ use std::ops::Deref;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::{
-    spanned::Spanned, token::{Const, Mut, Unsafe}, Abi, AngleBracketedGenericArguments, BoundLifetimes, Expr, Lifetime, PatType, Path, PathArguments, PathSegment, Receiver, Signature, TraitItemMethod, TraitItemType, Type, TypeArray, TypeBareFn, TypeGroup, TypeParen, TypePath, TypePtr, TypeReference, TypeTuple
+    spanned::Spanned,
+    token::{Const, Mut, Unsafe},
+    Abi, AngleBracketedGenericArguments, BoundLifetimes, Expr, Lifetime, PatType, Path,
+    PathArguments, PathSegment, Receiver, Signature, TraitItemMethod, TraitItemType, Type,
+    TypeArray, TypeBareFn, TypeGroup, TypeParen, TypePath, TypePtr, TypeReference, TypeTuple,
 };
 
 use crate::utils::{IGenerics, Unbound};
@@ -492,7 +496,9 @@ impl DynTraitFn<'_> {
         else {
             unreachable!()
         };
-        let receiver_lt = lt.clone().unwrap_or_else(|| Lifetime::new("'stabby_receiver_lt", self_token.span()));
+        let receiver_lt = lt
+            .clone()
+            .unwrap_or_else(|| Lifetime::new("'stabby_receiver_lt", self_token.span()));
         let receiver_lt_decl = if generics.params.iter().any(|param| {
             matches!(param, syn::GenericParam::Lifetime(lt) if &lt.lifetime == &receiver_lt)
         }) {None} else {Some(quote!(#receiver_lt,))};
@@ -739,7 +745,7 @@ impl DynTraitDescription<'_> {
                         'stabby_local_lt,
                         #lt,
                         #(#trait_lts,)*
-                        StabbyArbitraryType: 'stabby_local_lt, 
+                        StabbyArbitraryType: 'stabby_local_lt,
                         #(#dyntrait_types,)*
                         #(#trait_types,)*
                         #(#trait_consts,)*
