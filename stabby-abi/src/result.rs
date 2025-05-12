@@ -89,7 +89,7 @@ mod seal {
         inner: MaybeUninit<<Align::Divide<Size> as IUnsignedBase>::Array<Align::AsUint>>,
     }
     impl<Size: Unsigned, Align: Alignment + Alignment> Storage<Size, Align> {
-        pub fn zeroed() -> Self {
+        pub const fn zeroed() -> Self {
             Self {
                 inner: MaybeUninit::zeroed(),
             }
@@ -263,7 +263,7 @@ where
             let storage_ptr = &mut storage as *mut _;
             Self::err_ptr_mut(storage_ptr).write(value);
             Self::det_ptr_mut(storage_ptr).write(Determinant::<Ok, Err>::err(storage_ptr.cast()));
-            Self { storage: storage }
+            Self { storage }
         }
     }
     /// Converts to a standard [`Result`](core::result::Result) of immutable references to the variants.

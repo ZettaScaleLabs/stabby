@@ -420,38 +420,6 @@ impl DynTraitFn<'_> {
         }
         sdts
     }
-    fn ptr_signature(&self, self_as_trait: &TokenStream) -> TokenStream {
-        let st = crate::tl_mod();
-        let Self {
-            ident: _,
-            generics,
-            abi,
-            unsafety,
-            receiver:
-                Receiver {
-                    reference: Some((_, lt)),
-                    mutability,
-                    ..
-                },
-            inputs,
-            output,
-        } = self
-        else {
-            unreachable!()
-        };
-        let receiver = if mutability.is_some() {
-            quote!(#st::AnonymRefMut<#lt>)
-        } else {
-            quote!(#st::AnonymRef<#lt>)
-        };
-        let forgen = (!generics.params.is_empty()).then(|| quote!(for));
-        let output = output.as_ref().map(|ty| {
-            let ty = ty.replace_self(self_as_trait);
-            quote!(-> #ty)
-        });
-        let inputs = inputs.iter().map(|ty| ty.replace_self(self_as_trait));
-        quote!(#forgen #generics #abi #unsafety fn(#receiver, #(#inputs),*) #output)
-    }
     fn stability_cond(&self, sdts: &SelfDependentTypes) -> TokenStream {
         let st = crate::tl_mod();
         let Self { inputs, output, .. } = self;
@@ -499,9 +467,13 @@ impl DynTraitFn<'_> {
         let receiver_lt = lt
             .clone()
             .unwrap_or_else(|| Lifetime::new("'stabby_receiver_lt", self_token.span()));
-        let receiver_lt_decl = if generics.params.iter().any(|param| {
-            matches!(param, syn::GenericParam::Lifetime(lt) if &lt.lifetime == &receiver_lt)
-        }) {None} else {Some(quote!(#receiver_lt,))};
+        let receiver_lt_decl = if generics.params.iter().any(
+            |param| matches!(param, syn::GenericParam::Lifetime(lt) if lt.lifetime == receiver_lt),
+        ) {
+            None
+        } else {
+            Some(quote!(#receiver_lt,))
+        };
         let receiver = if mutability.is_some() {
             quote!(#st::AnonymRefMut<#receiver_lt>)
         } else {
@@ -988,6 +960,7 @@ impl DynTraitDescription<'_> {
 enum Ty {
     Never,
     Unit,
+    #[allow(dead_code)]
     Arbitrary {
         prefix: TokenStream,
         next: Box<Self>,
@@ -1410,89 +1383,6 @@ impl Ty {
         let mut sdts = Vec::new();
         self.rec_self_dependent_types(&mut sdts);
         sdts
-    }
-    fn replace_self(&self, with: &TokenStream) -> Self {
-        match self {
-            Ty::Never => Ty::Never,
-            Ty::Unit => Ty::Unit,
-            Ty::Arbitrary { prefix, next } => Ty::Arbitrary {
-                prefix: prefix.clone(),
-                next: Box::new(next.replace_self(with)),
-            },
-            Ty::SelfReferencial(ty) => Ty::Arbitrary {
-                prefix: with.clone(),
-                next: ty.clone(),
-            },
-            Ty::Reference {
-                lifetime,
-                mutability,
-                elem,
-            } => Ty::Reference {
-                lifetime: lifetime.clone(),
-                mutability: *mutability,
-                elem: Box::new(elem.replace_self(with)),
-            },
-            Ty::Ptr {
-                const_token,
-                mutability,
-                elem,
-            } => Ty::Ptr {
-                const_token: *const_token,
-                mutability: *mutability,
-                elem: Box::new(elem.replace_self(with)),
-            },
-            Ty::Array { elem, len } => Ty::Array {
-                elem: Box::new(elem.replace_self(with)),
-                len: len.clone(),
-            },
-            Ty::BareFn {
-                lifetimes,
-                unsafety,
-                abi,
-                inputs,
-                output,
-            } => Ty::BareFn {
-                lifetimes: lifetimes.clone(),
-                unsafety: *unsafety,
-                abi: abi.clone(),
-                inputs: inputs.iter().map(|elem| elem.replace_self(with)).collect(),
-                output: Box::new(output.replace_self(with)),
-            },
-            Ty::Path {
-                segment,
-                arguments,
-                next,
-            } => Ty::Path {
-                segment: segment.clone(),
-                arguments: match arguments {
-                    Arguments::None => Arguments::None,
-                    Arguments::AngleBracketed { generics } => Arguments::AngleBracketed {
-                        generics: generics
-                            .iter()
-                            .map(|g| match g {
-                                GenericArgument::Type(ty) => {
-                                    GenericArgument::Type(ty.replace_self(with))
-                                }
-                                g => g.clone(),
-                            })
-                            .collect(),
-                    },
-                },
-                next: next.as_ref().map(|elem| Box::new(elem.replace_self(with))),
-            },
-            Ty::LeadingColon { next } => Ty::LeadingColon {
-                next: Box::new(next.replace_self(with)),
-            },
-            Ty::Qualified {
-                target,
-                as_trait,
-                next,
-            } => Ty::Qualified {
-                target: Box::new(target.replace_self(with)),
-                as_trait: Box::new(as_trait.replace_self(with)),
-                next: Box::new(next.replace_self(with)),
-            },
-        }
     }
 }
 pub fn stabby(

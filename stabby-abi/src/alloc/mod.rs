@@ -324,6 +324,7 @@ impl<T, Alloc> AllocPtr<T, Alloc> {
     /// Returns mutable access to the prefix and the data.
     /// # Safety
     /// `self` must not be dangling, and have been properly allocated, using [`Self::alloc`] or [`Self::realloc`] for example.
+    #[rustversion::attr(since(1.86), const)]
     pub unsafe fn split_mut(&mut self) -> (&mut AllocPrefix<Alloc>, &mut T) {
         let prefix = self.prefix_ptr().as_mut();
         let data = self.ptr.as_mut();
