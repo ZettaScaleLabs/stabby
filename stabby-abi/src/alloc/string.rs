@@ -371,14 +371,14 @@ mod std_impl {
 mod serde_impl {
     use super::*;
     use crate::alloc::IAlloc;
+    use serde::de::{Error, Unexpected, Visitor};
     use serde::{Deserialize, Serialize};
     impl<Alloc: IAlloc> Serialize for String<Alloc> {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
         {
-            let slice: &str = self;
-            slice.serialize(serializer)
+            serializer.serialize_str(self)
         }
     }
     impl<'a, Alloc: IAlloc + Default> Deserialize<'a> for String<Alloc> {
@@ -386,7 +386,36 @@ mod serde_impl {
         where
             D: serde::Deserializer<'a>,
         {
-            crate::str::Str::deserialize(deserializer).map(Into::into)
+            deserializer.deserialize_string(StringVisitor(core::marker::PhantomData))
+        }
+    }
+    struct StringVisitor<A: IAlloc>(core::marker::PhantomData<crate::alloc::string::String<A>>);
+    impl<'a, Alloc: IAlloc + Default> Visitor<'a> for StringVisitor<Alloc> {
+        type Value = String<Alloc>;
+        fn visit_str<E: Error>(self, v: &str) -> Result<Self::Value, E> {
+            Ok(v.into())
+        }
+
+        #[cfg(feature = "std")]
+        fn visit_string<E: Error>(self, v: std::string::String) -> Result<Self::Value, E> {
+            Ok(v.into())
+        }
+
+        fn visit_bytes<E: Error>(self, v: &[u8]) -> Result<Self::Value, E> {
+            core::str::from_utf8(v)
+                .map_err(|_| Error::invalid_value(Unexpected::Bytes(v), &self))
+                .map(Into::into)
+        }
+
+        #[cfg(feature = "std")]
+        fn visit_byte_buf<E: Error>(self, v: std::vec::Vec<u8>) -> Result<Self::Value, E> {
+            std::string::String::from_utf8(v)
+                .map_err(|e| Error::invalid_value(Unexpected::Bytes(&e.into_bytes()), &self))
+                .map(Into::into)
+        }
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(formatter, "a string")
         }
     }
 }
