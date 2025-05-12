@@ -752,7 +752,12 @@ impl DynTraitDescription<'_> {
             .map(|id| id.to_string())
             .collect::<Vec<_>>();
         vtable_decl = crate::stabby(proc_macro::TokenStream::new(), vtable_decl.into()).into();
+        let allow_clippy = quote!(
+            #[allow(unknown_lints)]
+            #[allow(clippy::multiple_bound_locations)]
+        );
         quote! {
+            #allow_clippy
             #[doc = #vt_doc]
             #vtable_decl
             impl<'stabby_vt_lt, #vt_generics > Clone for #vtid < 'stabby_vt_lt, #nbvt_generics > where #(#vt_bounds)* {
@@ -760,17 +765,21 @@ impl DynTraitDescription<'_> {
                     *self
                 }
             }
+            #allow_clippy
             impl<'stabby_vt_lt, #vt_generics > Copy for #vtid < 'stabby_vt_lt, #nbvt_generics > where #(#vt_bounds)* {}
+            #allow_clippy
             impl<'stabby_vt_lt, #vt_generics > core::cmp::PartialEq for #vtid < 'stabby_vt_lt, #nbvt_generics > where #(#vt_bounds)*{
                 fn eq(&self, other: &Self) -> bool {
                     #(core::ptr::eq((*unsafe{self.#all_fn_ids.as_ref_unchecked()}) as *const (), (*unsafe{other.#all_fn_ids.as_ref_unchecked()}) as *const _) &&)* true
                 }
             }
+            #allow_clippy
             impl<'stabby_vt_lt, #vt_generics > core::hash::Hash for #vtid < 'stabby_vt_lt, #nbvt_generics > where #(#vt_bounds)*{
                 fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
                     #(self.#all_fn_ids.hash(state);)*
                 }
             }
+            #allow_clippy
             impl<'stabby_vt_lt, #vt_generics > core::fmt::Debug for #vtid < 'stabby_vt_lt, #nbvt_generics > where #(#vt_bounds)*{
                 fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                     let mut s = f.debug_struct(#vtid_str);
@@ -779,6 +788,7 @@ impl DynTraitDescription<'_> {
                 }
             }
 
+            #allow_clippy
             impl<
                 'stabby_vt_lt,
                 #(#trait_lts,)*
@@ -807,6 +817,7 @@ impl DynTraitDescription<'_> {
                 );
             }
 
+            #allow_clippy
             impl<
                 'stabby_vt_lt, #(#trait_lts,)*
                 #(#dyntrait_types,)*
@@ -819,6 +830,7 @@ impl DynTraitDescription<'_> {
                     StabbyNextVtable>;
             }
 
+            #allow_clippy
             #[doc = #vt_doc]
             #vis trait #traitid_dyn<
                 #(#trait_lts,)*
@@ -836,6 +848,8 @@ impl DynTraitDescription<'_> {
                     #fns;
                 )*
             }
+
+            #allow_clippy
             impl<
                 'stabby_vt_lt,
                 #(#trait_lts,)*
@@ -868,6 +882,8 @@ impl DynTraitDescription<'_> {
                     }
                 )*
             }
+
+            #allow_clippy
             impl<
             'stabby_vt_lt,
                 #(#trait_lts,)*
@@ -903,6 +919,7 @@ impl DynTraitDescription<'_> {
             }
 
 
+            #allow_clippy
             #[doc = #vt_doc]
             #vis trait #traitid_dynmut<
                 #(#trait_lts,)*
@@ -922,14 +939,14 @@ impl DynTraitDescription<'_> {
                     #mut_fns;
                 )*
             }
+
+
+            #allow_clippy
             impl<
                 'stabby_vt_lt,
                 #(#trait_lts,)*
-                StabbyPtrProvider: #st::IPtrOwned + #st::IPtrMut,
-                StabbyVtProvider: #st::vtable::HasDropVt + Copy + #st::vtable::TransitiveDeref<
-                    #vt_signature,
-                    StabbyTransitiveDerefN
-                    >,
+                StabbyPtrProvider,
+                StabbyVtProvider,
                 StabbyTransitiveDerefN,
                 #(#dyntrait_types,)*
                 #(#trait_types,)*
@@ -942,7 +959,13 @@ impl DynTraitDescription<'_> {
                 #(#unbound_trait_types,)*
                 #(#unbound_trait_consts,)*
             >
-            for #st::Dyn<'_, StabbyPtrProvider, StabbyVtProvider> where #(#vt_bounds)*
+            for #st::Dyn<'_, StabbyPtrProvider, StabbyVtProvider> where
+                StabbyPtrProvider: #st::IPtrOwned + #st::IPtrMut,
+                StabbyVtProvider: #st::vtable::HasDropVt + Copy + #st::vtable::TransitiveDeref<
+                #vt_signature,
+                StabbyTransitiveDerefN
+                >,
+                #(#vt_bounds)*
             {
                 #(
                     #[doc = #vt_doc]

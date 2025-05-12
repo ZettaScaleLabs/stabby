@@ -12,10 +12,9 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use crate as stabby;
-
 #[test]
 fn enums() {
+    use crate as stabby;
     use core::num::{NonZeroU16, NonZeroU8};
     use stabby::{
         abi::{typenum2, IDeterminantProvider, IStable},
