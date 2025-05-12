@@ -12,7 +12,7 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use crate::{self as stabby};
+use crate::{self as stabby, fatptr::AnonymRefMut};
 use core::hash::Hash;
 
 #[rustversion::nightly]
@@ -268,7 +268,7 @@ pub struct VTable<Head, Tail = VtDrop> {
 }
 
 /// Concatenate vtables
-pub trait CompoundVt {
+pub trait CompoundVt<'vt_lt> {
     /// The concatenated vtable.
     type Vt<T>;
 }
@@ -349,7 +349,7 @@ impl<Head, Tail: HasSyncVt> HasSyncVt for VTable<Head, Tail> {}
 #[derive(Clone, Copy, Eq)]
 pub struct VtDrop {
     /// The [`Drop::drop`] function, shimmed with the C calling convention.
-    pub drop: crate::StableLike<unsafe extern "C" fn(&mut ()), core::num::NonZeroUsize>,
+    pub drop: crate::StableLike<unsafe extern "C" fn(AnonymRefMut<'_>), core::num::NonZeroUsize>,
 }
 impl core::fmt::Debug for VtDrop {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -364,13 +364,15 @@ impl Hash for VtDrop {
 impl PartialEq for VtDrop {
     fn eq(&self, other: &Self) -> bool {
         core::ptr::eq(
-            unsafe { self.drop.as_ref_unchecked() } as *const unsafe extern "C" fn(&mut ()),
-            unsafe { other.drop.as_ref_unchecked() } as *const unsafe extern "C" fn(&mut ()),
+            unsafe { self.drop.as_ref_unchecked() }
+                as *const unsafe extern "C" fn(AnonymRefMut<'_>),
+            unsafe { other.drop.as_ref_unchecked() }
+                as *const unsafe extern "C" fn(AnonymRefMut<'_>),
         )
     }
 }
-unsafe extern "C" fn drop<T>(this: &mut T) {
-    core::ptr::drop_in_place(this)
+unsafe extern "C" fn drop<T>(this: AnonymRefMut<'_>) {
+    core::ptr::drop_in_place(unsafe { this.cast::<T>().as_mut() })
 }
 #[allow(unknown_lints)]
 #[allow(clippy::missing_transmute_annotations, clippy::needless_lifetimes)]
@@ -378,12 +380,12 @@ impl<'a, T> IConstConstructor<'a, T> for VtDrop {
     impl_vtable_constructor!(
         const VTABLE_REF: &'a VtDrop = &VtDrop {
             drop: unsafe {
-                core::mem::transmute(drop::<T> as unsafe extern "C" fn(&mut T))
+                core::mem::transmute(drop::<T> as unsafe extern "C" fn(AnonymRefMut<'_>))
             },
         }; =>
         const VTABLE: VtDrop = VtDrop {
             drop: unsafe {
-                core::mem::transmute(drop::<T> as unsafe extern "C" fn(&mut T))
+                core::mem::transmute(drop::<T> as unsafe extern "C" fn(AnonymRefMut<'_>))
             },
         };
     );
@@ -393,7 +395,7 @@ impl<'a, T> IConstConstructor<'a, T> for VtDrop {
 #[stabby::stabby]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct VtSend<T>(pub T);
-impl CompoundVt for dyn Send {
+impl<'a> CompoundVt<'a> for dyn Send {
     type Vt<T> = VtSend<T>;
 }
 impl<Tail: TransitiveDeref<Vt, N>, Vt, N> TransitiveDeref<Vt, N> for VtSend<Tail> {
@@ -417,7 +419,7 @@ impl<'a, T: Send, Vt: IConstConstructor<'a, T>> IConstConstructor<'a, T> for VtS
 #[stabby::stabby]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct VtSync<T>(pub T);
-impl CompoundVt for dyn Sync {
+impl<'a> CompoundVt<'a> for dyn Sync {
     type Vt<T> = VtSync<T>;
 }
 impl<'a, T: Sync, Vt: IConstConstructor<'a, T>> IConstConstructor<'a, T> for VtSync<Vt> {

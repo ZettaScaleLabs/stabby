@@ -224,10 +224,10 @@ pub fn dynptr(tokens: TokenStream) -> TokenStream {
         lifetime,
     } = syn::parse(tokens).unwrap();
     let mut vt = quote!(#st::vtable::VtDrop);
-    for bound in bounds {
-        vt = quote!(< dyn #bound as #st::vtable::CompoundVt >::Vt<#vt>);
-    }
     let lifetime = lifetime.unwrap_or(syn::Lifetime::new("'static", Span::call_site()));
+    for bound in bounds {
+        vt = quote!(< dyn #bound as #st::vtable::CompoundVt<#lifetime> >::Vt<#vt>);
+    }
     match ptr {
         PtrType::Path(path) => quote!(#st::Dyn<#lifetime, #path<()>, #vt>),
         PtrType::RefMut => quote!(#st::Dyn<#lifetime, &#lifetime mut (), #vt>),

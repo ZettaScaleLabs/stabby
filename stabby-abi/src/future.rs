@@ -201,7 +201,7 @@ where
 }
 
 impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> core::future::Future
-    for crate::Dyn<'_, P, crate::vtable::VTable<StabbyVtableFuture<Output>, Vt>>
+    for crate::Dyn<'_, P, crate::vtable::VTable<StabbyVtableFuture<'_, Output>, Vt>>
 {
     type Output = Output;
     fn poll(
@@ -210,28 +210,9 @@ impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> co
     ) -> core::task::Poll<Self::Output> {
         unsafe {
             let this = core::pin::Pin::get_unchecked_mut(self);
-            (this.vtable().head.poll.as_ref_unchecked())(this.ptr_mut().as_mut(), cx.waker().into())
-                .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
-        }
-    }
-}
-
-impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> core::future::Future
-    for crate::Dyn<
-        '_,
-        P,
-        crate::vtable::VtSend<crate::vtable::VTable<StabbyVtableFuture<Output>, Vt>>,
-    >
-{
-    type Output = Output;
-    fn poll(
-        self: core::pin::Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> core::task::Poll<Self::Output> {
-        unsafe {
-            let this = core::pin::Pin::get_unchecked_mut(self);
-            (this.vtable().0.head.poll.as_ref_unchecked())(
+            (this.vtable().head.poll.as_ref_unchecked())(
                 this.ptr_mut().as_mut(),
+                core::marker::PhantomData,
                 cx.waker().into(),
             )
             .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
@@ -243,7 +224,7 @@ impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> co
     for crate::Dyn<
         '_,
         P,
-        crate::vtable::VtSync<crate::vtable::VTable<StabbyVtableFuture<Output>, Vt>>,
+        crate::vtable::VtSend<crate::vtable::VTable<StabbyVtableFuture<'_, Output>, Vt>>,
     >
 {
     type Output = Output;
@@ -255,6 +236,31 @@ impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> co
             let this = core::pin::Pin::get_unchecked_mut(self);
             (this.vtable().0.head.poll.as_ref_unchecked())(
                 this.ptr_mut().as_mut(),
+                core::marker::PhantomData,
+                cx.waker().into(),
+            )
+            .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
+        }
+    }
+}
+
+impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> core::future::Future
+    for crate::Dyn<
+        '_,
+        P,
+        crate::vtable::VtSync<crate::vtable::VTable<StabbyVtableFuture<'_, Output>, Vt>>,
+    >
+{
+    type Output = Output;
+    fn poll(
+        self: core::pin::Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> core::task::Poll<Self::Output> {
+        unsafe {
+            let this = core::pin::Pin::get_unchecked_mut(self);
+            (this.vtable().0.head.poll.as_ref_unchecked())(
+                this.ptr_mut().as_mut(),
+                core::marker::PhantomData,
                 cx.waker().into(),
             )
             .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
@@ -267,7 +273,7 @@ impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> co
         '_,
         P,
         crate::vtable::VtSync<
-            crate::vtable::VtSend<crate::vtable::VTable<StabbyVtableFuture<Output>, Vt>>,
+            crate::vtable::VtSend<crate::vtable::VTable<StabbyVtableFuture<'_, Output>, Vt>>,
         >,
     >
 {
@@ -280,6 +286,7 @@ impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> co
             let this = core::pin::Pin::get_unchecked_mut(self);
             (this.vtable().0 .0.head.poll.as_ref_unchecked())(
                 this.ptr_mut().as_mut(),
+                core::marker::PhantomData,
                 cx.waker().into(),
             )
             .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
@@ -292,7 +299,7 @@ impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> co
         '_,
         P,
         crate::vtable::VtSend<
-            crate::vtable::VtSync<crate::vtable::VTable<StabbyVtableFuture<Output>, Vt>>,
+            crate::vtable::VtSync<crate::vtable::VTable<StabbyVtableFuture<'_, Output>, Vt>>,
         >,
     >
 {
@@ -305,6 +312,7 @@ impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> co
             let this = core::pin::Pin::get_unchecked_mut(self);
             (this.vtable().0 .0.head.poll.as_ref_unchecked())(
                 this.ptr_mut().as_mut(),
+                core::marker::PhantomData,
                 cx.waker().into(),
             )
             .match_owned(|v| core::task::Poll::Ready(v), || core::task::Poll::Pending)
@@ -312,11 +320,11 @@ impl<Vt: HasDropVt, P: IPtrOwned + IPtrMut, Output: IDeterminantProvider<()>> co
     }
 }
 
-impl<Output> crate::vtable::CompoundVt for dyn core::future::Future<Output = Output>
+impl<'a, Output> crate::vtable::CompoundVt<'a> for dyn core::future::Future<Output = Output>
 where
-    dyn Future<Output = Output>: crate::vtable::CompoundVt,
+    dyn Future<Output = Output>: crate::vtable::CompoundVt<'a>,
 {
-    type Vt<T> = <dyn Future<Output = Output> as crate::vtable::CompoundVt>::Vt<T>;
+    type Vt<T> = <dyn Future<Output = Output> as crate::vtable::CompoundVt<'a>>::Vt<T>;
 }
 
 /// A future that may have already been resolved from the moment it was constructed.

@@ -169,6 +169,9 @@ to stay optimal.
 
 Note that `stabby` can only help you automatically if your structure has no generics that may affect layout. Here's how this help looks in code:
 ```compile_fail
+# #[cfg(miri)]
+# const EXIT: () = true;
+
 // This doesn't compile because reordering the fields would yield a better layout.
 #[stabby::stabby]
 pub struct MyStruct {
@@ -206,7 +209,10 @@ and speed are very close, meaning you might prefer to only use these optimized l
 Therefore, `stabby` leaves you the choice of representation. For the following subsections, we'll use the following 2 example types to
 highlight differences between representations.
 
-```rust
+```compile_fail
+# #[cfg(miri)]
+# const EXIT: () = true;
+
 #[stabby::stabby]
 #[repr(stabby)]
 pub enum Poll<T> {
@@ -272,7 +278,7 @@ struct AllInts(
 );
 ```
 
-Of course, you don't have to deal with `stabby`'s exactions: `stabby` will also define a lot of accessors and constructors to let you interract with `AllInts` in ways that mostly resemble how you would interract with normal enums, with a few exceptions:
+Of course, you don't have to deal with `stabby`'s exactions: `stabby` will also define a lot of accessors and constructors to let you interact with `AllInts` in ways that mostly resemble how you would interact with normal enums, with a few exceptions:
 - Due to the current limitations of `const fn` and traits, the constructors for each variant cannot be `const`.
 - Pattern matching is no longer available, but is instead emulated using the `match_ref`, `match_mut`, `match_owned` and their `_ctx` variants which require you to provide one closure for each variant of your enum.
 
@@ -280,6 +286,9 @@ Note that in the `AllInts` example, you should definitely _not_ use `repr(stabby
 will not be able to have its matches be optimized to lookup tables. `stabby` will notably force you to explicitly pick your representation explicitly in this case, as it will realize that its default representation will
 not provide you with the benefits it was designed to give you.
 ```compile_fail
+# #[cfg(miri)]
+# const EXIT: () = true;
+
 #[stabby::stabby]
 // without an explicit `repr`, this doesn't compile,
 // as the default `repr(stabby)` is found not to be beneficial.
@@ -315,12 +324,12 @@ Sometimes, you might decide that you'd rather not commit to a given representati
 
 Lucky for you, a solution for that has existed since times immemorial: opaque types.
 
-The core principle with opaque types is to make consumer code completely unaware of their internal representation, limiting interraction to functions that return and accept pointers to them. The `FILE` and `socket`APIs in C are prime examples of this.
+The core principle with opaque types is to make consumer code completely unaware of their internal representation, limiting interaction to functions that return and accept pointers to them. The `FILE` and `socket`APIs in C are prime examples of this.
 
 Opaque types are typically used when only one implementation of their API is expected to be loaded at any given time. The moment you expect more, what you probably want is trait objects.
 
 While this isn't yet implemented, as I'm still looking for ways to do it both conveniently and reliably, `stabby` will eventually try to provide a way to define opaque types with minimal boilerplate such that their binary code is only included when built as a shared object, while
-dependents on them would instead get bindings to interract with said shared objects as if they were standard Rust code. In the meantime, [trait objects](defining-abi-stable-traits) can fulfill the same role at a slightly higher runtime cost, but with greater flexibility yet.
+dependents on them would instead get bindings to interact with said shared objects as if they were standard Rust code. In the meantime, [trait objects](defining-abi-stable-traits) can fulfill the same role at a slightly higher runtime cost, but with greater flexibility yet.
 
 ## Defining ABI stable traits
 
@@ -358,11 +367,15 @@ You can also add your own attributes to the generated v-table struct (`VtVolume`
 An error you may quickly run into when working with multiple trait objects is that you can't just use `stabby::dynptr` (or any other macro, for that matter) in the function signatures, because `stabby` cannot see through macros:
 
 ```compile_fail
+# #[cfg(miri)]
+# const EXIT: () = true;
+
 # use stabby::boxed::Box;
 # #[stabby::stabby(checked)]
 # pub trait Volume {
 # 	extern "C" fn in_liters(&self) -> f32;
 # }
+
 #[stabby::stabby(checked)]
 pub trait Engine {
 	extern "C" fn volume(&self) -> stabby::dynptr!(Box<dyn Volume>);
@@ -448,7 +461,7 @@ If you feel like some of them are missing, please let me know, and I'll consider
 
 ## Creating shared libraries
 
-Now that we have ways to define types that will work accross the shared library boundary, let's see how we can put them to good use!
+Now that we have ways to define types that will work across the shared library boundary, let's see how we can put them to good use!
 
 If you'd rather just look at code, [these examples](https://github.com/ZettaScaleLabs/stabby/tree/main/examples) exist solely to show you how to make a shared [library](https://github.com/ZettaScaleLabs/stabby/tree/main/examples/library), and how to link it [at load-time](https://github.com/ZettaScaleLabs/stabby/tree/main/examples/dynlinkage) or [at runtime with `libloading`](https://github.com/ZettaScaleLabs/stabby/tree/main/examples/libloading).
 
@@ -472,7 +485,7 @@ pub extern "C" fn my_self_mangled_function(param1: u8, param2: u16) {}
 
 `#[no_mangle]` is really explicit: the symbol it annotates will not have its name mangled, meaning it will appear as-is in the list of symbols `nm` will now give you.
 
-You might also have spotted that `extern "C"` here, and possibly earlier when we were talking about traits. `extern "X"` is how you tell Rust to use the `X` calling convention for a givent function. Calling conventions are complicated, but the gist of them is this:
+You might also have spotted that `extern "C"` here, and possibly earlier when we were talking about traits. `extern "X"` is how you tell Rust to use the `X` calling convention for a given function. Calling conventions are complicated, but the gist of them is this:
 - A calling convention defines how a function should be called: where its arguments will be in memory/registers; how the caller should recover their return value; which of the `caller` and `callee` is supposed to save which registers to prevent `caller`'s intermediate results from getting erased by `callee` doing its own job.
 - Rust's default calling convention is not "stable": it may change depending on which version of the compiler you're using, or which settings you used for it. This means that calling a function from a different binary that wasn't explicitly annotated with a stable calling convention may result in undefined behaviour.
 - The `C` calling convention is one of the most commonly used stable calling conventions. This is also the calling convention you should use when importing symbols from a binary produced by C when no explicit calling conventions have been specified.
@@ -487,7 +500,7 @@ However, `stabby` attempts to provide a better way: `#[stabby::export]`, which c
 - The default flavour will export an additional symbol which lets the importer inquire on the exported function's signature, allowing the detection of incompatibilities between the exported function's signature and the signature you're trying to import it as. It is by far `stabby`'s favoured way of exporting symbols, but does require all function parameters to be proven ABI-stable with the [`IStable`] trait. This means that this will only compile if your function's ABI is indeed entirely stable.
 - The `canaries` flavour, will export additional symbols which let the importer inquire on the version and settings of the compiler used to compile the shared object. You can use this exporter when you want your function to use types that aren't provably stable in their signature. Doing so is still risky, but the canaries make it less risky than just straight up ignoring the risks. From my previous experience with [Zenoh](https://zenoh.io)'s plugin system, we've never detected any undefined behaviour in doing things without guaranteeing ABI-stability as long as we did check the parameters checked by these canaries.
 
-In either case, `#[stabby::export]` will automatically imply `#[no_mangle]`, and will force you to pick a stable calling convention (which, suprisingly, `#[no_mangle]` doesn't warn you about forgetting).
+In either case, `#[stabby::export]` will automatically imply `#[no_mangle]`, and will force you to pick a stable calling convention (which, surprisingly, `#[no_mangle]` doesn't warn you about forgetting).
 
 ## Loading code from shared libraries
 ### Importing functions at runtime
@@ -520,7 +533,7 @@ let my_imported_function = unsafe {
 		lib.get::<extern "C" fn(u32)->u64>(b"my_self_mangled_function").unwrap()
 	};
 ```
-Thich will happily return a wrongly typed function pointer (hence the unsafe).
+Which will happily return a wrongly typed function pointer (hence the unsafe).
 
 ### Importing functions at runtime _with checks_
 
@@ -542,7 +555,7 @@ To my knowledge, `stabby` is the only crate that provides a systematic way in Ru
 
 ### Importing functions at load time
 
-Loading shared libraries at runtime like we've studdied above is more typical when implementing a plugin system, as the main advamtage of doing so is that this lets you load any number of shared objects that provide an intersecting set of symbols (including 0).
+Loading shared libraries at runtime like we've studdied above is more typical when implementing a plugin system, as the main advantage of doing so is that this lets you load any number of shared objects that provide an intersecting set of symbols (including 0).
 
 However, if you want to avoid linking some functions statically in your own binary, but still need these functions in order to run, load-time linkage may be more relevant.
 
@@ -561,7 +574,7 @@ The block's calling convention must match that of the imported functions, and th
 
 The `link` attribute tells Rust what library these symbols should be looked up in, and is further documented [here](https://doc.rust-lang.org/reference/items/external-blocks.html).
 
-Finaly, you may notice that the [load-time linkage example](https://github.com/ZettaScaleLabs/stabby/tree/main/examples/dynlinkage) has a `build.rs`.
+Finally, you may notice that the [load-time linkage example](https://github.com/ZettaScaleLabs/stabby/tree/main/examples/dynlinkage) has a `build.rs`.
 
 For an external block to compile, the library it should dynamically link to must be visible by the compiler so that it can check that the expected symbols are indeed available in the library.
 
@@ -590,13 +603,13 @@ If any of the canaries don't match, or if the reports for non-canaried imports a
 
 ## Some use cases for `stabby`
 
-### Developping plugins
+### Developing plugins
 
-I've been rather vocal that I consider __Inter Process Communications__-based plugins to be a much better approach to a modern plugin system, notably because by spawning plugins in distinct processes, you can ensure that they don't crash the host process, nor cause the host process to misbehave. Not only that, but they get you ready to export your plugins to separate machines, and allow plugins to be developped in any language that supports your IPC of choice.
+I've been rather vocal that I consider __Inter Process Communications__-based plugins to be a much better approach to a modern plugin system, notably because by spawning plugins in distinct processes, you can ensure that they don't crash the host process, nor cause the host process to misbehave. Not only that, but they get you ready to export your plugins to separate machines, and allow plugins to be developed in any language that supports your IPC of choice.
 
 Still, IPC plugins require the messages between host and plugins to be serialized and passed over some form of IPC, both of which are going to cause overhead. This overhead tends to scale with the size of exchanged messages, and can get high if your plugins need to work on very large chunks of memory that can't be otherwise shared between processes.
 
-I consider `stabby` to be your best pick if you plan on developping dynamically linked plugins written in Rust.
+I consider `stabby` to be your best pick if you plan on developing dynamically linked plugins written in Rust.
 
 If that is your plan, my advice is to create a `project-plugin-core` crate where you define your plugins API as a trait:
 ```rust
@@ -636,16 +649,16 @@ pub extern "C" fn my_text_editor_init_plugin(host: Host) -> Result<Plugin, Strin
 ```
 
 Meanwhile, your host can simply use what we learned in the [Importing functions at runtime _with checks_](#importing-functions-at-runtime-_with-checks_) section to load plugin libraries, get the `my_text_editor_init_plugin` symbol,
-and instanciate it.
+and instantiate it.
 
-### Developping no-serialization protocols
+### Developing no-serialization protocols
 
 A rather common (though often decried) practice in C to send data over the network or save it in files is to simply copy the structure itself on that IO stream, as it appeared in memory.
 
 While this is not a practice that can be used _in general_, either because the type may contain indirections (in which case the copy will contain an address which won't make sense in any other process's conext);
 or because the copy may be read from a different machine with a different architecture (in which case alignment and endianness differences could cause the data to get corrupted).
 
-The [`IPod`](crate::abi::istable::IPod) trait, standing for __Plain Old Data__, acts as a proof that the types it's implemented for don't contain indirrections, while also providing a hash
+The [`IPod`](crate::abi::istable::IPod) trait, standing for __Plain Old Data__, acts as a proof that the types it's implemented for don't contain indirections, while also providing a hash
 of its representation (including the machine's architecture), allowing to detect both architecture mismatch and type mismatches.
 
 This means that you can design your types to be [`IPod`](crate::abi::istable::IPod) and copy them happily to other processes, and be safe in the knowledge that nothing wonky will happen as long as the [`identifier`s](crate::abi::istable::IPod::identifier) match.

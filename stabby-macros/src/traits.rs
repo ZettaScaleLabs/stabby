@@ -12,15 +12,13 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+use core::panic;
 use std::ops::Deref;
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::{
-    token::{Const, Mut, Unsafe},
-    Abi, AngleBracketedGenericArguments, BoundLifetimes, Expr, Lifetime, PatType, Path,
-    PathArguments, PathSegment, Receiver, Signature, TraitItemMethod, TraitItemType, Type,
-    TypeArray, TypeBareFn, TypeGroup, TypeParen, TypePath, TypePtr, TypeReference, TypeTuple,
+    spanned::Spanned, token::{Const, Mut, Unsafe}, Abi, AngleBracketedGenericArguments, BoundLifetimes, Expr, Lifetime, PatType, Path, PathArguments, PathSegment, Receiver, Signature, TraitItemMethod, TraitItemType, Type, TypeArray, TypeBareFn, TypeGroup, TypeParen, TypePath, TypePtr, TypeReference, TypeTuple
 };
 
 use crate::utils::{IGenerics, Unbound};
@@ -419,6 +417,7 @@ impl DynTraitFn<'_> {
         sdts
     }
     fn ptr_signature(&self, self_as_trait: &TokenStream) -> TokenStream {
+        let st = crate::tl_mod();
         let Self {
             ident: _,
             generics,
@@ -436,8 +435,12 @@ impl DynTraitFn<'_> {
         else {
             unreachable!()
         };
+        let receiver = if mutability.is_some() {
+            quote!(#st::AnonymRefMut<#lt>)
+        } else {
+            quote!(#st::AnonymRef<#lt>)
+        };
         let forgen = (!generics.params.is_empty()).then(|| quote!(for));
-        let receiver = quote!(& #lt #mutability StabbyArbitraryType);
         let output = output.as_ref().map(|ty| {
             let ty = ty.replace_self(self_as_trait);
             quote!(-> #ty)
@@ -470,6 +473,7 @@ impl DynTraitFn<'_> {
         cond
     }
     fn field_signature(&self, sdts: &SelfDependentTypes) -> TokenStream {
+        let st = crate::tl_mod();
         let Self {
             ident: _,
             generics,
@@ -479,6 +483,7 @@ impl DynTraitFn<'_> {
                 Receiver {
                     reference: Some((_, lt)),
                     mutability,
+                    self_token,
                     ..
                 },
             inputs,
@@ -487,14 +492,24 @@ impl DynTraitFn<'_> {
         else {
             unreachable!()
         };
-        let receiver = quote!(& #lt #mutability ());
+        let receiver_lt = lt.clone().unwrap_or_else(|| Lifetime::new("'stabby_receiver_lt", self_token.span()));
+        let receiver_lt_decl = if generics.params.iter().any(|param| {
+            matches!(param, syn::GenericParam::Lifetime(lt) if &lt.lifetime == &receiver_lt)
+        }) {None} else {Some(quote!(#receiver_lt,))};
+        let receiver = if mutability.is_some() {
+            quote!(#st::AnonymRefMut<#receiver_lt>)
+        } else {
+            quote!(#st::AnonymRef<#receiver_lt>)
+        };
         let inputs = inputs.iter().map(|ty| sdts.unselfed(ty));
         let output = output.as_ref().map(|ty| {
             let ty = sdts.unselfed(ty);
             quote!(-> #ty)
         });
-        let forgen = (!generics.params.is_empty()).then(|| quote!(for));
-        quote!(#forgen #generics #abi #unsafety fn(#receiver, #(#inputs),*) #output)
+        let params = &generics.params;
+        let where_clause = &generics.where_clause;
+        let forgen = quote!(for <#receiver_lt_decl #params>);
+        quote!(#forgen #abi #unsafety fn(#receiver, ::core::marker::PhantomData<&#receiver_lt &'stabby_vt_lt ()>, #(#inputs),*) #output #where_clause)
     }
 }
 impl DynTraitDescription<'_> {
@@ -659,31 +674,100 @@ impl DynTraitDescription<'_> {
 
         let vt_signature = quote! {
             #vtid <
+                        'stabby_vt_lt,
                         #(#unbound_trait_lts,)*
                         #(#dyntrait_types,)*
                         #(#unbound_trait_types,)*
                     >
         };
         let self_as_trait = quote!(<StabbyArbitraryType as #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)*>>);
-        let fn_ptrs = self
-            .functions
-            .iter()
-            .chain(&self.mut_functions)
-            .map(|f| f.ptr_signature(&self_as_trait))
-            .collect::<Vec<_>>();
         let traitid_dyn = quote::format_ident!("{}Dyn", trait_id);
         let traitid_dynmut = quote::format_ident!("{}DynMut", trait_id);
 
         let vt_doc = format!("An stabby-generated item for [`{}`]", trait_id);
         let mut vtable_decl = quote! {
             #(#[#vt_attrs])*
-            #vis struct #vtid < #vt_generics > where #(#vt_bounds)* {
+            #vis struct #vtid <'stabby_vt_lt, #vt_generics > where #(#vt_bounds)* {
                 #(
                     #[doc = #vt_doc]
                     pub #all_fn_ids: #all_stabled_fns,
                 )*
             }
         };
+
+        let all_fn_bindings = fns
+            .iter()
+            .chain(mut_fns)
+            .map(|fn_ptr | {
+                let DynTraitFn {
+                    ident,
+                    generics: _,
+                    abi,
+                    unsafety,
+                    receiver: syn::Receiver {mutability, reference: Some((_, lt)), self_token, ..},
+                    inputs,
+                    output,
+                } = fn_ptr else {panic!("Only references and mutable references are supported")};
+                let st = quote!(#st);
+                let ext_ident = quote::format_ident!("ext_{}", ident);
+                let arg_names = (0..inputs.len())
+                    .map(|i| quote::format_ident!("_{i}"))
+                    .collect::<Vec<_>>();
+                let arg_tys = inputs.iter().map(| ty| self.self_dependent_types.unselfed(ty)).collect::<Vec<_>>();
+                let args = arg_names
+                    .iter()
+                    .zip(arg_tys.iter())
+                    .map(|(name, ty)| quote!(#name: #ty))
+                    .collect::<Vec<_>>();
+                let output = output.as_ref().map(|ty| {
+                    let ty = self.self_dependent_types.unselfed(ty);
+                    quote!(-> #ty)
+                });
+                let lt = lt.clone().unwrap_or_else(|| Lifetime::new("'stabby_receiver_lt", self_token.span()));
+                let receiver = if mutability.is_some() {
+                    quote!(#st::AnonymRefMut<#lt>)
+                } else {
+                    quote!(#st::AnonymRef<#lt>)
+                };
+                let as_ref = if mutability.is_some() {
+                    quote!(as_mut())
+                } else {
+                    quote!(as_ref())
+                };
+                let mut ctor = quote!(#st::StableLike::new({
+                    #unsafety #abi fn #ext_ident <
+                        'stabby_local_lt,
+                        #lt,
+                        #(#trait_lts,)*
+                        StabbyArbitraryType: 'stabby_local_lt, 
+                        #(#dyntrait_types,)*
+                        #(#trait_types,)*
+                        #(#trait_consts,)*
+                    >(this: #receiver, _lt_proof: ::core::marker::PhantomData<&#lt &'stabby_local_lt ()>, #(#args,)*) #output
+                    where
+                        StabbyArbitraryType: #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)* #(#trait_to_vt_bindings,)* >,
+                        #(#vt_bounds)*
+                        #(#unbound_trait_types: 'stabby_local_lt,)*
+                        #(#dyntrait_types: 'stabby_local_lt,)* {
+                        unsafe {
+                            #self_as_trait :: #ident(
+                                this.cast::<StabbyArbitraryType>().#as_ref,
+                                #(#arg_names,)*
+                            )
+                        }
+                    }
+                    #ext_ident :: < StabbyArbitraryType, #(#dyntrait_types,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)*  > as for <
+                    #lt,
+                    #(#trait_lts,)*
+                > #unsafety #abi fn (#receiver, ::core::marker::PhantomData<&#lt &'stabby_vt_lt ()>, #(#arg_tys,)*) #output
+                }));
+                if self.check_bounds {
+                    ctor = quote!(#st::StableIf::new(#ctor))
+                }
+                quote!(#ident: unsafe {#ctor},)
+            })
+            .collect::<Vec<_>>();
+
         let vtid_str = vtid.to_string();
         let all_fn_ids_str = all_fn_ids
             .iter()
@@ -693,23 +777,23 @@ impl DynTraitDescription<'_> {
         quote! {
             #[doc = #vt_doc]
             #vtable_decl
-            impl< #vt_generics > Clone for #vtid < #nbvt_generics > where #(#vt_bounds)* {
+            impl<'stabby_vt_lt, #vt_generics > Clone for #vtid < 'stabby_vt_lt, #nbvt_generics > where #(#vt_bounds)* {
                 fn clone(&self) -> Self {
                     *self
                 }
             }
-            impl< #vt_generics > Copy for #vtid < #nbvt_generics > where #(#vt_bounds)* {}
-            impl< #vt_generics > core::cmp::PartialEq for #vtid < #nbvt_generics > where #(#vt_bounds)*{
+            impl<'stabby_vt_lt, #vt_generics > Copy for #vtid < 'stabby_vt_lt, #nbvt_generics > where #(#vt_bounds)* {}
+            impl<'stabby_vt_lt, #vt_generics > core::cmp::PartialEq for #vtid < 'stabby_vt_lt, #nbvt_generics > where #(#vt_bounds)*{
                 fn eq(&self, other: &Self) -> bool {
                     #(core::ptr::eq((*unsafe{self.#all_fn_ids.as_ref_unchecked()}) as *const (), (*unsafe{other.#all_fn_ids.as_ref_unchecked()}) as *const _) &&)* true
                 }
             }
-            impl< #vt_generics > core::hash::Hash for #vtid < #nbvt_generics > where #(#vt_bounds)*{
+            impl<'stabby_vt_lt, #vt_generics > core::hash::Hash for #vtid < 'stabby_vt_lt, #nbvt_generics > where #(#vt_bounds)*{
                 fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
                     #(self.#all_fn_ids.hash(state);)*
                 }
             }
-            impl< #vt_generics > core::fmt::Debug for #vtid < #nbvt_generics > where #(#vt_bounds)*{
+            impl<'stabby_vt_lt, #vt_generics > core::fmt::Debug for #vtid < 'stabby_vt_lt, #nbvt_generics > where #(#vt_bounds)*{
                 fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                     let mut s = f.debug_struct(#vtid_str);
                     #(s.field(#all_fn_ids_str, &core::format_args!("{:p}", unsafe{self.#all_fn_ids.as_ref_unchecked()}));)*
@@ -718,7 +802,8 @@ impl DynTraitDescription<'_> {
             }
 
             impl<
-                'stabby_vt_lt, #(#trait_lts,)*
+                'stabby_vt_lt,
+                #(#trait_lts,)*
                 StabbyArbitraryType,
                 #(#dyntrait_types,)*
                 #(#trait_types,)*
@@ -733,14 +818,12 @@ impl DynTraitDescription<'_> {
                 #st::impl_vtable_constructor!(
                     const VTABLE_REF: &'stabby_vt_lt #vt_signature =  &#vtid {
                         #(
-                            // SAFETY: We unsafely construct `stabby::abi::StableLike`
-                            #all_fn_ids: unsafe {core::mem::transmute(#self_as_trait::#all_fn_ids as #fn_ptrs)},
+                            #all_fn_bindings
                         )*
                     };=>
                     const VTABLE: #vt_signature =  #vtid {
                         #(
-                            // SAFETY: We unsafely construct `stabby::abi::StableLike`
-                            #all_fn_ids: unsafe {core::mem::transmute(#self_as_trait::#all_fn_ids as #fn_ptrs)},
+                            #all_fn_bindings
                         )*
                     };
                 );
@@ -751,7 +834,7 @@ impl DynTraitDescription<'_> {
                 #(#dyntrait_types,)*
                 #(#trait_types,)*
                 #(#trait_consts,)*
-            > #st::vtable::CompoundVt for dyn #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)* #(#trait_to_vt_bindings,)* > where #(#vt_bounds)* {
+            > #st::vtable::CompoundVt<'stabby_vt_lt> for dyn #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)* #(#trait_to_vt_bindings,)* > where #(#vt_bounds)* {
                 #[doc = #vt_doc]
                 type Vt<StabbyNextVtable> = #st::vtable::VTable<
                     #vt_signature,
@@ -776,6 +859,7 @@ impl DynTraitDescription<'_> {
                 )*
             }
             impl<
+                'stabby_vt_lt,
                 #(#trait_lts,)*
                 StabbyVtProvider: #st::vtable::TransitiveDeref<
                     #vt_signature,
@@ -802,11 +886,12 @@ impl DynTraitDescription<'_> {
                 #(
                     #[doc = #vt_doc]
                     #fns {
-                        unsafe{(self.vtable().tderef().#fn_ids.as_ref_unchecked())(self.ptr(), #fn_args)}
+                        unsafe{(self.vtable().tderef().#fn_ids.as_ref_unchecked())(self.ptr(), ::core::marker::PhantomData, #fn_args)}
                     }
                 )*
             }
             impl<
+            'stabby_vt_lt,
                 #(#trait_lts,)*
                 StabbyPtrProvider: #st::IPtrOwned + #st::IPtr,
                 StabbyVtProvider: #st::vtable::HasDropVt + Copy + #st::vtable::TransitiveDeref<
@@ -834,7 +919,7 @@ impl DynTraitDescription<'_> {
                 #(
                     #[doc = #vt_doc]
                     #fns {
-                        unsafe{(self.vtable().tderef().#fn_ids.as_ref_unchecked())(self.ptr().as_ref(), #fn_args)}
+                        unsafe{(self.vtable().tderef().#fn_ids.as_ref_unchecked())(self.ptr().as_ref(), ::core::marker::PhantomData, #fn_args)}
                     }
                 )*
             }
@@ -860,6 +945,7 @@ impl DynTraitDescription<'_> {
                 )*
             }
             impl<
+                'stabby_vt_lt,
                 #(#trait_lts,)*
                 StabbyPtrProvider: #st::IPtrOwned + #st::IPtrMut,
                 StabbyVtProvider: #st::vtable::HasDropVt + Copy + #st::vtable::TransitiveDeref<
@@ -884,7 +970,7 @@ impl DynTraitDescription<'_> {
                     #[doc = #vt_doc]
                     #mut_fns {
                         // SAFETY: We simply observe the internals of an unsafe `stabby::abi::StableLike`
-                        unsafe {(self.vtable().tderef().#mut_fn_ids.as_ref_unchecked())(self.ptr_mut().as_mut(), #mut_fn_args)}
+                        unsafe {(self.vtable().tderef().#mut_fn_ids.as_ref_unchecked())(self.ptr_mut().as_mut(), ::core::marker::PhantomData, #mut_fn_args)}
                     }
                 )*
             }

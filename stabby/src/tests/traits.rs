@@ -16,11 +16,8 @@
 
 #![cfg_attr(stabby_unsafe_wakers = "true", allow(deprecated))]
 
-use core::time::Duration;
-
 pub use crate as stabby;
 use stabby::boxed::Box;
-use stabby::future::DynFuture;
 
 #[stabby::stabby(checked)]
 pub trait MyTrait {
@@ -173,8 +170,11 @@ fn arc_traits() {
     assert!(dyned.stable_downcast_ref::<u16, _>().is_none());
 }
 
+#[cfg(not(miri))]
 #[test]
 fn async_trait() {
+    use core::time::Duration;
+    use stabby::future::DynFuture;
     const END: usize = 1;
     let (tx, rx) = smol::channel::bounded(5);
     let read_task = async move {

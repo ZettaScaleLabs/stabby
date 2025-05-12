@@ -1,9 +1,6 @@
-use core::{
-    borrow::Borrow, marker::PhantomData, mem::MaybeUninit, ops::Deref, ptr::NonNull,
-    sync::atomic::AtomicPtr,
-};
+use core::{borrow::Borrow, mem::MaybeUninit, ops::Deref, ptr::NonNull, sync::atomic::AtomicPtr};
 
-use crate::alloc::{sync::Arc, AllocPtr, DefaultAllocator, IAlloc};
+use crate::alloc::{sync::Arc, DefaultAllocator, IAlloc};
 
 /// An [`ArcBTreeSet`] that can be atomically modified.
 pub struct AtomicArcBTreeSet<T: Ord, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize>(
@@ -578,13 +575,8 @@ mod seal {
             Alloc: Clone,
         {
             use core::cmp::Ordering;
-            let inner = Arc::make_mut(&mut self.0);
-            let arc = AllocPtr {
-                ptr: NonNull::from(&*inner),
-                marker: PhantomData,
-            };
+            let (inner, alloc) = Arc::make_mut_and_get_alloc(&mut self.0);
             // SAFETY: `arc` is known to bg a valid `Arc`, meaning its prefix contains an initialized alloc.
-            let alloc = unsafe { arc.prefix().alloc.assume_init_ref() };
             let entries = inner.entries_mut();
             for (i, entry) in entries.iter_mut().enumerate() {
                 match entry.value.cmp(&value) {
@@ -652,14 +644,14 @@ mod seal {
         {
             debug_assert!(i < self.len);
             // SAFETY: See line comments
+            // SAFETY: A node always has at least one slot free thanks to splitting being called at the end of any operations that may increase `self.len`
+            assert!(self.len < self.entries.len());
+            for i in (i..self.len).rev() {
+                self.entries[i + 1] =
+                    MaybeUninit::new(unsafe { self.entries[i].assume_init_read() });
+            }
+            // SAFETY: A node always has at least one slot free thanks to splitting being called at the end of any operations that may increase `self.len`
             unsafe {
-                // SAFETY: A node always has at least one slot free thanks to splitting being called at the end of any operations that may increase `self.len`
-                core::ptr::copy(
-                    self.entries.as_ptr().add(i),
-                    self.entries.as_mut_ptr().add(i + 1),
-                    self.len - i,
-                );
-                // SAFETY: A node always has at least one slot free thanks to splitting being called at the end of any operations that may increase `self.len`
                 *self.entries.get_unchecked_mut(i) = MaybeUninit::new(ArcBTreeSetEntry {
                     value,
                     smaller: core::mem::replace(
@@ -672,6 +664,7 @@ mod seal {
                     ),
                 });
             }
+
             self.len += 1;
             self.split(alloc)
         }
@@ -704,31 +697,26 @@ mod seal {
             Alloc: Clone,
         {
             if self.len == SPLIT_LIMIT {
+                let pivot_index: usize = SPLIT_LIMIT / 2;
                 // SAFETY: we've just confirmed the `SPLIT_LIMIT/2` node is initialized by checking the length
-                let pivot = unsafe {
-                    self.entries
-                        .get_unchecked(SPLIT_LIMIT / 2)
-                        .assume_init_read()
-                };
+                let pivot = unsafe { self.entries.get_unchecked(pivot_index).assume_init_read() };
                 let ArcBTreeSetEntry {
                     value: pivot,
                     smaller,
                 } = pivot;
                 let mut right = Self {
                     entries: [(); SPLIT_LIMIT].map(|_| core::mem::MaybeUninit::uninit()),
-                    len: SPLIT_LIMIT / 2,
+                    len: self.len - (pivot_index + 1),
                     greater: self.greater.take(),
                 };
                 // SAFETY: the left entries are all initialized, allowing to read `SPLIT_LIMIT/2` elements into `right`
-                unsafe {
-                    core::ptr::copy_nonoverlapping(
-                        self.entries.get_unchecked(SPLIT_LIMIT / 2 + 1),
-                        right.entries.get_unchecked_mut(0),
-                        right.len,
-                    )
-                };
+                for i in (pivot_index + 1)..self.len {
+                    right.entries[i - (pivot_index + 1)] = MaybeUninit::new(unsafe {
+                        self.entries.get_unchecked(i).assume_init_read()
+                    });
+                }
                 self.greater = smaller;
-                self.len = SPLIT_LIMIT / 2;
+                self.len = pivot_index;
                 let right = ArcBTreeSetNode(Arc::new_in(right, alloc.clone()));
                 Some((right, pivot))
             } else {
@@ -757,7 +745,7 @@ mod seal {
 fn btree_insert_libc() {
     use rand::Rng;
     let mut rng = rand::thread_rng();
-    for i in 0..1000 {
+    for i in 0..if cfg!(miri) { 5 } else { 1000 } {
         dbg!(i);
         let mut vec =
             crate::alloc::vec::Vec::new_in(crate::alloc::allocators::LibcAlloc::default());
@@ -789,7 +777,7 @@ fn btree_insert_libc() {
 fn btree_insert_rs() {
     use rand::Rng;
     let mut rng = rand::thread_rng();
-    for i in 0..1000 {
+    for i in 0..if cfg!(miri) { 5 } else { 1000 } {
         dbg!(i);
         let mut vec =
             crate::alloc::vec::Vec::new_in(crate::alloc::allocators::RustAlloc::default());
@@ -797,7 +785,11 @@ fn btree_insert_rs() {
         for _ in 0..rng.gen_range(0..800) {
             let val = rng.gen_range(0..100);
             if vec.binary_search(&val).is_ok() {
-                assert_eq!(btree.insert(val), Some(val));
+                assert_eq!(
+                    btree.insert(val),
+                    Some(val),
+                    "btree: {btree:?}, vec: {vec:?}, val: {val}"
+                );
             } else {
                 vec.push(val);
                 vec.sort();

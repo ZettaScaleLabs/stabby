@@ -21,7 +21,9 @@ use core::{
     sync::atomic::{AtomicPtr, AtomicUsize, Ordering},
 };
 
-use crate::{unreachable_unchecked, vtable::HasDropVt, Dyn, IStable, IntoDyn};
+use crate::{
+    unreachable_unchecked, vtable::HasDropVt, AnonymRef, AnonymRefMut, Dyn, IStable, IntoDyn,
+};
 
 use super::{
     vec::{ptr_add, ptr_diff, Vec, VecInner},
@@ -248,6 +250,22 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
             );
         }
         unsafe { Self::get_mut_unchecked(self) }
+    }
+
+    /// Returns a mutable reference to this `Arc`'s value, cloning that value into a new `Arc` if [`Self::get_mut`] would have failed.
+    pub fn make_mut_and_get_alloc(&mut self) -> (&mut T, &Alloc)
+    where
+        T: Clone,
+        Alloc: Clone,
+    {
+        if !Self::is_unique(self) {
+            *self = Self::new_in(
+                T::clone(self),
+                unsafe { self.ptr.prefix().alloc.assume_init_ref() }.clone(),
+            );
+        }
+        let (prefix, inner) = unsafe { self.ptr.split_mut() };
+        (inner, unsafe { prefix.alloc.assume_init_ref() })
     }
 
     /// Whether or not `this` is the sole owner of its data, including weak owners.
@@ -725,8 +743,11 @@ impl<T, Alloc: IAlloc> Drop for WeakSlice<T, Alloc> {
 pub use super::string::{ArcStr, WeakStr};
 
 impl<T, Alloc: IAlloc> crate::IPtr for Arc<T, Alloc> {
-    unsafe fn as_ref<U: Sized>(&self) -> &U {
-        self.ptr.cast().as_ref()
+    unsafe fn as_ref(&self) -> AnonymRef<'_> {
+        AnonymRef {
+            ptr: self.ptr.ptr.cast(),
+            _marker: PhantomData,
+        }
     }
 }
 impl<T, Alloc: IAlloc> crate::IPtrClone for Arc<T, Alloc> {
@@ -736,12 +757,18 @@ impl<T, Alloc: IAlloc> crate::IPtrClone for Arc<T, Alloc> {
 }
 
 impl<T, Alloc: IAlloc> crate::IPtrTryAsMut for Arc<T, Alloc> {
-    unsafe fn try_as_mut<U: Sized>(&mut self) -> Option<&mut U> {
-        Self::get_mut(self).map(|r| unsafe { core::mem::transmute::<&mut T, &mut U>(r) })
+    unsafe fn try_as_mut(&mut self) -> Option<AnonymRefMut<'_>> {
+        Self::is_unique(self).then(|| AnonymRefMut {
+            ptr: self.ptr.ptr.cast(),
+            _marker: PhantomData,
+        })
     }
 }
 impl<T, Alloc: IAlloc> crate::IPtrOwned for Arc<T, Alloc> {
-    fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ())) {
+    fn drop(
+        this: &mut core::mem::ManuallyDrop<Self>,
+        drop: unsafe extern "C" fn(AnonymRefMut<'_>),
+    ) {
         if unsafe { this.ptr.prefix() }
             .strong
             .fetch_sub(1, Ordering::Relaxed)
@@ -750,7 +777,10 @@ impl<T, Alloc: IAlloc> crate::IPtrOwned for Arc<T, Alloc> {
             return;
         }
         unsafe {
-            drop(this.ptr.cast().as_mut());
+            drop(AnonymRefMut {
+                ptr: this.ptr.ptr.cast(),
+                _marker: PhantomData,
+            });
             _ = Weak::<T, Alloc>::from_raw(this.ptr);
         }
     }
@@ -769,16 +799,18 @@ impl<T, Alloc: IAlloc> IntoDyn for Arc<T, Alloc> {
 }
 
 impl<T, Alloc: IAlloc> crate::IPtrOwned for Weak<T, Alloc> {
-    fn drop(this: &mut core::mem::ManuallyDrop<Self>, drop: unsafe extern "C" fn(&mut ())) {
+    fn drop(
+        this: &mut core::mem::ManuallyDrop<Self>,
+        _drop: unsafe extern "C" fn(AnonymRefMut<'_>),
+    ) {
         if unsafe { this.ptr.prefix() }
-            .strong
+            .weak
             .fetch_sub(1, Ordering::Relaxed)
             != 1
         {
             return;
         }
         unsafe {
-            drop(this.ptr.cast().as_mut());
             _ = Weak::<T, Alloc>::from_raw(this.ptr);
         }
     }
