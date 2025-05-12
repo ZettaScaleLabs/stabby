@@ -209,10 +209,7 @@ and speed are very close, meaning you might prefer to only use these optimized l
 Therefore, `stabby` leaves you the choice of representation. For the following subsections, we'll use the following 2 example types to
 highlight differences between representations.
 
-```compile_fail
-# #[cfg(miri)]
-# const EXIT: () = true;
-
+```no_run
 #[stabby::stabby]
 #[repr(stabby)]
 pub enum Poll<T> {
