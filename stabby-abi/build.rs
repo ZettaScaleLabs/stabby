@@ -107,6 +107,28 @@ impl<{generics}> From<Tuple{i}<{generics}>> for ({generics}) {{
     Ok(())
 }
 
+fn const_sizes() -> std::io::Result<()> {
+    let ptr_width = std::env::var("CARGO_CFG_TARGET_POINTER_WIDTH")
+        .unwrap()
+        .parse::<usize>()
+        .unwrap();
+    let filename = PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("const_sizes.rs");
+    let mut file = BufWriter::new(File::create(filename)?);
+
+    writeln!(file, "macro_rules! for_each_size {{")?;
+    writeln!(file, "\t($N:ident, $($code:tt)*) => {{")?;
+    for num_ones in 1..=ptr_width {
+        writeln!(
+            file,
+            "\t\t{{ const $N: usize = 0b{ones}; $($code)* }}",
+            ones = "1".repeat(num_ones)
+        )?;
+    }
+    writeln!(file, "\t}}\n}}")?;
+
+    Ok(())
+}
+
 fn main() {
     typenum_unsigned().unwrap();
     println!("cargo:rustc-check-cfg=cfg(stabby_max_tuple, values(any()))");
@@ -114,6 +136,7 @@ fn main() {
         .map_or(32, |s| s.parse().unwrap_or(32))
         .max(10);
     tuples(max_tuple).unwrap();
+    const_sizes().unwrap();
     println!("cargo:rustc-check-cfg=cfg(stabby_nightly, values(none()))");
     println!(
         r#"cargo:rustc-check-cfg=cfg(stabby_default_alloc, values("RustAlloc", "LibcAlloc", "disabled"))"#
