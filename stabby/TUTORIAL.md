@@ -97,7 +97,7 @@ Its core goal is to ensure that even forgetful souls can define dynamic librarie
 - Compiler-change-proof ABI-stability is proven statically through the type system.
 - `stabby` also provides an alternative to the standard library's most commonly used types so you don't have to rewrite everything like you do in C.
 - `stabby` will deny compilation when a type is poorly laid out in memory, letting you worry about more important things instead.
-- Expoting functions embeds reports in the produced binaries to allow them to identify mismatching API/ABIs.
+- Exporting functions embeds reports in the produced binaries to allow them to identify mismatching API/ABIs.
 - Importing functions checks these type reports, solving all the problems listed above.
 
 `stabby` also ensures that all of Rust's best features are usable accross dynamic linkage with minimal effort, including trait objects, closures and futures.
