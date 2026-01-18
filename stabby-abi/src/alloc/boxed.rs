@@ -242,12 +242,12 @@ impl<T, Alloc: IAlloc> crate::IPtrMut for Box<T, Alloc> {
 }
 impl<T, Alloc: IAlloc> crate::IPtrOwned for Box<T, Alloc> {
     fn drop(
-        mut this: &mut core::mem::ManuallyDrop<Self>,
+        this: &mut core::mem::ManuallyDrop<Self>,
         drop: unsafe extern "C" fn(AnonymRefMut<'_>),
     ) {
         // SAFETY: This is evil casting shenanigans, but `IPtrOwned` is a type anonimization primitive.
         unsafe {
-            drop(this.as_mut());
+            drop(Self::as_mut(this));
         }
         // SAFETY: `this` is immediately forgotten.
         unsafe { this.free() }

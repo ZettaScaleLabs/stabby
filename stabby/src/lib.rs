@@ -88,4 +88,7 @@ mod tests {
     mod enums;
     mod layouts;
     mod traits;
+    mod regressions {
+        mod issue_112;
+    }
 }

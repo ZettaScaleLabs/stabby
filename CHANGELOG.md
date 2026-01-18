@@ -1,15 +1,16 @@
 # 72.1.2-rc1 (api=3.0.1, abi=2.0.0)
+- Fixed [#112](https://github.com/ZettaScaleLabs/stabby/issues/112)
 - Address all lints for Rust and Clippy at `1.92.0`
 - Add support for `libloading = "0.9"`
 - Make CI run more feature-sets and toolchains
+- [Fix owned string deserialization](https://github.com/ZettaScaleLabs/stabby/pull/105)
+- Fixed Eclipse headers
 
 # 72.1.1 (api=3.0.0, abi=2.0.0)
 - `stabby` is now fully MIRI tested.
 - To allow certain operations to be made in a way that MIRI confidently detected as non-UB, new lifetime parameters were
   added to the generated VTable code. While the layout is actually the same, this does cause a breaking change in code
   that you should rarely interact with.
-- [Fix owned string deserialization](https://github.com/ZettaScaleLabs/stabby/pull/105)
-- Fixed Eclipse headers
 
 # 36.2.2 (api=2.1.1, abi=2.0.0)
 - Ensure `stabby` compiles on non-rustup toolchains (thanks @fuzzypixelz).
