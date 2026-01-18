@@ -56,14 +56,14 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -p stabby -- -D warnings --features=${{ matrix.features }}
+          args: -p stabby  --features=${{ matrix.features }} -- -D warnings
       - name: Clean artifacts
         uses: actions-rs/cargo@v1
         with:
           command: clean
 
   check-nightly:
-    name: Run checks on ${{ matrix.os }}
+    name: Run checks on ${{ matrix.os }} with Nightly
     runs-on: [self-hosted, "${{ matrix.os }}"]
     strategy:
       fail-fast: false
@@ -83,7 +83,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --all-targets -- -D warnings --features=${{ matrix.features }}
+          args: --all-targets -- -D warnings
       - name: Clean artifacts
         uses: actions-rs/cargo@v1
         with:
