@@ -1,7 +1,11 @@
 # 72.1.2-rc1 (api=3.0.1, abi=2.0.0)
+- Fixed [#112](https://github.com/ZettaScaleLabs/stabby/issues/112) (thanks @Dasaav-dsv for both raising the issue and providing the fix)
+- Fixed [#103](https://github.com/ZettaScaleLabs/stabby/issues/103) (thanks @numberZero for raising the issue)
 - Address all lints for Rust and Clippy at `1.92.0`
 - Add support for `libloading = "0.9"`
 - Make CI run more feature-sets and toolchains
+- [Fix owned string deserialization](https://github.com/ZettaScaleLabs/stabby/pull/105)
+- Fixed Eclipse headers
 
 # 72.1.1 (api=3.0.0, abi=2.0.0)
 - `stabby` is now fully MIRI tested.

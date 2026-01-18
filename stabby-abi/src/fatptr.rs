@@ -126,17 +126,17 @@ pub trait IPtrClone: IPtrOwned {
 }
 impl<T> IPtr for &T {
     unsafe fn as_ref(&self) -> AnonymRef<'_> {
-        self.into()
+        (self as &T).into()
     }
 }
 impl<T> IPtr for &mut T {
     unsafe fn as_ref(&self) -> AnonymRef<'_> {
-        self.into()
+        (self as &T).into()
     }
 }
 impl<T> IPtrMut for &mut T {
     unsafe fn as_mut(&mut self) -> AnonymRefMut<'_> {
-        self.into()
+        (self as &mut T).into()
     }
 }
 impl<T> IPtrOwned for &mut T {

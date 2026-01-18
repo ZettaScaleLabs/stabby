@@ -971,7 +971,7 @@ impl DynTraitDescription<'_> {
                     #[doc = #vt_doc]
                     #mut_fns {
                         // SAFETY: We simply observe the internals of an unsafe `stabby::abi::StableLike`
-                        unsafe {(self.vtable().tderef().#mut_fn_ids.as_ref_unchecked())(self.ptr_mut().as_mut(), ::core::marker::PhantomData, #mut_fn_args)}
+                        unsafe {(self.vtable().tderef().#mut_fn_ids.as_ref_unchecked())((*self.ptr_mut()).as_mut(), ::core::marker::PhantomData, #mut_fn_args)}
                     }
                 )*
             }
