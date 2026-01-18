@@ -12,6 +12,7 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+#[cfg(any(unix, windows))]
 fn main() {
     use stabby::libloading::StabbyLibrary;
     unsafe {
@@ -40,4 +41,9 @@ fn main() {
         stable_fn(5);
         unstable_fn(&[1, 2, 3, 4]);
     }
+}
+
+#[cfg(not(any(unix, windows)))]
+fn main() {
+    panic!("This platform is not supported by this example")
 }

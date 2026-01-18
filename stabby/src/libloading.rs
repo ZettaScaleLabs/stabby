@@ -76,7 +76,7 @@ impl StabbyLibrary for libloading::Library {
         symbol: &[u8],
     ) -> Result<Symbol<'a, T>, Box<dyn std::error::Error + Send + Sync>> {
         let stabbied = self.get::<extern "C" fn(&crate::abi::report::TypeReport) -> Option<T>>(
-            &[symbol, STABBIED_SUFFIX].concat(),
+            [symbol, STABBIED_SUFFIX].concat().as_slice(),
         )?;
         match stabbied(T::REPORT) {
             Some(f) => Ok(Symbol {
@@ -86,7 +86,7 @@ impl StabbyLibrary for libloading::Library {
             None => {
                 let report = self
                     .get::<extern "C" fn() -> &'static crate::abi::report::TypeReport>(
-                        &[symbol, REPORT_SUFFIX].concat(),
+                        [symbol, REPORT_SUFFIX].concat().as_slice(),
                     )?;
                 let report = report();
                 Err(format!(
@@ -118,7 +118,9 @@ impl StabbyLibrary for libloading::Library {
             canaries::CANARY_TARGET,
             canaries::CANARY_NUM_JOBS,
         ] {
-            if let Err(e) = self.get::<extern "C" fn()>(&[symbol, suffix.as_bytes()].concat()) {
+            if let Err(e) =
+                self.get::<extern "C" fn()>([symbol, suffix.as_bytes()].concat().as_slice())
+            {
                 return Err(format!(
                     "Canary {symbol}{suffix} not found: {e}",
                     symbol = std::str::from_utf8_unchecked(symbol)

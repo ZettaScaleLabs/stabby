@@ -305,7 +305,7 @@ impl<'a, P: IPtrOwned + IPtr, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
         }
     }
     /// Borrow into an ABI-stable `&mut dyn Traits`
-    pub fn as_mut(&mut self) -> Dyn<AnonymRefMut<'_>, Vt>
+    pub fn as_mut(&'_ mut self) -> Dyn<'_, AnonymRefMut<'_>, Vt>
     where
         P: IPtrMut,
     {
@@ -316,7 +316,7 @@ impl<'a, P: IPtrOwned + IPtr, Vt: HasDropVt + 'a> Dyn<'a, P, Vt> {
         }
     }
     /// Attempt to borrow into an ABI-stable `&mut dyn Traits`
-    pub fn try_as_mut(&mut self) -> Option<Dyn<AnonymRefMut<'_>, Vt>>
+    pub fn try_as_mut(&'_ mut self) -> Option<Dyn<'_, AnonymRefMut<'_>, Vt>>
     where
         P: IPtrTryAsMut,
     {

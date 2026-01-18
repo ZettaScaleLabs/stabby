@@ -1,3 +1,8 @@
+# 72.1.2-rc1 (api=3.0.1, abi=2.0.0)
+- Address all lints for Rust and Clippy at `1.92.0`
+- Add support for `libloading = "0.9"`
+- Make CI run more feature-sets and toolchains
+
 # 72.1.1 (api=3.0.0, abi=2.0.0)
 - `stabby` is now fully MIRI tested.
 - To allow certain operations to be made in a way that MIRI confidently detected as non-UB, new lifetime parameters were
@@ -22,7 +27,7 @@
 - Added more constructors (such as `FromIterator`) for `BoxedSlice` and `ArcSlice`.
 - Added support for more niche platforms.
 - BREAKING CHANGES: Mostly due to a large rework of allocations.
-	- The in-place constructors for `Box` and `Arc` now require the initializer function to return a result, yielding the uninitialized allocation if allocation succeeded but initialization reported a failure. 
+	- The in-place constructors for `Box` and `Arc` now require the initializer function to return a result, yielding the uninitialized allocation if allocation succeeded, but initialization reported a failure. 
 	- `serde` and `libc` features are no longer part of the default features set.
 	- `RustAlloc` is the new default allocator of `stabby`: this allocator is a simple pointer to a v-table allowing cross-ffi use of Rust's `alloc::GlobalAlloc`.
 		- This allocator is global, thread-safe, and guaranteed to work properly with pointers passed across the FFI.
@@ -40,7 +45,7 @@
 
 # 36.1.1-rc7 (api=2.0.0, abi=2.0.0)
 - BREAKING CHANGES:
-	- The in-place constructors for `Box` and `Arc` now require the initializer function to return a result, yielding the uninitialized allocation if allocation succeeded but initialization reported a failure. 
+	- The in-place constructors for `Box` and `Arc` now require the initializer function to return a result, yielding the uninitialized allocation if allocation succeeded, but initialization reported a failure. 
 - Added more constructors (such as `FromIterator`) for `BoxedSlice` and `ArcSlice`.
 
 # 36.1.1-rc6 (api=2.0.0, abi=2.0.0)

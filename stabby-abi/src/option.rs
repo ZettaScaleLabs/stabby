@@ -92,7 +92,7 @@ where
         self.match_ref(Some, || None)
     }
     /// Returns a mutable reference to the option's contents if they exist.
-    pub fn as_mut(&mut self) -> core::option::Option<SomeGuard<T>> {
+    pub fn as_mut(&'_ mut self) -> core::option::Option<SomeGuard<'_, T>> {
         self.match_mut(Some, || None)
     }
     /// Equivalent to `match &self`. If you need multiple branches to obtain mutable access or ownership

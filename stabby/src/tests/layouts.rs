@@ -23,6 +23,7 @@ pub union UnionTest {
     u64: u64,
 }
 #[stabby::stabby]
+#[allow(dead_code)] // This type is never constructed, but its repr properties are asserted on.
 pub union UTest2 {
     usize: usize,
     u32s: Tuple3<u32, u32, u32>,
@@ -225,6 +226,7 @@ fn layouts() {
     test!(stabby::abi::Union<(), u8>, End, End);
     test!(stabby::result::Result<(), ()>, Array<U0, Ub11111110, End>, End);
     test!(UnionTest, End, End);
+    test!(UTest2, End, End);
     test!(FieldsC, Array<U1, UxFF, Array<U2, UxFF, Array<U3, UxFF, End>>>, End);
     test!(FieldsStabby, End, End);
     test!(MultiFieldsC, Array<U1, UxFF, End>, End);
