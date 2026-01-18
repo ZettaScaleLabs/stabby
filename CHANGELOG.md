@@ -8,6 +8,8 @@
 - To allow certain operations to be made in a way that MIRI confidently detected as non-UB, new lifetime parameters were
   added to the generated VTable code. While the layout is actually the same, this does cause a breaking change in code
   that you should rarely interact with.
+- [Fix owned string deserialization](https://github.com/ZettaScaleLabs/stabby/pull/105)
+- Fixed Eclipse headers
 
 # 36.2.2 (api=2.1.1, abi=2.0.0)
 - Ensure `stabby` compiles on non-rustup toolchains (thanks @fuzzypixelz).
