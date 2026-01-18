@@ -89,6 +89,7 @@ mod tests {
     mod layouts;
     mod traits;
     mod regressions {
+        mod issue_103;
         mod issue_112;
     }
 }
