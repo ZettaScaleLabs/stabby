@@ -18,7 +18,7 @@ use syn::Type;
 
 #[derive(Clone)]
 pub enum TyExpr {
-    Type(Type),
+    Type(Box<Type>),
     Not(Box<Self>),
     Ternary(Box<Self>, Box<Self>, Box<Self>),
     Add(Box<Self>, Box<Self>),

@@ -61,10 +61,10 @@ pub use crate::abi::{option, result, slice, str};
 
 pub use crate::abi::{vtable::Any, AccessAs, IStable, IntoSuperTrait};
 
-#[cfg(all(feature = "libloading", any(unix, windows, doc)))]
 /// Integration with [`libloading`](::libloading), allowing symbol loads to be validated thanks to either reflection or canaries.
 ///
 /// Requires the `libloading` feature to be enabled.
+#[cfg(all(feature = "libloading", any(unix, windows, doc)))]
 pub mod libloading;
 
 /// ABI-stable representations of durations and instants.

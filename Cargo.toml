@@ -29,6 +29,7 @@ opt-level = 3
 [workspace.lints.clippy]
 needless_lifetimes = "allow"
 unnecessary_map_or = "allow"
+manual_is_multiple_of = "allow"
 
 
 [workspace.package]
@@ -37,16 +38,16 @@ license = " EPL-2.0 OR Apache-2.0"
 categories = ["development-tools::ffi", "no-std::no-alloc"]
 repository = "https://github.com/ZettaScaleLabs/stabby"
 readme = "stabby/README.md"
-version = "72.1.1"                                          # Track
+version = "72.1.2-rc1"                                          # Track
 
 [workspace.dependencies]
-stabby-macros = { path = "./stabby-macros/", version = "72.1.1", default-features = false } # Track
-stabby-abi = { path = "./stabby-abi/", version = "72.1.1", default-features = false }       # Track
-stabby = { path = "./stabby/", version = "72.1.1", default-features = false }               # Track
+stabby-macros = { path = "./stabby-macros/", version = "72.1.2-rc1", default-features = false } # Track
+stabby-abi = { path = "./stabby-abi/", version = "72.1.2-rc1", default-features = false }       # Track
+stabby = { path = "./stabby/", version = "72.1.2-rc1", default-features = false }               # Track
 
 abi_stable = "0.11.0"
 libc = "0.2"
-libloading = ">=0.7.3, <0.9"
+libloading = ">=0.7.3, <0.10"
 proc-macro2 = "1.0"
 proc-macro-crate = ">=1, <4"
 quote = "1.0"

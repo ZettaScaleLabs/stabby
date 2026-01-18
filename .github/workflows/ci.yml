@@ -29,6 +29,14 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, windows-11, macOS]
+        features:
+          [
+            "",
+            "experimental-ctypes",
+            "std",
+            "libloading",
+            "experimental-ctypes,std",
+          ]
 
     steps:
       - uses: actions/checkout@v2
@@ -43,6 +51,33 @@ jobs:
         with:
           command: fmt
           args: -- --check
+
+      - name: Clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -p stabby  --features=${{ matrix.features }} -- -D warnings
+      - name: Clean artifacts
+        uses: actions-rs/cargo@v1
+        with:
+          command: clean
+
+  check-nightly:
+    name: Run checks on ${{ matrix.os }} with Nightly
+    runs-on: [self-hosted, "${{ matrix.os }}"]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          components: clippy
 
       - name: Clippy
         uses: actions-rs/cargo@v1
@@ -89,7 +124,7 @@ jobs:
         os: [ubuntu-22.04]
     steps:
       - uses: actions/checkout@v2
-      - name: Install Rust toolchain 1.72
+      - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -97,8 +132,8 @@ jobs:
       - name: Check
         uses: actions-rs/cargo@v1
         with:
-          command: check
-          args: -p stabby
+          command: clippy
+          args: --all-targets -- -D warnings
       - name: Clean artifacts
         uses: actions-rs/cargo@v1
         with:
@@ -113,7 +148,7 @@ jobs:
         os: [ubuntu-22.04]
     steps:
       - uses: actions/checkout@v2
-      - name: Install Rust toolchain 1.72
+      - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -121,8 +156,8 @@ jobs:
       - name: Check
         uses: actions-rs/cargo@v1
         with:
-          command: check
-          args: -p stabby
+          command: clippy
+          args: --all-targets -- -D warnings
       - name: Clean artifacts
         uses: actions-rs/cargo@v1
         with:

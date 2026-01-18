@@ -476,7 +476,7 @@ where
         OkGuard { inner: self }
     }
     #[rustversion::attr(since(1.86), const)]
-    unsafe fn err_mut_unchecked(&mut self) -> ErrGuard<Ok, Err> {
+    unsafe fn err_mut_unchecked(&'_ mut self) -> ErrGuard<'_, Ok, Err> {
         ErrGuard { inner: self }
     }
 }

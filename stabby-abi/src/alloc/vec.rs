@@ -724,7 +724,7 @@ impl<'a, T: 'a, Alloc: IAlloc + 'a> Drop for Drain<'a, T, Alloc> {
     fn drop(&mut self) {
         let tail_length = self.original_len - self.to;
         unsafe {
-            core::ptr::drop_in_place(core::slice::from_raw_parts_mut(
+            core::ptr::drop_in_place(core::ptr::slice_from_raw_parts_mut(
                 self.vec.inner.start.as_ptr().add(self.index),
                 self.to - self.index,
             ));
@@ -779,7 +779,7 @@ impl<'a, T: 'a, Alloc: IAlloc + 'a> Drop for DoubleEndedDrain<'a, T, Alloc> {
     fn drop(&mut self) {
         let tail_length = self.original_len - self.to;
         unsafe {
-            core::ptr::drop_in_place(core::slice::from_raw_parts_mut(
+            core::ptr::drop_in_place(core::ptr::slice_from_raw_parts_mut(
                 self.vec.inner.start.as_ptr().add(self.lindex),
                 self.rindex - self.lindex,
             ));

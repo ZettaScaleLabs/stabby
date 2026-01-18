@@ -251,7 +251,7 @@ where
         )
     }
     /// Returns a mutable slice of the elements in the vector.
-    pub fn as_slice_mut(&mut self) -> SliceGuardMut<T, Alloc> {
+    pub fn as_slice_mut(&mut self) -> SliceGuardMut<'_, T, Alloc> {
         self.inner.match_mut(
             |value| SliceGuardMut { inner: Ok(value) },
             |mut vec| SliceGuardMut {
