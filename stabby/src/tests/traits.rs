@@ -150,6 +150,13 @@ fn dyn_traits() {
 }
 
 #[test]
+fn dyn_ref_traits() {
+    let value = 6u8;
+    let dyn_ref = <stabby::dynptr!(&'_ dyn MyTrait2)>::from(&value);
+    assert_eq!(dyn_ref.do_stuff2(), 6);
+}
+
+#[test]
 fn arc_traits() {
     use stabby::sync::Arc;
     let boxed = Arc::new(6u8);
