@@ -24,6 +24,7 @@ pub trait MyTrait {
     type Output;
     extern "C" fn do_stuff<'a>(&'a self, with: &'a Self::Output) -> &'a u8;
     extern "C" fn gen_stuff(&mut self) -> Self::Output;
+    extern "C" fn filter_stuff<'a>(&self, source: &'a u8) -> &'a u8;
 }
 
 // IMPL
@@ -36,6 +37,9 @@ impl MyTrait for u8 {
     extern "C" fn gen_stuff(&mut self) -> Self::Output {
         *self
     }
+    extern "C" fn filter_stuff<'a>(&self, source: &'a u8) -> &'a u8 {
+        source
+    }
 }
 impl MyTrait for u16 {
     type Output = u8;
@@ -44,6 +48,9 @@ impl MyTrait for u16 {
     }
     extern "C" fn gen_stuff(&mut self) -> Self::Output {
         *self as u8
+    }
+    extern "C" fn filter_stuff<'a>(&self, source: &'a u8) -> &'a u8 {
+        source
     }
 }
 
@@ -141,6 +148,8 @@ fn dyn_traits() {
     )>::from(boxed);
     assert_eq!(dyned.do_stuff(&0), &6);
     assert_eq!(dyned.gen_stuff(), 6);
+    let value = 33u8;
+    assert_eq!(&value as *const _, dyned.filter_stuff(&value) as *const _);
     assert_eq!(dyned.gen_stuff3(Box::new(())), 6);
     // assert_eq!(unsafe { dyned.downcast_ref::<u8>() }, Some(&6));
     // assert!(unsafe { dyned.downcast_ref::<u16>() }.is_none());

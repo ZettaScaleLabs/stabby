@@ -679,10 +679,10 @@ impl DynTraitDescription<'_> {
             .map(|fn_ptr | {
                 let DynTraitFn {
                     ident,
-                    generics: _,
+                    generics,
                     abi,
                     unsafety,
-                    receiver: syn::Receiver {mutability, reference: Some((_, lt)), self_token, ..},
+                    receiver: syn::Receiver {mutability, reference: Some((_, receiver_lt)), self_token, ..},
                     inputs,
                     output,
                 } = fn_ptr else {panic!("Only references and mutable references are supported")};
@@ -697,15 +697,22 @@ impl DynTraitDescription<'_> {
                     .zip(arg_tys.iter())
                     .map(|(name, ty)| quote!(#name: #ty))
                     .collect::<Vec<_>>();
+                let mut arg_lts = generics.lifetimes().cloned().collect::<Vec<_>>();
                 let output = output.as_ref().map(|ty| {
                     let ty = self.self_dependent_types.unselfed(ty);
                     quote!(-> #ty)
                 });
-                let lt = lt.clone().unwrap_or_else(|| Lifetime::new("'stabby_receiver_lt", self_token.span()));
-                let receiver = if mutability.is_some() {
-                    quote!(#st::AnonymRefMut<#lt>)
+                let receiver_lt = if let Some(lt) = receiver_lt {
+                    lt.clone()
                 } else {
-                    quote!(#st::AnonymRef<#lt>)
+                    let default_lt = Lifetime::new("'stabby_receiver_lt", self_token.span());
+                    arg_lts.push(syn::LifetimeDef::new(default_lt.clone()));
+                    default_lt
+                };
+                let receiver = if mutability.is_some() {
+                    quote!(#st::AnonymRefMut<#receiver_lt>)
+                } else {
+                    quote!(#st::AnonymRef<#receiver_lt>)
                 };
                 let as_ref = if mutability.is_some() {
                     quote!(as_mut())
@@ -715,13 +722,13 @@ impl DynTraitDescription<'_> {
                 let mut ctor = quote!(#st::StableLike::new({
                     #unsafety #abi fn #ext_ident <
                         'stabby_local_lt,
-                        #lt,
                         #(#trait_lts,)*
+                        #(#arg_lts,)*
                         StabbyArbitraryType: 'stabby_local_lt,
                         #(#dyntrait_types,)*
                         #(#trait_types,)*
                         #(#trait_consts,)*
-                    >(this: #receiver, _lt_proof: ::core::marker::PhantomData<&#lt &'stabby_local_lt ()>, #(#args,)*) #output
+                    >(this: #receiver, _lt_proof: ::core::marker::PhantomData<&#receiver_lt &'stabby_local_lt ()>, #(#args,)*) #output
                     where
                         StabbyArbitraryType: #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)* #(#trait_to_vt_bindings,)* >,
                         #(#vt_bounds)*
@@ -735,9 +742,9 @@ impl DynTraitDescription<'_> {
                         }
                     }
                     #ext_ident :: < StabbyArbitraryType, #(#dyntrait_types,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)*  > as for <
-                    #lt,
                     #(#trait_lts,)*
-                > #unsafety #abi fn (#receiver, ::core::marker::PhantomData<&#lt &'stabby_vt_lt ()>, #(#arg_tys,)*) #output
+                    #(#arg_lts,)*
+                > #unsafety #abi fn (#receiver, ::core::marker::PhantomData<&#receiver_lt &'stabby_vt_lt ()>, #(#arg_tys,)*) #output
                 }));
                 if self.check_bounds {
                     ctor = quote!(#st::StableIf::new(#ctor))
