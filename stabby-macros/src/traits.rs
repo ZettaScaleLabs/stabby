@@ -742,7 +742,6 @@ impl DynTraitDescription<'_> {
                         }
                     }
                     #ext_ident :: < StabbyArbitraryType, #(#dyntrait_types,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)*  > as for <
-                    #(#trait_lts,)*
                     #(#arg_lts,)*
                 > #unsafety #abi fn (#receiver, ::core::marker::PhantomData<&#receiver_lt &'stabby_vt_lt ()>, #(#arg_tys,)*) #output
                 }));
@@ -807,6 +806,7 @@ impl DynTraitDescription<'_> {
             where
                 StabbyArbitraryType: #trait_id <#(#unbound_trait_lts,)* #(#unbound_trait_types,)* #(#unbound_trait_consts,)* #(#trait_to_vt_bindings,)* >,
                 #(#vt_bounds)*
+                #(#trait_lts: 'stabby_vt_lt,)*
                 #(#unbound_trait_types: 'stabby_vt_lt,)*
                 #(#dyntrait_types: 'stabby_vt_lt,)* {
                 #[doc = #vt_doc]
