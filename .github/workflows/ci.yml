@@ -24,11 +24,11 @@ on:
 jobs:
   check:
     name: Run checks on ${{ matrix.os }}
-    runs-on: [self-hosted, "${{ matrix.os }}"]
+    runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-11, macOS]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         features:
           [
             "",
@@ -64,11 +64,11 @@ jobs:
 
   check-nightly:
     name: Run checks on ${{ matrix.os }} with Nightly
-    runs-on: [self-hosted, "${{ matrix.os }}"]
+    runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
+        os: [ubuntu-latest]
 
     steps:
       - uses: actions/checkout@v2
@@ -91,11 +91,11 @@ jobs:
 
   check-1-72:
     name: Run 1.72 checks on ${{ matrix.os }}
-    runs-on: [self-hosted, "${{ matrix.os }}"]
+    runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
+        os: [ubuntu-latest]
 
     steps:
       - uses: actions/checkout@v2
@@ -117,11 +117,11 @@ jobs:
 
   check-wasm:
     name: Run wasm checks on ${{ matrix.os }}
-    runs-on: [self-hosted, "${{ matrix.os }}"]
+    runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
+        os: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v2
       - name: Install Rust toolchain
@@ -141,11 +141,11 @@ jobs:
 
   check-32bits:
     name: Run 32bits checks on ${{ matrix.os }}
-    runs-on: [self-hosted, "${{ matrix.os }}"]
+    runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
+        os: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v2
       - name: Install Rust toolchain
@@ -165,11 +165,11 @@ jobs:
 
   test:
     name: Run tests on ${{ matrix.os }}
-    runs-on: [self-hosted, "${{ matrix.os }}"]
+    runs-on: "${{ matrix.os }}"
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macOS]
+        os: [ubuntu-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v2
