@@ -109,6 +109,13 @@ impl MyTrait3<Box<()>> for u16 {
 }
 
 #[stabby::stabby(checked)]
+pub trait MyTraitWithLt<'a> {
+    extern "C" fn return_lt(&self) -> &'a u8;
+    extern "C" fn take_and_return_lt(&self, with: &'a u8) -> &'a u8;
+    extern "C" fn named_and_trait_lt<'b>(&self, a: &'a u8, b: &'b u8);
+}
+
+#[stabby::stabby(checked)]
 pub trait AsyncRead {
     extern "C" fn read<'a>(
         &'a mut self,
