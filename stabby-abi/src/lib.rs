@@ -31,6 +31,7 @@
 extern crate alloc as alloc_rs;
 
 /// ABI-stable smart pointers and allocated data structures, with support for custom allocators.
+#[cfg(feature = "alloc")]
 pub mod alloc;
 /// Extending [Non-Zero Types](core::num) to enable niches for other values than 0.
 pub mod num;
@@ -144,6 +145,7 @@ mod fatptr;
 /// Closures, but ABI-stable
 pub mod closure;
 /// Futures, but ABI-stable
+#[cfg(feature = "alloc")]
 pub mod future;
 mod stable_impls;
 /// Support for vtables for multi-trait objects
