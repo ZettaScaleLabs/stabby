@@ -80,7 +80,7 @@ impl From<proc_macro2::TokenStream> for TyExpr {
                             if p.spacing() == Spacing::Joint {
                                 let next = tokens.next().unwrap();
                                 assert!(matches!(next, TokenTree::Punct(p) if p.as_char() == ':'));
-                                path.extend(quote!(::).into_iter());
+                                path.extend(quote!(::));
                                 accept_ident = true;
                                 continue;
                             } else if in_ternary {
