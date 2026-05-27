@@ -196,15 +196,15 @@ macro_rules! check {
                 write!(b"\r\n");
             }
             match <<$t as IStable>::HasExactlyOneNiche as crate::istable::ISaturatingAdd>::VALUE {
-                crate::istable::SaturatingAddValue::B0 => {
-                    if rust == core::mem::size_of::<Option<$t>>() {
+                crate::istable::SaturatingAddValue::B0
+                    if rust == core::mem::size_of::<Option<$t>>() => {
                         write!(stringify!($t).as_bytes());
                         write!(b"'s niches were mis-evaluated by stabby, this is definitely a bug and may cause UB. Please create an issue using this link: https://github.com/ZettaScaleLabs/stabby/issues/new?title=");
                         write!(stringify!($t).as_bytes());
                         write!(b"%20has%20niches%20but%20stabby%20does%20not%20find%20any");
                         write!(b"\r\n");
                     }
-                }
+
                 crate::istable::SaturatingAddValue::B1 => {
                     if rust != core::mem::size_of::<Option<$t>>() {
                         write!(stringify!($t).as_bytes());

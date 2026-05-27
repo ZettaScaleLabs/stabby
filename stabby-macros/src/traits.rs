@@ -52,7 +52,7 @@ impl SelfDependentTypes {
         match elem {
             Ty::Never => Ty::Never,
             Ty::Unit => Ty::Unit,
-            Ty::SelfReferencial(ty) => {
+            Ty::SelfReferential(ty) => {
                 let Some(n) = self.find(ty) else {
                     panic!("Couldn't find type {ty}")
                 };
@@ -360,7 +360,7 @@ impl<'a> From<(&'a mut syn::ItemTrait, bool)> for DynTraitDescription<'a> {
                         next: None,
                     };
                     for bound in bounds {
-                        let target = Ty::SelfReferencial(Box::new(ty.clone()));
+                        let target = Ty::SelfReferential(Box::new(ty.clone()));
                         match bound {
                             syn::TypeParamBound::Trait(syn::TraitBound {
                                 lifetimes,
@@ -393,7 +393,7 @@ impl<'a> From<(&'a mut syn::ItemTrait, bool)> for DynTraitDescription<'a> {
                     this.self_dependent_types.push(ty);
                 }
                 syn::TraitItem::Const(_) => panic!("associated consts are not trait object safe"),
-                syn::TraitItem::Macro(_) => panic!("sabby can't see through macros in traits"),
+                syn::TraitItem::Macro(_) => panic!("stabby can't see through macros in traits"),
                 syn::TraitItem::Verbatim(tt) => {
                     panic!("stabby failed to parse this token stream {}", tt)
                 }
@@ -411,21 +411,22 @@ impl<'a> From<(&'a mut syn::ItemTrait, bool)> for DynTraitDescription<'a> {
 }
 impl DynTraitFn<'_> {
     fn self_dependent_types(&self) -> Vec<Ty> {
-        let mut sdts = self
+        let mut self_dependents = self
             .output
             .as_ref()
             .map_or(Vec::new(), |t| t.self_dependent_types());
         for input in &self.inputs {
-            input.rec_self_dependent_types(&mut sdts);
+            input.rec_self_dependent_types(&mut self_dependents);
         }
-        sdts
+        self_dependents
     }
-    fn stability_cond(&self, sdts: &SelfDependentTypes) -> TokenStream {
+
+    fn stability_cond(&self, self_dependents: &SelfDependentTypes) -> TokenStream {
         let st = crate::tl_mod();
         let Self { inputs, output, .. } = self;
         let mut cond = match output {
             Some(ty) => {
-                let mut uty = sdts.unselfed(ty);
+                let mut uty = self_dependents.unselfed(ty);
                 if uty == *ty {
                     uty.elide_lifetime();
                     quote!(#uty)
@@ -436,7 +437,7 @@ impl DynTraitFn<'_> {
             None => quote!(()),
         };
         for ty in inputs {
-            let mut uty = sdts.unselfed(ty);
+            let mut uty = self_dependents.unselfed(ty);
             if uty == *ty {
                 uty.elide_lifetime();
                 cond = quote!(#st::Union<#cond, #uty>);
@@ -444,7 +445,7 @@ impl DynTraitFn<'_> {
         }
         cond
     }
-    fn field_signature(&self, sdts: &SelfDependentTypes) -> TokenStream {
+    fn field_signature(&self, self_dependents: &SelfDependentTypes) -> TokenStream {
         let st = crate::tl_mod();
         let Self {
             ident: _,
@@ -479,15 +480,15 @@ impl DynTraitFn<'_> {
         } else {
             quote!(#st::AnonymRef<#receiver_lt>)
         };
-        let inputs = inputs.iter().map(|ty| sdts.unselfed(ty));
+        let inputs = inputs.iter().map(|ty| self_dependents.unselfed(ty));
         let output = output.as_ref().map(|ty| {
-            let ty = sdts.unselfed(ty);
+            let ty = self_dependents.unselfed(ty);
             quote!(-> #ty)
         });
         let params = &generics.params;
         let where_clause = &generics.where_clause;
-        let forgen = quote!(for <#receiver_lt_decl #params>);
-        quote!(#forgen #abi #unsafety fn(#receiver, ::core::marker::PhantomData<&#receiver_lt &'stabby_vt_lt ()>, #(#inputs),*) #output #where_clause)
+        let for_generics = quote!(for <#receiver_lt_decl #params>);
+        quote!(#for_generics #abi #unsafety fn(#receiver, ::core::marker::PhantomData<&#receiver_lt &'stabby_vt_lt ()>, #(#inputs),*) #output #where_clause)
     }
 }
 impl DynTraitDescription<'_> {
@@ -502,8 +503,8 @@ impl DynTraitDescription<'_> {
                 syn::GenericParam::Lifetime(lt) => quote!(#generics #lt, ),
                 syn::GenericParam::Type(ty) => {
                     if let Some(sdt) = sdt.take() {
-                        let sdts = sdt.unselfed_iter();
-                        generics = quote!(#generics #(#sdts,)* )
+                        let unselfed_sdt = sdt.unselfed_iter();
+                        generics = quote!(#generics #(#unselfed_sdt,)* )
                     }
                     if BOUNDED {
                         quote!(#generics #ty, )
@@ -621,7 +622,7 @@ impl DynTraitDescription<'_> {
                          lifetimes,
                          bound,
                      }| {
-                        let Ty::SelfReferencial(target) = target else {
+                        let Ty::SelfReferential(target) = target else {
                             return acc;
                         };
                         if &**target == ty {
@@ -995,7 +996,7 @@ enum Ty {
         prefix: TokenStream,
         next: Box<Self>,
     },
-    SelfReferencial(Box<Self>),
+    SelfReferential(Box<Self>),
     Reference {
         lifetime: Option<Lifetime>,
         mutability: Option<Mut>,
@@ -1044,7 +1045,7 @@ impl PartialEq for Ty {
                     next: r_next,
                 },
             ) => l_prefix.to_string() == r_prefix.to_string() && l_next == r_next,
-            (Self::SelfReferencial(l0), Self::SelfReferencial(r0)) => l0 == r0,
+            (Self::SelfReferential(l0), Self::SelfReferential(r0)) => l0 == r0,
             (
                 Self::Reference {
                     lifetime: l_lifetime,
@@ -1152,7 +1153,7 @@ impl quote::ToTokens for Ty {
             Self::Never => tokens.extend(quote!(!)),
             Self::Unit => tokens.extend(quote!(())),
             Self::Arbitrary { prefix, next } => tokens.extend(quote!(#prefix::#next)),
-            Self::SelfReferencial(ty) => tokens.extend(quote!(Self::#ty)),
+            Self::SelfReferential(ty) => tokens.extend(quote!(Self::#ty)),
             Self::Reference {
                 lifetime,
                 mutability,
@@ -1208,7 +1209,7 @@ impl Ty {
             | Ty::Ptr { elem, .. }
             | Ty::LeadingColon { next: elem }
             | Ty::Arbitrary { next: elem, .. }
-            | Ty::SelfReferencial(elem) => elem.elide_lifetime(),
+            | Ty::SelfReferential(elem) => elem.elide_lifetime(),
             Ty::BareFn { .. } => {}
             Ty::Path {
                 arguments, next, ..
@@ -1242,7 +1243,7 @@ impl Ty {
     fn from_iter<'a, T: Iterator<Item = &'a PathSegment> + ExactSizeIterator>(mut iter: T) -> Self {
         let PathSegment { ident, arguments } = iter.next().unwrap();
         if *ident == "Self" {
-            return Self::SelfReferencial(Box::new(Self::from_iter(iter)));
+            return Self::SelfReferential(Box::new(Self::from_iter(iter)));
         }
         let arguments = match arguments {
             PathArguments::None => Arguments::None,
@@ -1271,7 +1272,7 @@ impl Ty {
     }
     fn rec_self_dependent_types(&self, sdts: &mut Vec<Ty>) {
         match self {
-            Ty::SelfReferencial(ty) => sdts.push(ty.as_ref().clone()),
+            Ty::SelfReferential(ty) => sdts.push(ty.as_ref().clone()),
             Ty::Never | Ty::Unit => {}
             Ty::LeadingColon { next: elem }
             | Ty::Arbitrary { next: elem, .. }
@@ -1422,7 +1423,7 @@ pub fn stabby(
     let checked = match stabby_attrs.to_string().as_str() {
         "checked" => true,
         "" => false,
-        _ => panic!("Unkown stabby attributes {stabby_attrs}"),
+        _ => panic!("Unknown stabby attributes {stabby_attrs}"),
     };
     let description: DynTraitDescription = (&mut item_trait, checked).into();
     let vtable = description.vtable();
