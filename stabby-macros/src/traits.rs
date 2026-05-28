@@ -336,7 +336,11 @@ impl<'a> From<(&'a mut syn::ItemTrait, bool)> for DynTraitDescription<'a> {
                         ident,
                         generics,
                         bounds,
-                        ..
+                        type_token: _,
+                        semi_token: _,
+                        colon_token: _,
+                        attrs: _,
+                        default: _,
                     } = ty;
                     let ty = Ty::Path {
                         segment: ident.clone(),
@@ -500,7 +504,18 @@ impl DynTraitDescription<'_> {
         let mut sdt = Some(&self.self_dependent_types);
         for generic in &self.generics.params {
             generics = match generic {
-                syn::GenericParam::Lifetime(lt) => quote!(#generics #lt, ),
+                syn::GenericParam::Lifetime(syn::LifetimeDef {
+                    lifetime,
+                    bounds,
+                    colon_token,
+                    attrs: _,
+                }) => {
+                    if BOUNDED {
+                        quote!(#generics #lifetime #colon_token #bounds, )
+                    } else {
+                        quote!(#generics #lifetime, )
+                    }
+                }
                 syn::GenericParam::Type(ty) => {
                     if let Some(sdt) = sdt.take() {
                         let unselfed_sdt = sdt.unselfed_iter();
@@ -524,6 +539,55 @@ impl DynTraitDescription<'_> {
         }
         generics
     }
+    fn where_clauses(&self) -> TokenStream {
+        let mut acc = quote! {};
+        let Some(where_clause) = &self.generics.where_clause else {
+            return acc;
+        };
+        for clause in &where_clause.predicates {
+            acc = match clause {
+                syn::WherePredicate::Type(syn::PredicateType {
+                    lifetimes,
+                    bounded_ty,
+                    colon_token: _,
+                    bounds,
+                }) => {
+                    let unselfed_target = self.self_dependent_types.unselfed(&bounded_ty.into());
+                    if let Some(lifetimes) = lifetimes {
+                        acc = quote! {unselfed_target: #lifetimes, #acc};
+                    }
+                    for bound in bounds.iter() {
+                        match bound {
+                            syn::TypeParamBound::Trait(syn::TraitBound {
+                                paren_token: _,
+                                modifier,
+                                lifetimes,
+                                path,
+                            }) => {
+                                let path = self.self_dependent_types.unselfed(
+                                    &(&syn::Type::Path(syn::TypePath {
+                                        qself: None,
+                                        path: path.clone(),
+                                    }))
+                                        .into(),
+                                );
+                                acc = quote! {#unselfed_target: #modifier #lifetimes #path, #acc}
+                            }
+                            syn::TypeParamBound::Lifetime(lifetime) => {
+                                acc = quote! {#unselfed_target: #lifetime, #acc}
+                            }
+                        }
+                    }
+                    acc
+                }
+                syn::WherePredicate::Lifetime(predicate_lifetime) => {
+                    quote!(#predicate_lifetime, #acc)
+                }
+                syn::WherePredicate::Eq(predicate_eq) => quote!(#predicate_eq, #acc),
+            }
+        }
+        acc
+    }
     fn vtable(&self) -> TokenStream {
         let st = crate::tl_mod();
         let vtid = self.vtid();
@@ -531,7 +595,7 @@ impl DynTraitDescription<'_> {
         let vt_generics = self.vt_generics::<true>();
         let nbvt_generics = self.vt_generics::<false>();
         let vt_attrs = &self.vt_attrs;
-        let vt_bounds = self
+        let mut vt_bounds = self
             .bounds
             .iter()
             .map(
@@ -550,7 +614,18 @@ impl DynTraitDescription<'_> {
                     }
                 },
             )
+            .chain(self.generics.lifetimes().filter_map(
+                |syn::LifetimeDef {
+                     lifetime,
+                     bounds,
+                     colon_token,
+                     attrs: _,
+                 }| {
+                    colon_token.map(|colon_token| quote!(#lifetime #colon_token #bounds, ))
+                },
+            ))
             .collect::<Vec<_>>();
+        vt_bounds.push(self.where_clauses());
         let fns = &self.functions;
         let mut_fns = &self.mut_functions;
         let fn_args = fns
