@@ -17,6 +17,7 @@
 #![cfg_attr(stabby_unsafe_wakers = "true", allow(deprecated))]
 
 pub use crate as stabby;
+#[cfg(feature = "alloc")]
 use stabby::boxed::Box;
 
 #[stabby::stabby(checked)]
@@ -83,6 +84,7 @@ pub trait MyTrait3<Hi: core::ops::Deref> {
     extern "C" fn test2(&mut self);
 }
 
+#[cfg(feature = "alloc")]
 impl MyTrait3<Box<()>> for u8 {
     type A = u8;
     type B = u8;
@@ -95,6 +97,8 @@ impl MyTrait3<Box<()>> for u8 {
     extern "C" fn test(&mut self) {}
     extern "C" fn test2(&mut self) {}
 }
+
+#[cfg(feature = "alloc")]
 impl MyTrait3<Box<()>> for u16 {
     type A = u8;
     type B = u8;
@@ -108,6 +112,7 @@ impl MyTrait3<Box<()>> for u16 {
     extern "C" fn test2(&mut self) {}
 }
 
+#[cfg(feature = "alloc")]
 #[stabby::stabby(checked)]
 pub trait MyTraitWithLt<'a> {
     extern "C" fn return_lt(&self) -> &'a u8;
@@ -133,6 +138,7 @@ pub trait AsyncRead {
         buffer: stabby::slice::SliceMut<'a, u8>,
     ) -> stabby::future::DynFuture<'a, usize>;
 }
+#[cfg(feature = "alloc")]
 impl AsyncRead for stabby::slice::Slice<'_, u8> {
     extern "C" fn read<'a>(
         &'a mut self,
@@ -150,6 +156,7 @@ impl AsyncRead for stabby::slice::Slice<'_, u8> {
     }
 }
 
+#[cfg(feature = "alloc")]
 #[test]
 fn dyn_traits() {
     let boxed = Box::new(6u8);

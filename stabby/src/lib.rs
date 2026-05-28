@@ -30,6 +30,7 @@ pub use stabby_abi::{
 
 pub use stabby_abi as abi;
 
+#[cfg(feature = "alloc")]
 pub use stabby_abi::alloc::{self, boxed, collections, string, sync, vec};
 
 pub use stabby_abi::{Dyn, DynRef};
@@ -42,6 +43,7 @@ pub use stabby_abi::tuple;
     stabby_unsafe_wakers = "true",
     deprecated = "Warning! you are using the `stabby/stabby_unsafe_wakers` feature. This could cause UB if you poll a future received from another shared library with mismatching ABI! (this API isn't actually deprecated)"
 )]
+#[cfg(feature = "alloc")]
 pub mod future {
     pub use crate::abi::future::*;
     use crate::boxed::Box;

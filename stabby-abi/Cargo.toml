@@ -28,7 +28,8 @@ workspace = true
 
 [features]
 default = ["std"]
-std = ["alloc-rs"]
+std = ["alloc", "alloc-rs"]
+alloc = []
 alloc-rs = []
 experimental-ctypes = ["stabby-macros/experimental-ctypes"]
 libc = ["dep:libc"]
