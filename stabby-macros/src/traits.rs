@@ -492,7 +492,7 @@ impl DynTraitFn<'_> {
         let params = &generics.params;
         let where_clause = &generics.where_clause;
         let for_generics = quote!(for <#receiver_lt_decl #params>);
-        quote!(#for_generics #abi #unsafety fn(#receiver, ::core::marker::PhantomData<&#receiver_lt &'stabby_vt_lt ()>, #(#inputs),*) #output #where_clause)
+        quote!(#for_generics #unsafety #abi fn(#receiver, ::core::marker::PhantomData<&#receiver_lt &'stabby_vt_lt ()>, #(#inputs),*) #output #where_clause)
     }
 }
 impl DynTraitDescription<'_> {
@@ -1246,10 +1246,8 @@ impl quote::ToTokens for Ty {
                 abi,
                 inputs,
                 output,
-            } => tokens.extend(
-                quote!(#lifetimes #unsafety # abi fn(#(#inputs,)*) -> #output
-                ),
-            ),
+            } => tokens.extend(quote!(#lifetimes #unsafety #abi fn(#(#inputs,)*) -> #output
+            )),
             Self::Path {
                 segment,
                 arguments,

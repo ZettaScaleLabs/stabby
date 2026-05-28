@@ -81,6 +81,7 @@ pub trait MyTrait3<Hi: core::ops::Deref> {
     extern "C" fn gen_stuff3(&mut self, with: Hi) -> Self::A;
     extern "C" fn test(&mut self);
     extern "C" fn test2(&mut self);
+    unsafe extern "C" fn unsafe_test(&mut self);
 }
 
 impl MyTrait3<Box<()>> for u8 {
@@ -94,6 +95,7 @@ impl MyTrait3<Box<()>> for u8 {
     }
     extern "C" fn test(&mut self) {}
     extern "C" fn test2(&mut self) {}
+    unsafe extern "C" fn unsafe_test(&mut self) {}
 }
 impl MyTrait3<Box<()>> for u16 {
     type A = u8;
@@ -106,6 +108,7 @@ impl MyTrait3<Box<()>> for u16 {
     }
     extern "C" fn test(&mut self) {}
     extern "C" fn test2(&mut self) {}
+    unsafe extern "C" fn unsafe_test(&mut self) {}
 }
 
 #[stabby::stabby(checked)]
