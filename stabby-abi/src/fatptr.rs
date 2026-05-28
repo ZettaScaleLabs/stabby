@@ -435,7 +435,7 @@ impl<P: IPtrOwned, Vt: HasDropVt> Drop for Dyn<'_, P, Vt> {
     }
 }
 
-impl<'a, T, Vt: Copy + IConstConstructor<'a, T>> From<&'a T> for DynRef<'a, Vt> {
+impl<'a, T, Vt: Copy + IConstConstructor<'static, T>> From<&'a T> for DynRef<'a, Vt> {
     fn from(value: &'a T) -> Self {
         DynRef {
             ptr: value.into(),
