@@ -38,7 +38,7 @@ macro_rules! log {
         let logfile = std::path::PathBuf::from($path);
         use std::io::Write;
         let e = $e;
-        writeln!(crate::logfile(logfile), $pat, e);
+        writeln!(crate::logfile(logfile), $pat, e).unwrap();
         e
     }};
     ($pat: literal, $e: expr) => {

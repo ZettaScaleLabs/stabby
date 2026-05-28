@@ -116,6 +116,17 @@ pub trait MyTraitWithLt<'a> {
 }
 
 #[stabby::stabby(checked)]
+pub trait MyTraitWithTwoLt<'a, 'b, G: 'static>
+where
+    'a: 'b,
+    G: core::fmt::Debug,
+{
+    extern "C" fn return_lt(&self) -> &'a u8;
+    extern "C" fn take_and_return_lt(&self, with: &'a u8) -> &'b G;
+    extern "C" fn named_and_trait_lt(&self, a: &'a u8, b: &'b u8);
+}
+
+#[stabby::stabby(checked)]
 pub trait AsyncRead {
     extern "C" fn read<'a>(
         &'a mut self,
