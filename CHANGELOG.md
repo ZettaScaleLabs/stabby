@@ -1,3 +1,7 @@
+# 72.1.2 (api=3.0.1, abi=2.0.0)
+- Merged [#124](https://github.com/ZettaScaleLabs/stabby/pull/124), (thanks @matejcik for raising the issue and providing the fix, thanks @juliajohannessen for raising further lifetime issues through that PR's comments)
+- Fixed [#127](https://github.com/ZettaScaleLabs/stabby/issues/127) (thanks @juliajohannessen for raising the issue)
+
 # 72.1.2-rc1 (api=3.0.1, abi=2.0.0)
 - Fixed [#112](https://github.com/ZettaScaleLabs/stabby/issues/112) (thanks @Dasaav-dsv for both raising the issue and providing the fix)
 - Fixed [#103](https://github.com/ZettaScaleLabs/stabby/issues/103) (thanks @numberZero for raising the issue)
