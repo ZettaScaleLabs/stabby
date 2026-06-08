@@ -22,7 +22,7 @@ if __name__ == "__main__":
     else:
         changelog = f"{ws_root}/CHANGELOG.md"
         print("Close the CHANGELOG to continue, the topmost version will be picked")
-        os.system(f"code --wait {changelog}")
+        os.system(f"codium --wait {changelog}")
         version = None
         changelog_text = None
         with open(changelog) as clog:
