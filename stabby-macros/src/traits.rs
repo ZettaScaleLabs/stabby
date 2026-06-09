@@ -16,16 +16,19 @@ use core::panic;
 use std::ops::Deref;
 
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{
     spanned::Spanned,
     token::{Const, Mut, Unsafe},
     Abi, AngleBracketedGenericArguments, BoundLifetimes, Expr, Lifetime, PatType, Path,
-    PathArguments, PathSegment, Receiver, Signature, TraitItemMethod, TraitItemType, Type,
-    TypeArray, TypeBareFn, TypeGroup, TypeParen, TypePath, TypePtr, TypeReference, TypeTuple,
+    PathArguments, PathSegment, Receiver, Signature, TraitItemFn, TraitItemType, Type, TypeArray,
+    TypeBareFn, TypeGroup, TypeParen, TypePath, TypePtr, TypeReference, TypeTuple,
 };
 
-use crate::utils::{IGenerics, Unbound};
+use crate::{
+    utils::{IGenerics, Unbound},
+    SupportedTypeParamBound,
+};
 #[derive(Clone, Default)]
 struct SelfDependentTypes {
     inner: Vec<Ty>,
@@ -233,21 +236,21 @@ impl<'a> From<(&'a mut syn::ItemTrait, bool)> for DynTraitDescription<'a> {
             check_bounds: checked,
         };
         attrs.retain(|attr| {
-            let mut path_segments = attr.path.segments.iter();
+            let mut path_segments = attr.path().segments.iter();
             if path_segments.next().map_or(true, |s| s.ident != "stabby") {
                 return true;
             }
             if path_segments.next().map_or(true, |s| s.ident != "vt_attr") {
                 return true;
             }
-            let vt_attr = syn::parse2::<SubAttr>(attr.tokens.clone()).unwrap();
+            let vt_attr = syn::parse2::<SubAttr>(attr.meta.to_token_stream()).unwrap();
             this.vt_attrs.push(vt_attr.inner);
             false
         });
         for item in items {
             match item {
-                syn::TraitItem::Method(method) => {
-                    let TraitItemMethod {
+                syn::TraitItem::Fn(method) => {
+                    let TraitItemFn {
                         sig:
                             Signature {
                                 asyncness,
@@ -297,12 +300,16 @@ impl<'a> From<(&'a mut syn::ItemTrait, bool)> for DynTraitDescription<'a> {
                             reference: Some(reference),
                             mutability,
                             self_token,
-                            ..
+                            colon_token,
+                            ty,
+                            attrs,
                         })) => Receiver {
                             reference: Some(reference.clone()),
                             mutability: *mutability,
                             self_token: *self_token,
-                            attrs: Vec::new(),
+                            attrs: attrs.clone(),
+                            colon_token: *colon_token,
+                            ty: ty.clone(),
                         },
                         _ => panic!(
                             "methods must take &self or &mut self as first arg to be trait safe"
@@ -365,8 +372,8 @@ impl<'a> From<(&'a mut syn::ItemTrait, bool)> for DynTraitDescription<'a> {
                     };
                     for bound in bounds {
                         let target = Ty::SelfReferential(Box::new(ty.clone()));
-                        match bound {
-                            syn::TypeParamBound::Trait(syn::TraitBound {
+                        match bound.clone().into() {
+                            SupportedTypeParamBound::Trait(syn::TraitBound {
                                 lifetimes,
                                 path:
                                     syn::Path {
@@ -387,11 +394,13 @@ impl<'a> From<(&'a mut syn::ItemTrait, bool)> for DynTraitDescription<'a> {
                                     bound: Ok(bound),
                                 })
                             }
-                            syn::TypeParamBound::Lifetime(l) => this.bounds.push(DynTraitBound {
-                                target,
-                                lifetimes: None,
-                                bound: Err(l.clone()),
-                            }),
+                            SupportedTypeParamBound::Lifetime(l) => {
+                                this.bounds.push(DynTraitBound {
+                                    target,
+                                    lifetimes: None,
+                                    bound: Err(l.clone()),
+                                })
+                            }
                         }
                     }
                     this.self_dependent_types.push(ty);
@@ -504,7 +513,7 @@ impl DynTraitDescription<'_> {
         let mut sdt = Some(&self.self_dependent_types);
         for generic in &self.generics.params {
             generics = match generic {
-                syn::GenericParam::Lifetime(syn::LifetimeDef {
+                syn::GenericParam::Lifetime(syn::LifetimeParam {
                     lifetime,
                     bounds,
                     colon_token,
@@ -557,8 +566,8 @@ impl DynTraitDescription<'_> {
                         acc = quote! {unselfed_target: #lifetimes, #acc};
                     }
                     for bound in bounds.iter() {
-                        match bound {
-                            syn::TypeParamBound::Trait(syn::TraitBound {
+                        match bound.clone().into() {
+                            SupportedTypeParamBound::Trait(syn::TraitBound {
                                 paren_token: _,
                                 modifier,
                                 lifetimes,
@@ -573,7 +582,7 @@ impl DynTraitDescription<'_> {
                                 );
                                 acc = quote! {#unselfed_target: #modifier #lifetimes #path, #acc}
                             }
-                            syn::TypeParamBound::Lifetime(lifetime) => {
+                            SupportedTypeParamBound::Lifetime(lifetime) => {
                                 acc = quote! {#unselfed_target: #lifetime, #acc}
                             }
                         }
@@ -583,7 +592,7 @@ impl DynTraitDescription<'_> {
                 syn::WherePredicate::Lifetime(predicate_lifetime) => {
                     quote!(#predicate_lifetime, #acc)
                 }
-                syn::WherePredicate::Eq(predicate_eq) => quote!(#predicate_eq, #acc),
+                other => panic!("stabby doesn't support the following WherePredicate: {other:?}"),
             }
         }
         acc
@@ -615,7 +624,7 @@ impl DynTraitDescription<'_> {
                 },
             )
             .chain(self.generics.lifetimes().filter_map(
-                |syn::LifetimeDef {
+                |syn::LifetimeParam {
                      lifetime,
                      bounds,
                      colon_token,
@@ -782,7 +791,7 @@ impl DynTraitDescription<'_> {
                     lt.clone()
                 } else {
                     let default_lt = Lifetime::new("'stabby_receiver_lt", self_token.span());
-                    arg_lts.push(syn::LifetimeDef::new(default_lt.clone()));
+                    arg_lts.push(syn::LifetimeParam::new(default_lt.clone()));
                     default_lt
                 };
                 let receiver = if mutability.is_some() {
@@ -1200,7 +1209,8 @@ enum GenericArgument {
     Lifetime(syn::Lifetime),
     Type(Ty),
     Const(syn::Expr),
-    Binding(syn::Binding),
+    AssocConst(syn::AssocConst),
+    AssocType(syn::AssocType),
     Constraint(syn::Constraint),
 }
 impl quote::ToTokens for GenericArgument {
@@ -1209,7 +1219,8 @@ impl quote::ToTokens for GenericArgument {
             GenericArgument::Lifetime(l) => l.to_tokens(tokens),
             GenericArgument::Type(ty) => ty.to_tokens(tokens),
             GenericArgument::Const(l) => l.to_tokens(tokens),
-            GenericArgument::Binding(l) => l.to_tokens(tokens),
+            GenericArgument::AssocConst(l) => l.to_tokens(tokens),
+            GenericArgument::AssocType(l) => l.to_tokens(tokens),
             GenericArgument::Constraint(l) => l.to_tokens(tokens),
         }
     }
@@ -1327,10 +1338,14 @@ impl Ty {
                         syn::GenericArgument::Lifetime(l) => GenericArgument::Lifetime(l.clone()),
                         syn::GenericArgument::Type(ty) => GenericArgument::Type(Self::from(ty)),
                         syn::GenericArgument::Const(c) => GenericArgument::Const(c.clone()),
-                        syn::GenericArgument::Binding(b) => GenericArgument::Binding(b.clone()),
+                        syn::GenericArgument::AssocConst(c) => {
+                            GenericArgument::AssocConst(c.clone())
+                        }
+                        syn::GenericArgument::AssocType(b) => GenericArgument::AssocType(b.clone()),
                         syn::GenericArgument::Constraint(c) => {
                             GenericArgument::Constraint(c.clone())
                         }
+                        other => panic!("stabby doesn't support GenericArgument: {other:?}"),
                     })
                 }
                 Arguments::AngleBracketed { generics }

@@ -63,17 +63,13 @@ enum AllowedRepr {
 }
 impl syn::parse::Parse for AllowedRepr {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let mut content = input.fork();
-        if input.peek(syn::token::Paren) {
-            syn::parenthesized!(content in input);
-        }
-        let ident: Ident = content.parse()?;
+        let ident: Ident = input.parse()?;
         Ok(match ident.to_string().as_str() {
             "C" => AllowedRepr::C,
             "transparent" => AllowedRepr::Transparent,
             "packed" => return Err(input.error("stabby does not support packed structs, though you may implement IStable manually if you're very comfident")),
             "align" => {
-                let input = content;
+                let content;
                 syn::parenthesized!(content in input);
                 let lit: syn::LitInt = content.parse()?;
                 AllowedRepr::Align(lit.base10_parse()?)
@@ -123,11 +119,16 @@ pub fn stabby(
     let mut layout = None;
     let mut report = crate::Report::r#struct(ident.to_string(), version, module);
     let repr = attrs.iter().find_map(|attr| {
-        if attr.path.is_ident("repr") {
-            syn::parse2::<AllowedRepr>(attr.tokens.clone()).ok()
-        } else {
-            None
-        }
+        attr.meta.require_list().ok().and_then(|meta| {
+            match (meta.path.is_ident("repr"), &meta.delimiter) {
+                (true, syn::MacroDelimiter::Paren(_)) => {
+                    syn::parse2::<AllowedRepr>(meta.tokens.clone())
+                        .inspect_err(|e| panic!("{e:?} => {meta:?}"))
+                        .ok()
+                }
+                _ => None,
+            }
+        })
     });
     let repr_attr = repr.is_none().then(|| quote! {#[repr(C)]});
     optimize &= !matches!(repr, Some(AllowedRepr::Align(_)));

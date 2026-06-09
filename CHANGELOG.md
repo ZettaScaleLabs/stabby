@@ -1,3 +1,6 @@
+# 72.1.4 (api=3.0.2, abi=2.0.0)
+- Upgraded `syn` to `2.0.46+`.
+
 # 72.1.2 (api=3.0.1, abi=2.0.0)
 - Merged [#124](https://github.com/ZettaScaleLabs/stabby/pull/124), (thanks @matejcik for raising the issue and providing the fix, thanks @juliajohannessen for raising further lifetime issues through that PR's comments)
 - Fixed [#127](https://github.com/ZettaScaleLabs/stabby/issues/127) (thanks @juliajohannessen for raising the issue)

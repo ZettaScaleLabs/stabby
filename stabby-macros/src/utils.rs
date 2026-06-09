@@ -13,7 +13,7 @@
 //
 
 use quote::quote;
-use syn::{ConstParam, GenericParam, Lifetime, LifetimeDef, TypeParam};
+use syn::{ConstParam, GenericParam, Lifetime, TypeParam};
 
 #[derive(Clone, Default)]
 pub(crate) struct SeparatedGenerics {
@@ -41,7 +41,7 @@ pub(crate) fn unbound_generics<'a>(
     for g in generics {
         match g {
             GenericParam::Type(TypeParam { ident, .. }) => this.types.push(quote!(#ident)),
-            GenericParam::Lifetime(LifetimeDef { lifetime, .. }) => {
+            GenericParam::Lifetime(syn::LifetimeParam { lifetime, .. }) => {
                 this.lifetimes.push(quote!(#lifetime))
             }
             GenericParam::Const(ConstParam { ident, .. }) => this.consts.push(quote!(#ident)),
@@ -58,7 +58,7 @@ pub(crate) fn generics_without_defaults<'a>(
             GenericParam::Type(TypeParam { ident, bounds, .. }) => {
                 this.types.push(quote!(#ident: #bounds))
             }
-            GenericParam::Lifetime(LifetimeDef {
+            GenericParam::Lifetime(syn::LifetimeParam {
                 lifetime, bounds, ..
             }) => this.lifetimes.push(quote!(#lifetime: #bounds)),
             GenericParam::Const(ConstParam { ident, ty, .. }) => {
@@ -70,7 +70,7 @@ pub(crate) fn generics_without_defaults<'a>(
 }
 
 pub trait IGenerics<'a> {
-    type Lifetimes: Iterator<Item = &'a LifetimeDef>;
+    type Lifetimes: Iterator<Item = &'a syn::LifetimeParam>;
     fn lifetimes(self) -> Self::Lifetimes;
     type Types: Iterator<Item = &'a TypeParam>;
     fn types(self) -> Self::Types;
@@ -79,7 +79,7 @@ pub trait IGenerics<'a> {
 }
 impl<'a, T: IntoIterator<Item = &'a GenericParam>> IGenerics<'a> for T {
     type Lifetimes =
-        core::iter::FilterMap<T::IntoIter, fn(&'a GenericParam) -> Option<&'a LifetimeDef>>;
+        core::iter::FilterMap<T::IntoIter, fn(&'a GenericParam) -> Option<&'a syn::LifetimeParam>>;
     fn lifetimes(self) -> Self::Lifetimes {
         self.into_iter().filter_map(|g| {
             if let GenericParam::Lifetime(l) = g {
@@ -115,7 +115,7 @@ pub trait Unbound {
     type Unbound;
     fn unbound(self) -> Self::Unbound;
 }
-impl<'a> Unbound for &'a LifetimeDef {
+impl<'a> Unbound for &'a syn::LifetimeParam {
     type Unbound = &'a Lifetime;
     fn unbound(self) -> Self::Unbound {
         &self.lifetime

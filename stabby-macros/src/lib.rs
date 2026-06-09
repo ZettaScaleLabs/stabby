@@ -111,14 +111,14 @@ pub fn stabby(stabby_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
 pub fn vtable(tokens: TokenStream) -> TokenStream {
     let st = tl_mod();
     let bounds =
-        syn::punctuated::Punctuated::<TypeParamBound, syn::token::Add>::parse_separated_nonempty
+        syn::punctuated::Punctuated::<TypeParamBound, syn::Token![+]>::parse_separated_nonempty
             .parse(tokens)
             .unwrap();
     let mut vt = quote!(#st::vtable::VtDrop);
     for bound in bounds {
-        match &bound {
-            TypeParamBound::Trait(t) => vt = quote!(< dyn #t as #st::vtable::CompoundVt >::Vt<#vt>),
-            TypeParamBound::Lifetime(lt) => panic!("Cannot give lifetimes to vtables, use `Dyn<{lt}, P, Vt>` or `DynRef<{lt}, Vt> instead`"),
+        match bound.into() {
+            SupportedTypeParamBound::Trait(t) => vt = quote!(< dyn #t as #st::vtable::CompoundVt >::Vt<#vt>),
+            SupportedTypeParamBound::Lifetime(lt) => panic!("Cannot give lifetimes to vtables, use `Dyn<{lt}, P, Vt>` or `DynRef<{lt}, Vt> instead`"),
         }
     }
     vt.into()
@@ -196,9 +196,9 @@ impl syn::parse::Parse for DynPtr {
             panic!("expected `dyn` not found")
         };
         for bound in bounds {
-            match bound {
-                TypeParamBound::Trait(t) => this.bounds.push(t),
-                TypeParamBound::Lifetime(lt) => {
+            match bound.into() {
+                SupportedTypeParamBound::Trait(t) => this.bounds.push(t),
+                SupportedTypeParamBound::Lifetime(lt) => {
                     if this.lifetime.is_some() {
                         panic!("Only a single lifetime is supported in this macro")
                     } else {
@@ -502,47 +502,9 @@ impl Unself for syn::Path {
                     ident: ident.clone(),
                     arguments: match arguments {
                         syn::PathArguments::None => syn::PathArguments::None,
-                        syn::PathArguments::AngleBracketed(
-                            syn::AngleBracketedGenericArguments {
-                                colon2_token,
-                                lt_token,
-                                args,
-                                gt_token,
-                            },
-                        ) => syn::PathArguments::AngleBracketed(
-                            syn::AngleBracketedGenericArguments {
-                                colon2_token: *colon2_token,
-                                lt_token: *lt_token,
-                                args: args
-                                    .iter()
-                                    .map(|arg| match arg {
-                                        syn::GenericArgument::Type(ty) => {
-                                            syn::GenericArgument::Type(ty.unself(this))
-                                        }
-                                        syn::GenericArgument::Binding(syn::Binding {
-                                            ident,
-                                            eq_token,
-                                            ty,
-                                        }) => syn::GenericArgument::Binding(syn::Binding {
-                                            ident: ident.clone(),
-                                            eq_token: *eq_token,
-                                            ty: ty.unself(this),
-                                        }),
-                                        syn::GenericArgument::Constraint(syn::Constraint {
-                                            ident,
-                                            colon_token,
-                                            bounds,
-                                        }) => syn::GenericArgument::Constraint(syn::Constraint {
-                                            ident: ident.clone(),
-                                            colon_token: *colon_token,
-                                            bounds: bounds.iter().map(|b| b.unself(this)).collect(),
-                                        }),
-                                        other => other.clone(),
-                                    })
-                                    .collect(),
-                                gt_token: *gt_token,
-                            },
-                        ),
+                        syn::PathArguments::AngleBracketed(args) => {
+                            syn::PathArguments::AngleBracketed(args.unself(this))
+                        }
                         syn::PathArguments::Parenthesized(syn::ParenthesizedGenericArguments {
                             paren_token,
                             inputs,
@@ -565,6 +527,49 @@ impl Unself for syn::Path {
         }
     }
 }
+impl Unself for syn::AngleBracketedGenericArguments {
+    fn unself(&self, this: &syn::Ident) -> Self {
+        Self {
+            colon2_token: self.colon2_token,
+            lt_token: self.lt_token,
+            args: self.args.iter().map(|g| g.unself(this)).collect(),
+            gt_token: self.gt_token,
+        }
+    }
+}
+impl Unself for syn::GenericArgument {
+    fn unself(&self, this: &syn::Ident) -> Self {
+        match self {
+            syn::GenericArgument::Type(ty) => syn::GenericArgument::Type(ty.unself(this)),
+            syn::GenericArgument::AssocType(ty) => syn::GenericArgument::AssocType(ty.unself(this)),
+            syn::GenericArgument::Constraint(c) => syn::GenericArgument::Constraint(c.unself(this)),
+            other @ syn::GenericArgument::Lifetime(_)
+            | other @ syn::GenericArgument::Const(_)
+            | other @ syn::GenericArgument::AssocConst(_) => other.clone(),
+            _ => todo!(),
+        }
+    }
+}
+impl Unself for syn::AssocType {
+    fn unself(&self, this: &syn::Ident) -> Self {
+        syn::AssocType {
+            ident: self.ident.clone(),
+            eq_token: self.eq_token,
+            ty: self.ty.unself(this),
+            generics: self.generics.as_ref().map(|g| g.unself(this)),
+        }
+    }
+}
+impl Unself for syn::Constraint {
+    fn unself(&self, this: &syn::Ident) -> Self {
+        Self {
+            ident: self.ident.clone(),
+            colon_token: self.colon_token,
+            bounds: self.bounds.iter().map(|b| b.unself(this)).collect(),
+            generics: self.generics.as_ref().map(|g| g.unself(this)),
+        }
+    }
+}
 impl Unself for syn::TypeParamBound {
     fn unself(&self, this: &syn::Ident) -> Self {
         match self {
@@ -580,6 +585,8 @@ impl Unself for syn::TypeParamBound {
                 path: path.unself(this),
             }),
             TypeParamBound::Lifetime(l) => TypeParamBound::Lifetime(l.clone()),
+
+            other => panic!("stabby doesn't support the following TypeParamBound {other:?}"),
         }
     }
 }
@@ -706,6 +713,21 @@ impl Unself for syn::Type {
                 })
             }
             o => o.clone(),
+        }
+    }
+}
+
+pub(crate) enum SupportedTypeParamBound {
+    Trait(syn::TraitBound),
+    Lifetime(syn::Lifetime),
+}
+
+impl From<syn::TypeParamBound> for SupportedTypeParamBound {
+    fn from(value: syn::TypeParamBound) -> Self {
+        match value {
+            TypeParamBound::Trait(trait_bound) => Self::Trait(trait_bound),
+            TypeParamBound::Lifetime(lifetime) => Self::Lifetime(lifetime),
+            other => panic!("stabby doesn't support the following TypeParamBound {other:?}"),
         }
     }
 }
