@@ -404,7 +404,7 @@ impl syn::parse::Parse for ImportArgs {
             link_args: quote!(),
         };
         for IdentEqStr { ident, str } in
-            input.parse_terminated::<_, syn::Token!(,)>(IdentEqStr::parse)?
+            input.parse_terminated(IdentEqStr::parse, syn::Token!(,))?
         {
             if ident == "canaries" {
                 args.canaries = Some(CanarySpec::from_str(&str.value()).unwrap())

@@ -151,7 +151,7 @@ pub fn stabby(
     let repr_ident = quote::format_ident!("repr");
     let mut new_attrs = Vec::with_capacity(attrs.len());
     for a in attrs {
-        if a.path.is_ident(&repr_ident) {
+        if a.path().is_ident(&repr_ident) {
             if repr.is_none() {
                 repr = Some(a.parse_args().unwrap())
             } else {
