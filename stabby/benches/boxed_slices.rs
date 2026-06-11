@@ -2,6 +2,7 @@ use std::mem::MaybeUninit;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
+#[allow(clippy::arithmetic_side_effects)]
 fn bench_slices(c: &mut Criterion) {
     c.bench_function("std_box_new", |b| {
         b.iter(|| Box::new(black_box(15)));

@@ -60,7 +60,7 @@ impl crate::alloc::IAlloc for LibcAlloc {
         let mut ptr = core::ptr::null_mut();
         // SAFETY: `posix_memalign` is always safe.
         let err = unsafe { posix_memalign(&mut ptr, layout.align, layout.size) };
-        if err != 0 && (ptr as usize % layout.align != 0) {
+        if err != 0 && ((ptr as usize).rem_euclid(layout.align) != 0) {
             ptr = core::ptr::null_mut();
         }
         ptr.cast()

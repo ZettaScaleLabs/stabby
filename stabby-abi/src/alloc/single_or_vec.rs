@@ -204,7 +204,7 @@ where
         let inner = &mut self.inner as *mut _;
         self.inner.match_mut(
             |value| unsafe {
-                let new_capacity = 1 + additional;
+                let new_capacity = additional.saturating_add(1);
                 // either `inner` must be leaked and overwritten by the new owner of `value` and `alloc`,
                 // or these two must be leaked to prevent double frees.
                 let Single { value, alloc } = core::ptr::read(&*value);
@@ -482,7 +482,7 @@ where
             let r = unsafe {
                 core::mem::transmute::<&mut T, &mut T>(self.inner.get_unchecked_mut(self.start))
             };
-            self.start += 1;
+            self.start = self.start.saturating_add(1);
             Some(r)
         } else {
             None
@@ -508,7 +508,7 @@ where
     }
 
     fn nth(&mut self, n: usize) -> Option<Self::Item> {
-        self.start += n;
+        self.start = self.start.saturating_add(n);
         self.next()
     }
 }
@@ -522,7 +522,7 @@ where
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.start < self.end {
-            self.end -= 1;
+            self.end = self.end.saturating_sub(1);
             let r = unsafe {
                 core::mem::transmute::<&mut T, &mut T>(self.inner.get_unchecked_mut(self.end))
             };

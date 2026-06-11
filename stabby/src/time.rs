@@ -9,6 +9,7 @@ pub struct Duration {
     /// The number of subsecond nanos elapsed.
     pub nanos: u32,
 }
+
 impl Duration {
     /// Construct a new [`Duration`].
     pub const fn new(secs: u64, subsec_nanos: u32) -> Self {
@@ -18,6 +19,7 @@ impl Duration {
         }
     }
     /// Construct a new [`Duration`].
+    #[allow(clippy::arithmetic_side_effects)]
     pub const fn from_millis(millis: u64) -> Self {
         Self {
             secs: millis / 1000,
@@ -25,6 +27,7 @@ impl Duration {
         }
     }
     /// Construct a new [`Duration`].
+    #[allow(clippy::arithmetic_side_effects)]
     pub const fn from_micros(micros: u64) -> Self {
         Self {
             secs: micros / 1000000,
@@ -49,6 +52,7 @@ impl Duration {
         self.secs
     }
     /// Returns the total number of nanoseconds in the duration.
+    #[allow(clippy::arithmetic_side_effects)] // `u64::MAX * 10^9 + u32::MAX < u128`
     pub const fn as_nanos(&self) -> u128 {
         self.secs as u128 * 1_000_000_000 + self.nanos as u128
     }
@@ -70,6 +74,9 @@ impl Duration {
     }
 }
 impl core::ops::AddAssign for Duration {
+    /// # Panics
+    /// If the sum of Durations exceeds the maximum representable Duration
+    #[allow(clippy::arithmetic_side_effects)]
     fn add_assign(&mut self, rhs: Self) {
         let nanos = self.nanos + rhs.nanos;
         self.secs += rhs.secs + (nanos / 1_000_000_000) as u64;
@@ -78,6 +85,9 @@ impl core::ops::AddAssign for Duration {
 }
 impl core::ops::Add for Duration {
     type Output = Self;
+    /// # Panics
+    /// If the sum of Durations exceeds the maximum representable Duration
+    #[allow(clippy::arithmetic_side_effects)]
     fn add(mut self, rhs: Self) -> Self {
         self += rhs;
         self
@@ -118,6 +128,9 @@ pub enum Sign {
     Negative,
 }
 impl AtomicDuration {
+    /// # Panics
+    /// If `t == i64::MIN`
+    #[allow(clippy::arithmetic_side_effects)]
     const fn i64_to_duration(mut t: i64) -> (Duration, Sign) {
         let sign = if t.is_negative() {
             t = -t;
@@ -129,6 +142,9 @@ impl AtomicDuration {
         let secs = t >> SHIFT;
         (Duration::new(secs as u64, micros * 1000), sign)
     }
+    /// # Panics
+    /// If `t` exceeds the maximum representable duration
+    #[allow(clippy::arithmetic_side_effects)]
     const fn duration_to_i64(t: Duration, sign: Sign) -> i64 {
         let t = ((t.as_secs() as i64) << SHIFT) + (t.subsec_micros() as i64);
         match sign {
@@ -195,6 +211,10 @@ mod impls {
     }
     impl core::ops::Add<Duration> for SystemTime {
         type Output = Self;
+
+        /// # Panics
+        /// If the result cannot be represented
+        #[allow(clippy::arithmetic_side_effects)]
         fn add(mut self, rhs: Duration) -> Self {
             self += rhs;
             self
@@ -212,6 +232,9 @@ mod impls {
         }
     }
     impl From<SystemTime> for std::time::SystemTime {
+        /// # Panics
+        /// If the result cannot be represented
+        #[allow(clippy::arithmetic_side_effects)]
         fn from(value: SystemTime) -> Self {
             UNIX_EPOCH + value.0.into()
         }
@@ -268,6 +291,9 @@ mod impls {
     }
     impl core::ops::Add<Duration> for Instant {
         type Output = Self;
+        /// # Panics
+        /// If the result cannot be represented
+        #[allow(clippy::arithmetic_side_effects)]
         fn add(mut self, rhs: Duration) -> Self {
             self += rhs;
             self
@@ -279,6 +305,9 @@ mod impls {
         }
     }
     impl From<Instant> for std::time::Instant {
+        /// # Panics
+        /// If the result cannot be represented
+        #[allow(clippy::arithmetic_side_effects)]
         fn from(value: Instant) -> Self {
             instant_epoch() + value.0.into()
         }

@@ -456,11 +456,11 @@ mod seal {
                 greater,
             };
             for entry in entries {
-                if this.len >= SPLIT_LIMIT - 1 {
-                    panic!("Attempted to construct an node with too many entries");
-                }
-                this.entries[this.len].write(entry);
-                this.len += 1;
+                this.entries
+                    .get_mut(this.len)
+                    .expect("Attempted to construct an node with too many entries")
+                    .write(entry);
+                this.len = this.len.wrapping_add(1);
             }
             this
         }
@@ -525,9 +525,17 @@ mod seal {
         ArcBTreeSetNode<T, Alloc, REPLACE_ON_INSERT, SPLIT_LIMIT>
     {
         pub fn len(&self) -> usize {
-            self.0.entries().iter().fold(0, |acc, it| {
-                acc + 1 + it.smaller.as_ref().map_or(0, |n| n.len())
-            }) + self.0.greater.as_ref().map_or(0, |n| n.len())
+            let entries = self.0.entries();
+            let mut acc = entries.len();
+            if let Some(greater) = &self.0.greater {
+                acc = acc.wrapping_add(greater.len());
+            }
+            for entry in entries {
+                if let Some(smaller) = &entry.smaller {
+                    acc = acc.wrapping_add(smaller.len());
+                }
+            }
+            acc
         }
         pub fn get<K>(&self, key: &K) -> Option<&T>
         where
@@ -586,16 +594,18 @@ mod seal {
                     Ordering::Greater => match entry.smaller.as_mut() {
                         Some(smaller) => {
                             let (right, pivot) = smaller.insert_inner(value)?;
-                            return match inner.insert(i, pivot, Some(right), alloc) {
+                            // SAFETY: `i < inner.len` is guaranteed, since `i` is the index of an entry in `inner`
+                            return match unsafe { inner.insert(i, pivot, Some(right), alloc) } {
                                 None => Err(None),
                                 Some(splits) => Ok(splits),
                             };
                         }
                         None => {
-                            return match inner.insert(i, value, None, alloc) {
+                            // SAFETY: `i < inner.len` is guaranteed, since `i` is the index of an entry in `inner`
+                            return match unsafe { inner.insert(i, value, None, alloc) } {
                                 None => Err(None),
                                 Some(splits) => Ok(splits),
-                            }
+                            };
                         }
                     },
                     _ => {}
@@ -632,7 +642,9 @@ mod seal {
     impl<T: Ord, Alloc: IAlloc, const REPLACE_ON_INSERT: bool, const SPLIT_LIMIT: usize>
         ArcBTreeSetNodeInner<T, Alloc, REPLACE_ON_INSERT, SPLIT_LIMIT>
     {
-        fn insert(
+        /// # Safety
+        /// `i == self.len` (i.e. calling this instead of `push`) will yield undefined behaviour.
+        unsafe fn insert(
             &mut self,
             i: usize,
             value: T,
@@ -643,21 +655,33 @@ mod seal {
             Alloc: Clone,
         {
             debug_assert!(i < self.len);
-            // SAFETY: See line comments
-            // SAFETY: A node always has at least one slot free thanks to splitting being called at the end of any operations that may increase `self.len`
             assert!(self.len < self.entries.len());
             for i in (i..self.len).rev() {
-                self.entries[i + 1] =
-                    MaybeUninit::new(unsafe { self.entries[i].assume_init_read() });
+                // SAFETY:
+                // - `i < self.len` => the entry at `i`` is initialized
+                // - `self.len < self.entries.len()` => writing to `i + 1` is safe
+                // - reversed iteration:
+                //   - first iteration: the squashed entry was out-of-bounds and needn't be dropped
+                //   - following iterations: the squashed entry has been moved already and needn't be dropped
+                //   - last iteration: the duplicated entry will be overwritten right after the loop
+                unsafe {
+                    core::ptr::copy_nonoverlapping(
+                        self.entries.get_unchecked(i).as_ptr(),
+                        self.entries
+                            .get_unchecked_mut(i.wrapping_add(1))
+                            .as_mut_ptr(),
+                        1,
+                    )
+                }
             }
-            // SAFETY: A node always has at least one slot free thanks to splitting being called at the end of any operations that may increase `self.len`
+            // SAFETY: The entry has been moved to `i + 1` already, and was previously initialized, allowing us to read its `smaller`
             unsafe {
                 *self.entries.get_unchecked_mut(i) = MaybeUninit::new(ArcBTreeSetEntry {
                     value,
                     smaller: core::mem::replace(
                         &mut self
                             .entries
-                            .get_unchecked_mut(i + 1)
+                            .get_unchecked_mut(i.wrapping_add(1))
                             .assume_init_mut()
                             .smaller,
                         greater,
@@ -665,7 +689,7 @@ mod seal {
                 });
             }
 
-            self.len += 1;
+            self.len = self.len.wrapping_add(1);
             self.split(alloc)
         }
         fn push(
@@ -686,7 +710,7 @@ mod seal {
                         smaller: core::mem::replace(&mut self.greater, greater),
                     });
             }
-            self.len += 1;
+            self.len = self.len.wrapping_add(1);
             self.split(alloc)
         }
         fn split(
@@ -698,6 +722,7 @@ mod seal {
         {
             if self.len == SPLIT_LIMIT {
                 let pivot_index: usize = SPLIT_LIMIT / 2;
+                let pivot_index_plus1 = pivot_index.wrapping_add(1);
                 // SAFETY: we've just confirmed the `SPLIT_LIMIT/2` node is initialized by checking the length
                 let pivot = unsafe { self.entries.get_unchecked(pivot_index).assume_init_read() };
                 let ArcBTreeSetEntry {
@@ -706,14 +731,17 @@ mod seal {
                 } = pivot;
                 let mut right = Self {
                     entries: [(); SPLIT_LIMIT].map(|_| core::mem::MaybeUninit::uninit()),
-                    len: self.len - (pivot_index + 1),
+                    len: self.len.wrapping_sub(pivot_index_plus1),
                     greater: self.greater.take(),
                 };
                 // SAFETY: the left entries are all initialized, allowing to read `SPLIT_LIMIT/2` elements into `right`
-                for i in (pivot_index + 1)..self.len {
-                    right.entries[i - (pivot_index + 1)] = MaybeUninit::new(unsafe {
-                        self.entries.get_unchecked(i).assume_init_read()
-                    });
+                for i in pivot_index_plus1..self.len {
+                    unsafe {
+                        *right
+                            .entries
+                            .get_unchecked_mut(i.wrapping_sub(pivot_index_plus1)) =
+                            MaybeUninit::new(self.entries.get_unchecked(i).assume_init_read());
+                    }
                 }
                 self.greater = smaller;
                 self.len = pivot_index;

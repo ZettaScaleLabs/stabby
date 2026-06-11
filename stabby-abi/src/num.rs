@@ -364,12 +364,14 @@ macro_rules! makeumask {
         impl ::core::ops::Sub<$base> for $name {
             type Output = Self;
             fn sub(self, rhs: $base) -> Self {
+                #[allow(clippy::arithmetic_side_effects)]
                 Self(self.get() - rhs)
             }
         }
         impl ::core::ops::Sub for $name {
             type Output = Self;
             fn sub(self, rhs: Self) -> Self {
+                #[allow(clippy::arithmetic_side_effects)]
                 Self(self.get() - rhs.get())
             }
         }

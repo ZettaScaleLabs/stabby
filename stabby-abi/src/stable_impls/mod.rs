@@ -146,6 +146,7 @@ macro_rules! check {
                 ($e: expr) => {{
                     let mut i = 0;
                     let e = $e;
+                    #[allow(clippy::indexing_slicing)]
                     while i < e.len() {
                         buffer[len + i] = e[i];
                         i += 1;
