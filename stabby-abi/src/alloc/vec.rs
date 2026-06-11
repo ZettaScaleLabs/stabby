@@ -213,7 +213,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     pub fn try_reserve(&mut self, additional: usize) -> Result<NonMaxUsize, AllocationError> {
         if self.remaining_capacity() < additional {
             let len = self.len();
-            let new_capacity = len + additional;
+            let new_capacity = len.wrapping_add(additional);
             let old_capacity = self.capacity();
             let start = if old_capacity != 0 {
                 unsafe {
@@ -236,7 +236,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         } else {
             let mut capacity = self.capacity();
             if capacity == usize::MAX {
-                capacity -= 1;
+                capacity = capacity.wrapping_sub(1);
             }
             Ok(unsafe { NonMaxUsize::new_unchecked(capacity) })
         }
@@ -245,13 +245,13 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     ///
     /// Does nothing if `self.len() <= len`
     pub fn truncate(&mut self, len: usize) {
-        if self.len() <= len {
-            return;
+        if let Some(to_drop) = self.get_mut(len..) {
+            // SAFETY: `to_drop` is initialized (as it is returned by `get_mut`), so dropping in place is safe provided it's never accessed again, which `set_len` guarantees.
+            unsafe {
+                core::ptr::drop_in_place(to_drop);
+                self.set_len(len);
+            }
         }
-        unsafe {
-            core::ptr::drop_in_place(&mut self[len..]);
-            self.set_len(len)
-        };
     }
     /// Returns a slice of the vector's elements.
     pub const fn as_slice(&self) -> &[T] {
@@ -305,7 +305,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         self.try_reserve(slice.len())?;
         unsafe {
             core::ptr::copy_nonoverlapping(slice.as_ptr(), self.inner.end.as_ptr(), slice.len());
-            self.set_len(self.len() + slice.len());
+            self.set_len(self.len().wrapping_add(slice.len()));
         }
         Ok(())
     }
@@ -331,11 +331,11 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         let original_len = self.len();
         let from = match range.start_bound() {
             core::ops::Bound::Included(i) => *i,
-            core::ops::Bound::Excluded(i) => *i + 1,
+            core::ops::Bound::Excluded(i) => i.wrapping_add(1),
             core::ops::Bound::Unbounded => 0,
         };
         let to = match range.end_bound() {
-            core::ops::Bound::Included(i) => *i + 1,
+            core::ops::Bound::Included(i) => i.wrapping_add(1),
             core::ops::Bound::Excluded(i) => *i,
             core::ops::Bound::Unbounded => original_len,
         };
@@ -364,11 +364,11 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         let original_len = self.len();
         let from = match range.start_bound() {
             core::ops::Bound::Included(i) => *i,
-            core::ops::Bound::Excluded(i) => *i + 1,
+            core::ops::Bound::Excluded(i) => i.wrapping_add(1),
             core::ops::Bound::Unbounded => 0,
         };
         let to = match range.end_bound() {
-            core::ops::Bound::Included(i) => *i + 1,
+            core::ops::Bound::Included(i) => i.wrapping_add(1),
             core::ops::Bound::Excluded(i) => *i,
             core::ops::Bound::Unbounded => original_len,
         };
@@ -391,11 +391,11 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
             unsafe {
                 let value = self.inner.start.ptr.as_ptr().add(index).read();
                 core::ptr::copy(
-                    self.inner.start.ptr.as_ptr().add(index + 1),
+                    self.inner.start.ptr.as_ptr().add(index.wrapping_add(1)),
                     self.inner.start.ptr.as_ptr().add(index),
-                    self.len() - (index + 1),
+                    self.len().wrapping_sub(index.wrapping_add(1)),
                 );
-                self.set_len(self.len() - 1);
+                self.set_len(self.len().wrapping_sub(1));
                 Some(value)
             }
         } else {
@@ -424,7 +424,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         } else {
             unsafe {
                 let value = self.inner.end.as_ptr().sub(1).read();
-                self.set_len(self.len() - 1);
+                self.set_len(self.len().wrapping_sub(1));
                 Some(value)
             }
         }
@@ -436,7 +436,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         if index >= self.len() {
             return None;
         }
-        self.swap(index, self.len() - 1);
+        self.swap(index, self.len().wrapping_sub(1));
         self.pop()
     }
     /// Returns a reference to the vector's allocator.
@@ -485,11 +485,13 @@ macro_rules! impl_index {
         impl<T, Alloc: IAlloc> core::ops::Index<$index> for Vec<T, Alloc> {
             type Output = <[T] as core::ops::Index<$index>>::Output;
             fn index(&self, index: $index) -> &Self::Output {
+                #[allow(clippy::indexing_slicing)]
                 &self.as_slice()[index]
             }
         }
         impl<T, Alloc: IAlloc> core::ops::IndexMut<$index> for Vec<T, Alloc> {
             fn index_mut(&mut self, index: $index) -> &mut Self::Output {
+                #[allow(clippy::indexing_slicing)]
                 &mut self.as_slice_mut()[index]
             }
         }
@@ -503,6 +505,7 @@ macro_rules! impl_index {
         {
             type Output = <[T] as core::ops::Index<$index>>::Output;
             fn index(&self, index: $index) -> &Self::Output {
+                #[allow(clippy::indexing_slicing)]
                 &self.as_slice()[index]
             }
         }
@@ -652,7 +655,7 @@ impl<T, Alloc: IAlloc> Iterator for IntoIter<T, Alloc> {
     fn next(&mut self) -> Option<Self::Item> {
         (self.index < self.vec.len()).then(|| unsafe {
             let ret = self.vec.inner.start.as_ptr().add(self.index).read();
-            self.index += 1;
+            self.index = self.index.wrapping_add(1);
             ret
         })
     }
@@ -660,6 +663,7 @@ impl<T, Alloc: IAlloc> Iterator for IntoIter<T, Alloc> {
 impl<T, Alloc: IAlloc> Drop for IntoIter<T, Alloc> {
     fn drop(&mut self) {
         unsafe {
+            #[allow(clippy::indexing_slicing)]
             core::ptr::drop_in_place(&mut self.vec.as_slice_mut()[self.index..]);
             self.vec.set_len(0);
         }
@@ -703,36 +707,36 @@ impl<'a, T: 'a, Alloc: IAlloc + 'a> Drain<'a, T, Alloc> {
 impl<'a, T: 'a, Alloc: IAlloc + 'a> Iterator for Drain<'a, T, Alloc> {
     type Item = T;
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.to - self.index;
+        let remaining = self.to.wrapping_sub(self.index);
         (remaining, Some(remaining))
     }
     fn next(&mut self) -> Option<Self::Item> {
         (self.index < self.to).then(|| unsafe {
             let ret = self.vec.inner.start.as_ptr().add(self.index).read();
-            self.index += 1;
+            self.index = self.index.wrapping_add(1);
             ret
         })
     }
 }
 impl<'a, T: 'a, Alloc: IAlloc + 'a> ExactSizeIterator for Drain<'a, T, Alloc> {
     fn len(&self) -> usize {
-        self.to - self.index
+        self.to.wrapping_sub(self.index)
     }
 }
 impl<'a, T: 'a, Alloc: IAlloc + 'a> Drop for Drain<'a, T, Alloc> {
     fn drop(&mut self) {
-        let tail_length = self.original_len - self.to;
+        let tail_length = self.original_len.wrapping_sub(self.to);
         unsafe {
             core::ptr::drop_in_place(core::ptr::slice_from_raw_parts_mut(
                 self.vec.inner.start.as_ptr().add(self.index),
-                self.to - self.index,
+                self.to.wrapping_sub(self.index),
             ));
             core::ptr::copy(
                 self.vec.inner.start.as_ptr().add(self.to),
                 self.vec.inner.start.as_ptr().add(self.from),
                 tail_length,
             );
-            self.vec.set_len(tail_length + self.from);
+            self.vec.set_len(tail_length.wrapping_add(self.from));
         }
     }
 }
@@ -749,13 +753,13 @@ pub struct DoubleEndedDrain<'a, T: 'a, Alloc: IAlloc + 'a> {
 impl<'a, T: 'a, Alloc: IAlloc + 'a> Iterator for DoubleEndedDrain<'a, T, Alloc> {
     type Item = T;
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.to - self.lindex;
+        let remaining = self.to.wrapping_sub(self.lindex);
         (remaining, Some(remaining))
     }
     fn next(&mut self) -> Option<Self::Item> {
         (self.lindex < self.rindex).then(|| unsafe {
             let ret = self.vec.inner.start.as_ptr().add(self.lindex).read();
-            self.lindex += 1;
+            self.lindex = self.lindex.wrapping_add(1);
             ret
         })
     }
@@ -764,30 +768,30 @@ impl<'a, T: 'a, Alloc: IAlloc + 'a> DoubleEndedIterator for DoubleEndedDrain<'a,
     fn next_back(&mut self) -> Option<Self::Item> {
         (self.lindex < self.rindex).then(|| unsafe {
             let ret = self.vec.inner.start.as_ptr().add(self.rindex).read();
-            self.rindex -= 1;
+            self.rindex = self.rindex.wrapping_sub(1);
             ret
         })
     }
 }
 impl<'a, T: 'a, Alloc: IAlloc + 'a> ExactSizeIterator for DoubleEndedDrain<'a, T, Alloc> {
     fn len(&self) -> usize {
-        self.rindex - self.lindex
+        self.rindex.wrapping_sub(self.lindex)
     }
 }
 impl<'a, T: 'a, Alloc: IAlloc + 'a> Drop for DoubleEndedDrain<'a, T, Alloc> {
     fn drop(&mut self) {
-        let tail_length = self.original_len - self.to;
+        let tail_length = self.original_len.wrapping_sub(self.to);
         unsafe {
             core::ptr::drop_in_place(core::ptr::slice_from_raw_parts_mut(
                 self.vec.inner.start.as_ptr().add(self.lindex),
-                self.rindex - self.lindex,
+                self.rindex.wrapping_sub(self.lindex),
             ));
             core::ptr::copy(
                 self.vec.inner.start.as_ptr().add(self.to),
                 self.vec.inner.start.as_ptr().add(self.from),
                 tail_length,
             );
-            self.vec.set_len(tail_length + self.from);
+            self.vec.set_len(tail_length.wrapping_add(self.from));
         }
     }
 }

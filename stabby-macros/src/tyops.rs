@@ -121,6 +121,7 @@ impl From<proc_macro2::TokenStream> for TyExpr {
                             let braced: proc_macro2::TokenStream = tokens
                                 .by_ref()
                                 .take_while(|t| {
+                                    #[allow(clippy::arithmetic_side_effects)]
                                     if let TokenTree::Punct(p) = t {
                                         match p.as_char() {
                                             '<' => count += 1,

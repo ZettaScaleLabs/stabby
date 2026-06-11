@@ -55,6 +55,7 @@ impl<Alloc: IAlloc + Default> Default for String<Alloc> {
 }
 impl<S: AsRef<str> + ?Sized, Alloc: IAlloc> core::ops::Add<&S> for String<Alloc> {
     type Output = Self;
+    #[allow(clippy::arithmetic_side_effects)]
     fn add(mut self, rhs: &S) -> Self::Output {
         self += rhs.as_ref();
         self
@@ -131,12 +132,14 @@ impl<Alloc: IAlloc> Ord for String<Alloc> {
 }
 
 impl<Alloc: IAlloc + Default> From<&str> for String<Alloc> {
+    #[allow(clippy::arithmetic_side_effects)]
     fn from(value: &str) -> Self {
         Self::default() + value
     }
 }
 
 impl<Alloc: IAlloc + Default> From<crate::str::Str<'_>> for String<Alloc> {
+    #[allow(clippy::arithmetic_side_effects)]
     fn from(value: crate::str::Str<'_>) -> Self {
         Self::default() + value.as_ref()
     }

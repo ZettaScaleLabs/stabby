@@ -31,6 +31,10 @@ needless_lifetimes = "allow"
 unnecessary_map_or = "allow"
 manual_is_multiple_of = "allow"
 
+indexing_slicing = "warn"
+arithmetic_side_effects = "warn"
+missing_panics_doc = "warn"
+
 
 [workspace.package]
 authors = ["Pierre Avital <pierre.avital@gmail.com>"]

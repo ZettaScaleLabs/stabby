@@ -1,3 +1,5 @@
+#![allow(clippy::arithmetic_side_effects)]
+
 use std::{hint::unreachable_unchecked, num::NonZeroU32};
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};

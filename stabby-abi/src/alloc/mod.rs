@@ -74,6 +74,10 @@ impl Layout {
     ///
     /// Note that while this ensures that even if `T`'s size is not a multiple of its alignment,
     /// the layout will have sufficient memory to store `n` of `T` in an aligned fashion.
+    ///
+    /// # Panics
+    /// If the resulting size exceeds the capacity of `usize` (if `debug_assertions` are enabled)
+    #[allow(clippy::arithmetic_side_effects)]
     pub const fn array<T: Sized>(n: usize) -> Self {
         let Self { size, align } = Self::of::<T>();
         Layout {
@@ -82,6 +86,10 @@ impl Layout {
         }
     }
     /// Concatenates a layout to `self`, ensuring that alignment padding is taken into account.
+    ///
+    /// # Panics
+    /// If the resulting size exceeds the capacity of `usize` (if `debug_assertions` are enabled)
+    #[allow(clippy::arithmetic_side_effects)]
     pub const fn concat(mut self, other: Self) -> Self {
         self.size += other.size;
         self.realign(if self.align < other.align {
@@ -99,6 +107,10 @@ impl Layout {
         next_matching(self.align, ptr.cast()).cast()
     }
     /// Changes the alignment of the layout, adding padding if necessary.
+    ///
+    /// # Panics
+    /// If the resulting size exceeds the capacity of `usize` (if `debug_assertions` are enabled)
+    #[allow(clippy::arithmetic_side_effects)]
     pub const fn realign(mut self, new_align: usize) -> Self {
         self.align = new_align;
         self.size = self.size
@@ -240,11 +252,13 @@ impl<Alloc> AllocPrefix<Alloc> {
     /// The offset between the prefix and a field of type `T`.
     pub const fn skip_to<T>() -> usize {
         let mut size = core::mem::size_of::<Self>();
-        let align = core::mem::align_of::<T>();
-        let sizemodalign = size % align;
+        let mut align = core::mem::align_of::<T>();
+        if align == 0 {
+            align = 1
+        }
+        let sizemodalign = size.rem_euclid(align);
         if sizemodalign != 0 {
-            size += align;
-            size -= sizemodalign;
+            size = size.wrapping_add(align).wrapping_sub(sizemodalign);
         }
         size
     }

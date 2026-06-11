@@ -390,7 +390,10 @@ impl Variants {
             let right = Self::recursion(right, leaf, join);
             join(left, right)
         } else {
-            leaf(&variants[0])
+            let sole_variant = variants
+                .first()
+                .expect("stabby doesn't support empty enums");
+            leaf(sole_variant)
         }
     }
     fn map<'a, U, LeafFn: FnMut(&'a Variant) -> U, JoinFn: FnMut(U, U) -> U>(
@@ -483,7 +486,7 @@ pub(crate) fn repr_stabby(
             vec![ovid]
         },
         |a, b| {
-            let mut r = Vec::with_capacity(a.len() + b.len());
+            let mut r = Vec::with_capacity(a.len().wrapping_add(b.len()));
             for v in a {
                 r.push(quote!(#st::Result::Ok(#v)))
             }

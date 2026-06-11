@@ -85,13 +85,13 @@ pub(crate) mod internal {
             unsafe {
                 let vtable = core::slice::from_raw_parts(
                     (vtable as *const Vt).cast(),
-                    core::mem::size_of::<Vt>() / core::mem::size_of::<*const ()>(),
+                    core::mem::size_of::<Vt>().div_euclid(core::mem::size_of::<*const ()>()),
                 );
                 let vt = self.insert(vtable).cast().as_ref();
                 debug_assert_eq!(
                     core::slice::from_raw_parts(
                         (vt as *const Vt).cast::<*const ()>(),
-                        core::mem::size_of::<Vt>() / core::mem::size_of::<*const ()>(),
+                        core::mem::size_of::<Vt>().div_euclid(core::mem::size_of::<*const ()>()),
                     ),
                     vtable
                 );
@@ -107,7 +107,12 @@ pub(crate) mod internal {
             loop {
                 let vts = match vtables.as_ref() {
                     None => [].as_slice(),
-                    Some(vts) => match vts[search_start..].iter().find(|e| **e == vtable) {
+                    Some(vts) => match vts
+                        .get(search_start..)
+                        .unwrap_or(&[])
+                        .iter()
+                        .find(|e| **e == vtable)
+                    {
                         Some(vt) => {
                             // SAFETY: since `vt.0` is a reference, it is guaranteed to be non-null.
                             return unsafe { NonNull::new_unchecked(vt.0.as_ptr().cast_mut()) };
@@ -125,7 +130,7 @@ pub(crate) mod internal {
                     vtables = updated;
                     continue;
                 }
-                let mut vec = Vec::with_capacity(vts.len() + 1);
+                let mut vec = Vec::with_capacity(vts.len().wrapping_add(1));
                 vec.copy_extend(vts);
                 vec.push(VTable(vt));
                 if let Err(updated) =

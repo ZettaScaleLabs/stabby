@@ -70,6 +70,8 @@ pub(crate) fn tl_mod() -> proc_macro2::TokenStream {
 }
 
 /// The lifeblood of stabby. [Click for the tutorial](https://docs.rs/stabby/latest/stabby/_tutorial_/index.html)
+/// # Panics
+/// If stabby doesn't support some of passed code
 #[proc_macro_attribute]
 pub fn stabby(stabby_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     if let Ok(DeriveInput {
@@ -107,6 +109,9 @@ pub fn stabby(stabby_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
 ///
 /// Usage: `vtable!(TraitA + TraitB<Output=u16> + Send + Sync)`
 /// Note that the ordering of traits is significant.
+///
+/// # Panics
+/// If stabby doesn't support some of passed code
 #[proc_macro]
 pub fn vtable(tokens: TokenStream) -> TokenStream {
     let st = tl_mod();
@@ -215,6 +220,9 @@ impl syn::parse::Parse for DynPtr {
 ///
 /// Usage: `dynptr!(Box<dyn TraitA + TraitB<Output=u16> + Send + Sync + 'a>)`
 /// Note that the ordering of traits is significant.
+///
+/// # Panics
+/// If stabby doesn't support some of passed code
 #[proc_macro]
 pub fn dynptr(tokens: TokenStream) -> TokenStream {
     let st = tl_mod();
@@ -460,11 +468,15 @@ impl ToTokens for Report {
     }
 }
 
+/// # Panics
+/// If stabby doesn't support some of passed code
 #[proc_macro_attribute]
 pub fn export(attrs: TokenStream, fn_spec: TokenStream) -> TokenStream {
     crate::functions::export(attrs, syn::parse(fn_spec).unwrap()).into()
 }
 
+/// # Panics
+/// If stabby doesn't support some of passed code
 #[proc_macro_attribute]
 pub fn import(attrs: TokenStream, fn_spec: TokenStream) -> TokenStream {
     crate::functions::import(attrs, syn::parse(fn_spec).unwrap()).into()

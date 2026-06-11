@@ -18,6 +18,7 @@ fn encode(value: String) -> String {
     value
 }
 
+#[allow(clippy::indexing_slicing)]
 fn main() -> Result<(), std::io::Error> {
     use std::{
         fs::File,

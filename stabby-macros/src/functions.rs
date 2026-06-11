@@ -229,7 +229,7 @@ impl Iterator for Canaries {
             if candidate > self.spec {
                 return None;
             }
-            self.shift += 1;
+            self.shift = self.shift.carrying_add(1, false).0;
             if candidate & self.spec != 0 {
                 return Some(CanarySpec(candidate));
             }

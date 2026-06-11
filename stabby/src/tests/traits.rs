@@ -145,7 +145,8 @@ impl AsyncRead for stabby::slice::Slice<'_, u8> {
             let len = self.len().min(buffer.len());
             let (l, r) = self.split_at(len);
             let r = unsafe { core::mem::transmute::<&[u8], &[u8]>(r) };
-            buffer[..len].copy_from_slice(l);
+            // SAFETY: `len` was trimmed to `buffer`'s size
+            unsafe { buffer.get_unchecked_mut(..len).copy_from_slice(l) };
             *self = r.into();
             len
         })

@@ -55,7 +55,7 @@ pub unsafe trait IStable: Sized {
     fn size() -> usize {
         let size = Self::Size::USIZE;
         let align = Self::Align::USIZE;
-        size + ((align - (size % align)) % align)
+        size.wrapping_add(align.wrapping_sub(size.rem_euclid(align)).rem_euclid(align))
     }
     /// Returns the alignment of the type.
     fn align() -> usize {
