@@ -122,9 +122,10 @@ pub fn stabby(
         attr.meta.require_list().ok().and_then(|meta| {
             match (meta.path.is_ident("repr"), &meta.delimiter) {
                 (true, syn::MacroDelimiter::Paren(_)) => {
-                    syn::parse2::<AllowedRepr>(meta.tokens.clone())
-                        .inspect_err(|e| panic!("{e:?} => {meta:?}"))
-                        .ok()
+                    match syn::parse2::<AllowedRepr>(meta.tokens.clone()) {
+                        Ok(value) => Some(value),
+                        Err(e) => panic!("{e:?} => {meta:?}"),
+                    }
                 }
                 _ => None,
             }
