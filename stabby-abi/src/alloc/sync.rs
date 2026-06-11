@@ -439,8 +439,7 @@ impl<T, Alloc: IAlloc> ArcSlice<T, Alloc> {
         self.len() == 0
     }
     /// Returns a borrow to the slice.
-    #[rustversion::attr(since(1.86), const)]
-    pub fn as_slice(&self) -> &[T] {
+    pub const fn as_slice(&self) -> &[T] {
         let start = self.inner.start;
         unsafe { core::slice::from_raw_parts(start.ptr.as_ptr(), self.len()) }
     }

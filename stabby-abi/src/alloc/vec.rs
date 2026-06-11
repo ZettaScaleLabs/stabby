@@ -254,8 +254,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         };
     }
     /// Returns a slice of the vector's elements.
-    #[rustversion::attr(since(1.86), const)]
-    pub fn as_slice(&self) -> &[T] {
+    pub const fn as_slice(&self) -> &[T] {
         let start = self.inner.start;
         let end = self.inner.end;
         unsafe { core::slice::from_raw_parts(start.ptr.as_ptr(), ptr_diff(end, start.ptr)) }

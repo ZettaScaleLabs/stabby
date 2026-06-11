@@ -89,7 +89,8 @@ mod seal {
         inner: MaybeUninit<<Align::Divide<Size> as IUnsignedBase>::Array<Align::AsUint>>,
     }
     impl<Size: Unsigned, Align: Alignment + Alignment> Storage<Size, Align> {
-        pub const fn zeroed() -> Self {
+        #[rustversion::attr(since(1.75.0), const)]
+        pub fn zeroed() -> Self {
             Self {
                 inner: MaybeUninit::zeroed(),
             }

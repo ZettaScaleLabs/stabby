@@ -108,6 +108,7 @@ jobs:
       - name: Clippy
         uses: actions-rs/cargo@v1
         with:
+          toolchain: 1.72.0
           command: clippy
           args: --all-targets -- -D warnings
       - name: Clean artifacts

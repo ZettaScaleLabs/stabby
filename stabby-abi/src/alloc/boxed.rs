@@ -302,8 +302,7 @@ impl<T, Alloc: IAlloc> BoxedSlice<T, Alloc> {
         self.len() == 0
     }
     /// Cast into a standard slice.
-    #[rustversion::attr(since(1.86), const)]
-    pub fn as_slice(&self) -> &[T] {
+    pub const fn as_slice(&self) -> &[T] {
         // SAFETY: we own this slice.
         unsafe { core::slice::from_raw_parts(self.slice.start.ptr.as_ptr(), self.len()) }
     }
