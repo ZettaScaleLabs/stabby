@@ -429,7 +429,7 @@ pub fn import(
         attrs, abi, items, ..
     } = &fn_decl;
     let st = crate::tl_mod();
-    let modid = quote::format_ident!("_stabbymod_{}", rand::random::<u128>());
+    let modid = quote::format_ident!("_stabbymod_{}", quote::quote!(#(#items)*).to_string().bytes().fold(0u128, |a, b| a.wrapping_mul(31).wrapping_add(b as u128)));
     let mut externs = Vec::new();
     let mut interns = Vec::new();
     let mut intern_ids = Vec::new();
