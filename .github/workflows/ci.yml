@@ -105,12 +105,16 @@ jobs:
           toolchain: 1.72.0
           components: clippy
 
+      - name: Enable 1.72.0 lockfile
+        run: mv Cargo-1_72_0.lock Cargo.lock
+
       - name: Clippy
         uses: actions-rs/cargo@v1
         with:
           toolchain: 1.72.0
           command: clippy
           args: --all-targets -- -D warnings
+
       - name: Clean artifacts
         uses: actions-rs/cargo@v1
         with:
