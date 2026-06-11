@@ -223,13 +223,14 @@ pub struct Canaries {
 }
 impl Iterator for Canaries {
     type Item = CanarySpec;
+    #[allow(clippy::arithmetic_side_effects)]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let candidate = 1 << self.shift;
             if candidate > self.spec {
                 return None;
             }
-            self.shift = self.shift.carrying_add(1, false).0;
+            self.shift += 1;
             if candidate & self.spec != 0 {
                 return Some(CanarySpec(candidate));
             }
