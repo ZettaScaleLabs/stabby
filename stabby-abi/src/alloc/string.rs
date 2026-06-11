@@ -28,8 +28,7 @@ impl<Alloc: IAlloc> String<Alloc> {
         }
     }
     /// Returns self as a borrowed string
-    #[rustversion::attr(since(1.86), const)]
-    pub fn as_str(&self) -> &str {
+    pub const fn as_str(&self) -> &str {
         unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
     }
     /// Returns self as a mutably borrowed string
@@ -150,8 +149,7 @@ pub struct ArcStr<Alloc: IAlloc = super::DefaultAllocator> {
 }
 impl<Alloc: IAlloc> ArcStr<Alloc> {
     /// Returns a borrow to the inner string.
-    #[rustversion::attr(since(1.86), const)]
-    pub fn as_str(&self) -> &str {
+    pub const fn as_str(&self) -> &str {
         unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
     }
     /// Returns a mutably borrow to the inner str.
@@ -278,8 +276,7 @@ pub struct BoxedStr<Alloc: IAlloc = super::DefaultAllocator> {
 }
 impl<Alloc: IAlloc> BoxedStr<Alloc> {
     /// Returns a borrow to the inner string.
-    #[rustversion::attr(since(1.86), const)]
-    pub fn as_str(&self) -> &str {
+    pub const fn as_str(&self) -> &str {
         unsafe { core::str::from_utf8_unchecked(self.inner.as_slice()) }
     }
     /// Returns a mutable borrow to the inner string.
