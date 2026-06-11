@@ -1,3 +1,7 @@
+# 72.2.1 (api=3.1.0, abi=2.0.0)
+- Fix CI for Rust 1.72, fix support for 1.72
+- Enable more lints to prevent unexpected panics
+
 # 72.1.4 (api=3.0.2, abi=2.0.0)
 - Upgraded `syn` to `2.0.46+`.
 
