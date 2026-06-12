@@ -1,4 +1,5 @@
-# 72.2.1 (api=3.1.0, abi=2.0.0)
+# 72.1.8 (api=3.0.3, abi=2.0.0)
+- Make builds more reproducible [#136](https://github.com/ZettaScaleLabs/stabby/pull/136) (thanks @pablo-smith-saronic for raising the issue and providing the fix)
 - Fix CI for Rust 1.72, fix support for 1.72
 - Enable more lints to prevent unexpected panics
 
@@ -6,7 +7,7 @@
 - Upgraded `syn` to `2.0.46+`.
 
 # 72.1.2 (api=3.0.1, abi=2.0.0)
-- Merged [#124](https://github.com/ZettaScaleLabs/stabby/pull/124), (thanks @matejcik for raising the issue and providing the fix, thanks @juliajohannessen for raising further lifetime issues through that PR's comments)
+- Merged [#124](https://github.com/ZettaScaleLabs/stabby/pull/124) (thanks @matejcik for raising the issue and providing the fix, thanks @juliajohannessen for raising further lifetime issues through that PR's comments)
 - Fixed [#127](https://github.com/ZettaScaleLabs/stabby/issues/127) (thanks @juliajohannessen for raising the issue)
 
 # 72.1.2-rc1 (api=3.0.1, abi=2.0.0)
