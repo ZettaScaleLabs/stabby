@@ -238,7 +238,7 @@ pub fn dynptr(tokens: TokenStream) -> TokenStream {
     }
     match ptr {
         PtrType::Path(path) => quote!(#st::Dyn<#lifetime, #path<()>, #vt>),
-        PtrType::RefMut => quote!(#st::Dyn<#lifetime, &#lifetime mut (), #vt>),
+        PtrType::RefMut => quote!(#st::Dyn<#lifetime, #st::AnonymRefMut<#lifetime>, #vt>),
         PtrType::Ref => quote!(#st::DynRef<#lifetime, #vt>),
     }
     .into()

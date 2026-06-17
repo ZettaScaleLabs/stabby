@@ -160,7 +160,7 @@ impl<'a, T> IntoDyn for &'a T {
     }
 }
 impl<'a, T> IntoDyn for &'a mut T {
-    type Anonymized = &'a mut ();
+    type Anonymized = AnonymRefMut<'a>;
     type Target = T;
     fn anonimize(self) -> Self::Anonymized {
         unsafe { core::mem::transmute(self) }
