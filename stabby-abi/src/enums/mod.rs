@@ -112,7 +112,7 @@ impl<Offset: Unsigned, Value: Unsigned, Tail: IDeterminant + core::fmt::Debug> c
             "ValIsErr(ptr[{}]={}, {:?})",
             Offset::USIZE,
             Value::U8,
-            &self.1,
+            self.1,
         )
     }
 }
