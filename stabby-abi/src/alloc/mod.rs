@@ -133,14 +133,14 @@ pub trait IAlloc: Unpin {
     /// Frees the allocation
     ///
     /// # Safety
-    /// `ptr` MUST have been allocated through a succesful call to `Self::alloc` or `Self::realloc` with the same instance of `Self`
+    /// `ptr` MUST have been allocated through a successful call to `Self::alloc` or `Self::realloc` with the same instance of `Self`
     unsafe fn free(&mut self, ptr: *mut ());
     /// Reallocates `ptr`, ensuring that it has enough memory for the newly requested layout.
     ///
     /// If the requested size is 0, or allocation failed, then a null pointer is returned, and `ptr` is not freed.
     ///
     /// # Safety
-    /// `ptr` MUST have been allocated through a succesful call to `Self::alloc` with the same instance of `Self`
+    /// `ptr` MUST have been allocated through a successful call to `Self::alloc` with the same instance of `Self`
     unsafe fn realloc(&mut self, ptr: *mut (), prev_layout: Layout, new_size: usize) -> *mut () {
         let ret = self.alloc(Layout {
             size: new_size,
@@ -167,14 +167,14 @@ pub trait IStableAlloc: Unpin {
     /// Frees the allocation
     ///
     /// # Safety
-    /// `ptr` MUST have been allocated through a succesful call to `Self::alloc` or `Self::realloc` with the same instance of `Self`
+    /// `ptr` MUST have been allocated through a successful call to `Self::alloc` or `Self::realloc` with the same instance of `Self`
     extern "C" fn free(&mut self, ptr: *mut ());
     /// Reallocates `ptr`, ensuring that it has enough memory for the newly requested layout.
     ///
     /// If the requested size is 0, or allocation failed, then a null pointer is returned, and `ptr` is not freed.
     ///
     /// # Safety
-    /// `ptr` MUST have been allocated through a succesful call to `Self::alloc` with the same instance of `Self`
+    /// `ptr` MUST have been allocated through a successful call to `Self::alloc` with the same instance of `Self`
     extern "C" fn realloc(
         &mut self,
         ptr: *mut (),
