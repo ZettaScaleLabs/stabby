@@ -1325,8 +1325,15 @@ impl Ty {
         }
     }
     fn from_iter<'a, T: Iterator<Item = &'a PathSegment> + ExactSizeIterator>(mut iter: T) -> Self {
-        let PathSegment { ident, arguments } = iter.next().unwrap();
+        let PathSegment { ident, arguments } = iter
+            .next()
+            .unwrap_or_else(|| panic!("Path iterator was empty"));
         if *ident == "Self" {
+            if iter.len() == 0 {
+                panic!("`Self` cannot appear in method signatures for dyn-traits.
+This is because `Self` isn't known at compile-time for trait objects.
+See https://github.com/ZettaScaleLabs/stabby/issues/101#issuecomment-5023200437 for more explanations.")
+            }
             return Self::SelfReferential(Box::new(Self::from_iter(iter)));
         }
         let arguments = match arguments {

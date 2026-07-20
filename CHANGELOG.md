@@ -1,3 +1,13 @@
+# 72.1.16 (api=3.0.4, abi=2.0.0)
+- Fix clippy lints for 1.97, and a few typos.
+- `Vec::try_drain`'s index validation was reversed, making it not only buggy, but unsound:
+	- it would always reject ranges that were in bound, and out-of-bounds ranges could be accepted, risking multiple UBs:
+		- `Vec::set_len` could extend the vec into uninitialized memory,
+		- the returned `Drain` could iterate over uninitialized memory as well.
+	- Hopefully, no users were impacted: `Vec::drain` (which I expect most users would pick unless they wanted to guarantee no panics could ever occur) was always valid, and I expect most users who tried `try_drain` found it to not work (since it rejected all valid input).
+	- Thanks to @eslerm, who raised the issue privately to avoid broadcasting it before a fix would be made available.
+- Improved error message when a stabbied trait declaration attempts to use `Self` in signature, [#101](https://github.com/ZettaScaleLabs/stabby/issues/101) shows that the previous error message was absolutely useless to users.
+
 # 72.1.8 (api=3.0.3, abi=2.0.0)
 - Make builds more reproducible [#136](https://github.com/ZettaScaleLabs/stabby/pull/136) (thanks @pablo-smith-saronic for raising the issue and providing the fix)
 - Fix CI for Rust 1.72, fix support for 1.72

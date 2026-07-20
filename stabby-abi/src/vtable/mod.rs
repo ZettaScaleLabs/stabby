@@ -67,16 +67,16 @@ pub(crate) mod internal {
     use crate::alloc::{vec::Vec, DefaultAllocator};
     /// A BTree used to store VTables.
     ///
-    /// This is an internal API, only publically exposed for benchmarking purposes. It may change arbitrarily without warning.
+    /// This is an internal API, only publicly exposed for benchmarking purposes. It may change arbitrarily without warning.
     pub type VtBtree<const SIZE: usize> = AtomicArcBTreeSet<VTable, false, SIZE>;
     /// A Vec used to store VTables
     ///
-    /// This is an internal API, only publically exposed for benchmarking purposes. It may change arbitrarily without warning.
+    /// This is an internal API, only publicly exposed for benchmarking purposes. It may change arbitrarily without warning.
     pub type VtVec =
         crate::alloc::sync::AtomicArc<crate::alloc::vec::Vec<VTable>, DefaultAllocator>;
     /// A registry where VTables can be inserted via interior mutability.
     ///
-    /// This is an internal API, only publically exposed for benchmarking purposes. It may change arbitrarily without warning.
+    /// This is an internal API, only publicly exposed for benchmarking purposes. It may change arbitrarily without warning.
     pub trait VTableRegistry {
         /// Inserts a raw vtable in the registry.
         fn insert(&self, vtable: &[*const ()]) -> NonNull<*const ()>;
@@ -251,7 +251,7 @@ pub trait IConstConstructor<'a, Source>: 'a + Copy {
 }
 /// Implementation detail for stabby's version of dyn traits.
 pub trait TransitiveDeref<Head, N> {
-    /// Deref transitiverly.
+    /// Deref transitively.
     fn tderef(&self) -> &Head;
 }
 /// Implementation detail for stabby's version of dyn traits.

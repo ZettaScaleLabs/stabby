@@ -326,7 +326,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     /// even if they weren't in the specified `range`
     ///
     /// # Panics
-    /// This function immediately panics if the range has a negative size, or if the range exceeeds `self.len()`
+    /// This function immediately panics if the range has a negative size, or if the range exceeds `self.len()`
     pub fn drain<R: core::ops::RangeBounds<usize>>(&mut self, range: R) -> Drain<'_, T, Alloc> {
         let original_len = self.len();
         let from = match range.start_bound() {
@@ -357,6 +357,9 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     ///
     /// If the drain is leaked, then the vector may lose and leak elements,
     /// even if they weren't in the specified `range`
+    ///
+    /// # Errors
+    /// This function returns `None` if the range has negative size, or would exceed `self.len()`.
     pub fn try_drain<R: core::ops::RangeBounds<usize>>(
         &mut self,
         range: R,
@@ -372,7 +375,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
             core::ops::Bound::Excluded(i) => *i,
             core::ops::Bound::Unbounded => original_len,
         };
-        if to >= from || to <= original_len {
+        if to <= from || to >= original_len {
             return None;
         }
         unsafe { self.set_len(from) };
@@ -811,7 +814,7 @@ impl<Alloc: IAlloc> std::io::Write for Vec<u8, Alloc> {
 
 #[cfg(feature = "std")]
 #[test]
-fn test() {
+fn drain() {
     use rand::Rng;
     const LEN: usize = 2000;
     let mut std = std::vec::Vec::with_capacity(LEN);
@@ -834,6 +837,39 @@ fn test() {
     capacity.swap(5, 92);
     assert_eq!(new.as_slice(), std.as_slice());
     assert_eq!(new.as_slice(), capacity.as_slice());
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn try_drain() {
+    use rand::Rng;
+    const LEN: usize = 2000;
+    let mut std = std::vec::Vec::with_capacity(LEN);
+    let mut new: Vec<u8> = Vec::new();
+    let mut capacity: Vec<u8> = Vec::with_capacity(LEN);
+    let mut rng = rand::thread_rng();
+    for _ in 0..LEN {
+        let n: u8 = rng.gen();
+        new.push(n);
+        capacity.push(n);
+        std.push(n);
+    }
+    assert_eq!(new.as_slice(), std.as_slice());
+    assert_eq!(new.as_slice(), capacity.as_slice());
+    new.try_drain(55..100).expect("Drain size is valid");
+    capacity.try_drain(55..100).expect("Drain size is valid");
+    std.drain(55..100);
+    new.swap(5, 92);
+    std.swap(5, 92);
+    capacity.swap(5, 92);
+    assert_eq!(new.as_slice(), std.as_slice());
+    assert_eq!(new.as_slice(), capacity.as_slice());
+
+    #[allow(clippy::reversed_empty_ranges)]
+    {
+        assert!(new.try_drain(8..5).is_none());
+    }
+    assert!(new.try_drain(LEN..LEN + 1).is_none());
 }
 
 pub use super::single_or_vec::SingleOrVec;
