@@ -36,3 +36,6 @@ pub(crate) type DefaultAllocator = LibcAlloc;
 ///
 /// You can also use the `stabby_default_alloc` cfg to override the default allocator regardless of feature flags.
 pub(crate) type DefaultAllocator = core::convert::Infallible;
+
+/// An implementation of arena allocators.
+pub mod arena_alloc;

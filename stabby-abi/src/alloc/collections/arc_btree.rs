@@ -835,37 +835,3 @@ fn btree_insert_rs() {
         assert_eq!(iter.next(), None);
     }
 }
-
-// #[test]
-// fn btree_insert_freelist() {
-//     use rand::Rng;
-//     let mut rng = rand::thread_rng();
-//     for i in 0..1000 {
-//         dbg!(i);
-//         let mut vec = crate::alloc::vec::Vec::new_in(
-//             crate::alloc::allocators::FreelistGlobalAlloc::default(),
-//         );
-//         let mut btree = ArcBTreeSet::<_, _, false, 5>::new_in(
-//             crate::alloc::allocators::FreelistGlobalAlloc::default(),
-//         );
-//         for _ in 0..rng.gen_range(0..800) {
-//             let val = rng.gen_range(0..100);
-//             if vec.binary_search(&val).is_ok() {
-//                 assert_eq!(btree.insert(val), Some(val));
-//             } else {
-//                 vec.push(val);
-//                 vec.sort();
-//                 assert_eq!(
-//                     btree.insert(val),
-//                     None,
-//                     "The BTree contained an unexpected value: {btree:?}, {vec:?}"
-//                 );
-//             }
-//         }
-//         vec.sort();
-//         assert_eq!(vec.len(), btree.len());
-//         let mut iter = vec.into_iter();
-//         btree.for_each(|i| assert_eq!(Some(*i), iter.next()));
-//         assert_eq!(iter.next(), None);
-//     }
-// }

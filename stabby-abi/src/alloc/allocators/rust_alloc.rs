@@ -2,9 +2,14 @@ use crate::alloc::{IAlloc, Layout};
 
 /// Rust's GlobalAlloc, annotating its yielded pointers in such a way that the allocated pointers can be safely freed from other binaries.
 #[crate::stabby]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct RustAlloc {
     inner: [u8; 0],
+}
+impl core::fmt::Debug for RustAlloc {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("RustAlloc")
+    }
 }
 #[crate::stabby]
 /// The VTable for [`RustAlloc`]
@@ -93,11 +98,6 @@ impl RustAlloc {
     /// Constructs the allocator.
     pub const fn new() -> Self {
         Self { inner: [] }
-    }
-}
-impl Default for RustAlloc {
-    fn default() -> Self {
-        Self::new()
     }
 }
 impl IAlloc for RustAlloc {
