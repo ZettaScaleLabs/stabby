@@ -256,7 +256,7 @@ fn fix(source: &str) -> String {
         if c.is_ascii_alphanumeric() || c == '_' {
             result.push(c)
         } else {
-            write!(result, "_{:x}_", c as u32).unwrap()
+            write!(result, "_{:x}_", c as u32).expect("`fix` failed")
         }
     }
     result
@@ -276,7 +276,11 @@ impl core::fmt::Display for CanarySpec {
             write!(f, "_optlevel{OPT_LEVEL}")?
         }
         if this & Self::DEBUG {
-            write!(f, "_debug{}", DEBUG.parse::<bool>().unwrap() as u8)?
+            write!(
+                f,
+                "_debug{}",
+                DEBUG.parse::<bool>().expect("Couldn't parse DEBUG as bool") as u8
+            )?
         }
         if this & Self::NUM_JOBS {
             write!(f, "_numjobs{NUM_JOBS}")?
@@ -327,7 +331,7 @@ fn export_with_report(fn_spec: syn::ItemFn) -> proc_macro2::TokenStream {
                 <#signature as #st::IStable>::REPORT.is_compatible(report).then_some(#ident)
             }
         })
-        .unwrap(),
+        .unwrap_or_else(|e| panic!("Couldn't parse {stabbied}'s expansion: {e:?}")),
     );
     let report = stabby(
         Attrs::default(),
@@ -336,7 +340,7 @@ fn export_with_report(fn_spec: syn::ItemFn) -> proc_macro2::TokenStream {
                 <#signature as #st::IStable>::REPORT
             }
         })
-        .unwrap(),
+        .unwrap_or_else(|e| panic!("Couldn't parse {report}'s expansion: {e:?}")),
     );
     quote::quote!(
         #[no_mangle]
@@ -371,7 +375,8 @@ pub fn export(
     macro_attrs: proc_macro::TokenStream,
     fn_spec: syn::ItemFn,
 ) -> proc_macro2::TokenStream {
-    let args = syn::parse::<ExportArgs>(macro_attrs).unwrap();
+    let args =
+        syn::parse::<ExportArgs>(macro_attrs).expect("Couldn't parse `export(...)`'s content");
     if args.canaried {
         export_canaried(fn_spec)
     } else {
@@ -408,7 +413,10 @@ impl syn::parse::Parse for ImportArgs {
             input.parse_terminated(IdentEqStr::parse, syn::Token!(,))?
         {
             if ident == "canaries" {
-                args.canaries = Some(CanarySpec::from_str(&str.value()).unwrap())
+                args.canaries = Some(
+                    CanarySpec::from_str(&str.value())
+                        .unwrap_or_else(|e| panic!("Failed to parse CanarySpec: {e}")),
+                )
             } else {
                 args.link_args.extend(quote!(#ident = #str,))
             }
@@ -424,7 +432,7 @@ pub fn import(
     let ImportArgs {
         canaries,
         link_args,
-    } = syn::parse(macro_attrs).unwrap();
+    } = syn::parse(macro_attrs).expect("Couldn't parse `import(...)`'s content");
     let syn::ItemForeignMod {
         attrs, abi, items, ..
     } = &fn_decl;

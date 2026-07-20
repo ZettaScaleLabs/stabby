@@ -117,7 +117,11 @@ impl syn::parse::Parse for Args {
             match ident.to_string().as_str() {
                 "version" => {
                     input.parse::<syn::Token!(=)>()?;
-                    this.version = input.parse::<syn::LitInt>()?.to_string().parse().unwrap();
+                    this.version = input
+                        .parse::<syn::LitInt>()?
+                        .to_string()
+                        .parse()
+                        .unwrap_or_else(|e| panic!("Couldn't parse version: {e:?}"));
                 }
                 "module" => {
                     input.parse::<syn::Token!(=)>()?;

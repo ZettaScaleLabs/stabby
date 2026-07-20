@@ -26,8 +26,8 @@ pub(crate) fn logfile(logfile: std::path::PathBuf) -> impl std::io::Write {
         OpenOptions::new()
             .append(true)
             .create(true)
-            .open(logfile)
-            .unwrap(),
+            .open(&logfile)
+            .unwrap_or_else(|e| panic!("Couldn't open logfile {logfile:?}: {e:?}")),
     );
     logfile
 }
@@ -38,7 +38,7 @@ macro_rules! log {
         let logfile = std::path::PathBuf::from($path);
         use std::io::Write;
         let e = $e;
-        writeln!(crate::logfile(logfile), $pat, e).unwrap();
+        writeln!(crate::logfile(logfile), $pat, e).expect("Failed to write to logfile");
         e
     }};
     ($pat: literal, $e: expr) => {
