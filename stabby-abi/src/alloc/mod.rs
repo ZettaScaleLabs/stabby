@@ -382,7 +382,7 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
     /// Allocates a pointer to an array of `capacity` `T`, prefixed by an [`AllocPrefix`]
     pub fn alloc_array(alloc: &mut Alloc, capacity: usize) -> Option<Self> {
         let mut layout = Layout::of::<AllocPrefix<Alloc>>().concat(Layout::array::<T>(capacity));
-        layout.align = core::mem::align_of::<AllocPrefix<Alloc>>();
+        layout.align = core::mem::align_of::<AllocPrefix<Alloc>>().max(layout.align);
         let ptr = alloc.alloc(layout);
         NonNull::new(ptr).map(|ptr| unsafe { Self::init(ptr, capacity) })
     }
@@ -400,7 +400,7 @@ impl<T, Alloc: IAlloc> AllocPtr<T, Alloc> {
     ) -> Option<Self> {
         let mut layout =
             Layout::of::<AllocPrefix<Alloc>>().concat(Layout::array::<T>(prev_capacity));
-        layout.align = core::mem::align_of::<AllocPrefix<Alloc>>();
+        layout.align = core::mem::align_of::<AllocPrefix<Alloc>>().max(layout.align);
         let ptr = alloc.realloc(
             self.prefix_ptr().cast().as_ptr(),
             layout,

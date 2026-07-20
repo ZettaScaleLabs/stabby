@@ -12,7 +12,7 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use crate::{unreachable_unchecked, AnonymRef, AnonymRefMut, IPtrMut, IntoDyn};
+use crate::{unreachable_unchecked, AnonymRef, AnonymRefMut, IntoDyn};
 
 use super::{vec::*, AllocPtr, AllocSlice, IAlloc};
 use core::{
@@ -21,6 +21,7 @@ use core::{
     mem::{ManuallyDrop, MaybeUninit},
     ptr::NonNull,
 };
+use std::hash::Hash;
 
 /// An ABI-stable Box, provided `Alloc` is ABI-stable.
 #[crate::stabby]
@@ -35,6 +36,61 @@ unsafe impl<T: Sync, Alloc: IAlloc> Sync for Box<T, Alloc> {}
 unsafe impl<T: Send, Alloc: IAlloc + Send> Send for BoxedSlice<T, Alloc> {}
 // SAFETY: Same constraints as `std::boxed::Box`
 unsafe impl<T: Sync, Alloc: IAlloc> Sync for BoxedSlice<T, Alloc> {}
+
+impl<T, Alloc: IAlloc> AsRef<T> for Box<T, Alloc> {
+    fn as_ref(&self) -> &T {
+        self
+    }
+}
+impl<T, Alloc: IAlloc> AsMut<T> for Box<T, Alloc> {
+    fn as_mut(&mut self) -> &mut T {
+        &mut *self
+    }
+}
+
+impl<T: Eq, Alloc: IAlloc> Eq for Box<T, Alloc> {}
+impl<T: PartialEq, Alloc: IAlloc> PartialEq for Box<T, Alloc> {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+impl<T: Hash, Alloc: IAlloc> Hash for Box<T, Alloc> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.as_ref().hash(state)
+    }
+}
+impl<T: PartialOrd, Alloc: IAlloc> PartialOrd for Box<T, Alloc> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.as_ref().partial_cmp(other)
+    }
+    fn ge(&self, other: &Self) -> bool {
+        self.as_ref().ge(other)
+    }
+    fn gt(&self, other: &Self) -> bool {
+        self.as_ref().gt(other)
+    }
+    fn le(&self, other: &Self) -> bool {
+        self.as_ref().le(other)
+    }
+    fn lt(&self, other: &Self) -> bool {
+        self.as_ref().lt(other)
+    }
+}
+impl<T: Ord, Alloc: IAlloc> Ord for Box<T, Alloc> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_ref().cmp(other)
+    }
+}
+// impl<T: Default, Alloc: IAlloc + Default> Default for Box<T, Alloc> {
+//     fn default() -> Self {
+//         let constructor = |slot: &mut MaybeUninit<T>| {
+//             *slot = MaybeUninit::new(Default::default());
+//             // SAFETY: we've just assigned to that slot
+//             Ok(unsafe { slot.assume_init_mut() })
+//         };
+//         unsafe { Self::make_in(constructor, Default::default()).unwrap_unchecked() }
+//     }
+// }
 
 #[cfg(not(stabby_default_alloc = "disabled"))]
 impl<T> Box<T> {
@@ -247,7 +303,7 @@ impl<T, Alloc: IAlloc> crate::IPtrOwned for Box<T, Alloc> {
     ) {
         // SAFETY: This is evil casting shenanigans, but `IPtrOwned` is a type anonimization primitive.
         unsafe {
-            drop(Self::as_mut(this));
+            drop(<Self as crate::IPtrMut>::as_mut(this));
         }
         // SAFETY: `this` is immediately forgotten.
         unsafe { this.free() }

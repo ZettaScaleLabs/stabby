@@ -36,7 +36,7 @@ use libc::realloc;
 ///
 /// It has all of `malloc`'s usual properties.
 #[crate::stabby]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct LibcAlloc {
     inner: [u8; 0],
 }
