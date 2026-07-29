@@ -239,7 +239,7 @@ mod serde_impl {
         {
             Ok(v.into())
         }
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
             write!(formatter, "A borrowed_str")
         }
     }

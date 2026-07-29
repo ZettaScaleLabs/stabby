@@ -12,7 +12,7 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use std::str::FromStr;
+use core::str::FromStr;
 
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
@@ -262,7 +262,7 @@ fn fix(source: &str) -> String {
     result
 }
 impl core::fmt::Display for CanarySpec {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let this = *self;
         write!(f, "_canary")?;
         if this & Self::RUSTC {
@@ -438,8 +438,8 @@ pub fn import(
     } = &fn_decl;
     let st = crate::tl_mod();
     let modid = {
+        use core::hash::{Hash, Hasher};
         use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
         let mut hasher = DefaultHasher::new();
         quote::quote!(#(#items)*).to_string().hash(&mut hasher);
         quote::format_ident!("_stabbymod_{:x}", hasher.finish())

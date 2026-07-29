@@ -1,6 +1,6 @@
 #![allow(clippy::arithmetic_side_effects)]
 
-use std::{hint::unreachable_unchecked, num::NonZeroU32};
+use core::{hint::unreachable_unchecked, num::NonZeroU32};
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use rand::{Rng, SeedableRng};
@@ -58,16 +58,19 @@ fn bench_dynptr(c: &mut Criterion) {
     }
     const _: () = {
         // Surprisingly, Rust doesn't minimize the size here. Does it not see the niche?
-        assert_eq!(std::mem::size_of::<StdOp>(), 12);
+        assert_eq!(core::mem::size_of::<StdOp>(), 12);
         // [`Manual`] uses the niche that [`StdOp`] should be able to use.
-        assert_eq!(std::mem::size_of::<Manual>(), 8);
+        assert_eq!(core::mem::size_of::<Manual>(), 8);
         // Good old repr(C) must be fat for historical reasons
-        assert_eq!(std::mem::size_of::<COp>(), 12);
+        assert_eq!(core::mem::size_of::<COp>(), 12);
         // Stabby finds the niche automagically.
-        assert_eq!(std::mem::size_of::<StabbyOp>(), 8);
-        assert_eq!(std::mem::size_of::<COption<NonZeroU32>>(), 8);
-        assert_eq!(std::mem::size_of::<Option<NonZeroU32>>(), 4);
-        assert_eq!(std::mem::size_of::<stabby::option::Option<NonZeroU32>>(), 4);
+        assert_eq!(core::mem::size_of::<StabbyOp>(), 8);
+        assert_eq!(core::mem::size_of::<COption<NonZeroU32>>(), 8);
+        assert_eq!(core::mem::size_of::<Option<NonZeroU32>>(), 4);
+        assert_eq!(
+            core::mem::size_of::<stabby::option::Option<NonZeroU32>>(),
+            4
+        );
     };
     let rng = rand::rngs::StdRng::seed_from_u64(0);
     let ops = (0..N)

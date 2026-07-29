@@ -414,7 +414,7 @@ mod serde_impl {
                 .map(Into::into)
         }
 
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
             write!(formatter, "a string")
         }
     }

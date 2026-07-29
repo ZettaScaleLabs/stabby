@@ -163,6 +163,7 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     ) -> Result<Self, Arc<MaybeUninit<T>, Alloc>> {
         Self::try_make_in(constructor, alloc).map_err(|e| match e {
             Ok(uninit) => uninit,
+            #[expect(clippy::panic, reason = "documented")]
             Err(_) => panic!("Allocation failed"),
         })
     }

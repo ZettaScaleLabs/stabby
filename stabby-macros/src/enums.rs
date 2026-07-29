@@ -12,7 +12,7 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-use std::ops::Deref;
+use core::ops::Deref;
 
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -56,7 +56,7 @@ impl syn::parse::Parse for Repr {
     }
 }
 impl core::fmt::Debug for Repr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
             Repr::Stabby => "stabby",
             Repr::C => "C",

@@ -12,8 +12,8 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+use core::fmt::Write as FmtWrite;
 use std::{
-    fmt::Write as FmtWrite,
     fs::File,
     io::{BufWriter, Write},
     path::PathBuf,

@@ -12,8 +12,8 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+#![allow(clippy::print_stdout, clippy::dbg_macro)]
 // MYTRAIT
-
 #![cfg_attr(stabby_unsafe_wakers = "true", allow(deprecated))]
 
 pub use crate as stabby;

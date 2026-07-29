@@ -773,6 +773,7 @@ mod seal {
 fn btree_insert_libc() {
     use rand::Rng;
     let mut rng = rand::thread_rng();
+    #[allow(clippy::dbg_macro)]
     for i in 0..if cfg!(miri) { 5 } else { 1000 } {
         dbg!(i);
         let mut vec =
@@ -805,6 +806,7 @@ fn btree_insert_libc() {
 fn btree_insert_rs() {
     use rand::Rng;
     let mut rng = rand::thread_rng();
+    #[allow(clippy::dbg_macro)]
     for i in 0..if cfg!(miri) { 5 } else { 1000 } {
         dbg!(i);
         let mut vec =

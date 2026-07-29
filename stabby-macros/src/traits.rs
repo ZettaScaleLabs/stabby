@@ -12,8 +12,8 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+use core::ops::Deref;
 use core::panic;
-use std::ops::Deref;
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
@@ -1195,7 +1195,7 @@ impl PartialEq for Ty {
     }
 }
 impl core::fmt::Display for Ty {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", quote!(#self))
     }
 }

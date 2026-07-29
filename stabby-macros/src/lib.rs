@@ -12,6 +12,8 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+#![allow(clippy::panic)]
+
 use std::collections::HashSet;
 
 use proc_macro::TokenStream;

@@ -799,6 +799,7 @@ impl<'a, T: 'a, Alloc: IAlloc + 'a> Drop for DoubleEndedDrain<'a, T, Alloc> {
     }
 }
 #[cfg(feature = "std")]
+#[allow(clippy::std_instead_of_core)]
 impl<Alloc: IAlloc> std::io::Write for Vec<u8, Alloc> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         match self.try_copy_extend(buf) {
@@ -899,7 +900,7 @@ mod serde_impl {
     pub struct VecVisitor<T, Alloc>(core::marker::PhantomData<(T, Alloc)>);
     impl<'a, T: Deserialize<'a>, Alloc: IAlloc + Default> Visitor<'a> for VecVisitor<T, Alloc> {
         type Value = Vec<T, Alloc>;
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
             formatter.write_str("A sequence")
         }
         fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
