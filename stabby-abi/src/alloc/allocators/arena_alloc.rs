@@ -1,4 +1,4 @@
-use std::{
+use core::{
     cell::UnsafeCell,
     mem::MaybeUninit,
     num::NonZeroUsize,
@@ -18,7 +18,7 @@ pub struct Arena<const SIZE: usize> {
 }
 
 impl<const SIZE: usize> core::fmt::Debug for Arena<SIZE> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Arena")
             .field("start", &self.start)
             .field("size", &self.size)
@@ -70,7 +70,7 @@ impl core::cmp::PartialEq for ArenaAlloc<'_> {
 impl core::cmp::Eq for ArenaAlloc<'_> {}
 
 impl core::fmt::Debug for ArenaAlloc<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("ArenaAlloc")
             .field("arena_addr", &(&self.arena as *const _ as *const u8))
             .field("arena", &self.arena)

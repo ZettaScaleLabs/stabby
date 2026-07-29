@@ -12,6 +12,8 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+#![allow(clippy::std_instead_of_core, reason = "libloading requires std anyway")]
+
 /// An extension trait to load symbols from libraries while checking for ABI-compatibility.
 pub trait StabbyLibrary {
     /// Gets `symbol` from the library, using stabby's reports to check for compatibility.

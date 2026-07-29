@@ -114,6 +114,7 @@ where
     /// This function panics if the vector tried to grow due to
     /// being full, and the allocator failed to provide a new allocation.
     pub fn push(&mut self, value: T) {
+        #[expect(clippy::panic, reason = "documented")]
         if self.try_push(value).is_err() {
             panic!("Failed to push because reallocation failed.")
         }

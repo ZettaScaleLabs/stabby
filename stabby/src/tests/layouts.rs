@@ -12,6 +12,8 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+#![allow(clippy::panic)]
+
 use core::num::{NonZeroU16, NonZeroU32};
 
 use crate as stabby;
@@ -135,6 +137,7 @@ pub struct Transparent {
 }
 
 #[test]
+#[allow(clippy::dbg_macro)]
 fn layouts() {
     use core::num::NonZeroU8;
     use stabby::abi::istable::IForbiddenValues;
@@ -162,13 +165,13 @@ fn layouts() {
                 core::mem::size_of::<$t>(),
                 <$t as stabby::abi::IStable>::size(),
                 "Size mismatch for {}",
-                std::any::type_name::<$t>()
+                core::any::type_name::<$t>()
             );
             assert_eq!(
                 core::mem::align_of::<$t>(),
                 <$t as stabby::abi::IStable>::align(),
                 "Align mismatch for {}",
-                std::any::type_name::<$t>()
+                core::any::type_name::<$t>()
             );
         };
     }

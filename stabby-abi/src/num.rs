@@ -7,8 +7,12 @@ impl core::fmt::Display for IllegalValue {
         core::fmt::Debug::fmt(&self, f)
     }
 }
+#[rustversion::before(1.81)]
 #[cfg(feature = "std")]
 impl std::error::Error for IllegalValue {}
+
+#[rustversion::since(1.81)]
+impl core::error::Error for IllegalValue {}
 
 macro_rules! define_non_max {
     ($NonMaxU8:ident: $u8: ty = $NonZeroU8: ty; $u8s: literal ) => {
@@ -496,6 +500,7 @@ macro_rules! makeimask {
 }
 
 #[test]
+#[allow(clippy::dbg_macro)]
 fn numbers() {
     macro_rules! deftest {
         ($name: ty, $base: ty) => {

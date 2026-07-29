@@ -76,8 +76,12 @@ impl core::fmt::Display for ReportMismatch {
         core::fmt::Debug::fmt(&self, f)
     }
 }
+#[rustversion::before(1.81)]
 #[cfg(feature = "std")]
 impl std::error::Error for ReportMismatch {}
+
+#[rustversion::since(1.81)]
+impl core::error::Error for ReportMismatch {}
 
 const UNCHECKED: u8 = 0;
 const VALIDATED: u8 = 1;

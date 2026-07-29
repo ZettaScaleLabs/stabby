@@ -175,8 +175,9 @@ where
         self.unwrap_or_else(|| unsafe { unreachable_unchecked!() })
     }
     /// # Panics
-    /// If `!self.is_some`
+    /// If `!self.is_some()`
     pub fn unwrap(self) -> T {
+        #[expect(clippy::panic, reason = "documented")]
         self.unwrap_or_else(|| panic!("Option::unwrap called on None"))
     }
 }

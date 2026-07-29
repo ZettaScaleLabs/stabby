@@ -13,6 +13,7 @@
 //
 
 #[test]
+#[allow(clippy::print_stdout)]
 fn enums() {
     use crate as stabby;
     use core::num::{NonZeroU16, NonZeroU8};

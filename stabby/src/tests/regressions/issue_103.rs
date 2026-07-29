@@ -1,4 +1,5 @@
 #[test]
+#[allow(clippy::print_stdout)]
 fn main() {
     #[crate::stabby]
     pub trait Iface {

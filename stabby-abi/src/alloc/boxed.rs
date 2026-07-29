@@ -15,13 +15,13 @@
 use crate::{unreachable_unchecked, AnonymRef, AnonymRefMut, IntoDyn};
 
 use super::{vec::*, AllocPtr, AllocSlice, IAlloc};
+use core::hash::Hash;
 use core::{
     fmt::Debug,
     marker::PhantomData,
     mem::{ManuallyDrop, MaybeUninit},
     ptr::NonNull,
 };
-use std::hash::Hash;
 
 /// An ABI-stable Box, provided `Alloc` is ABI-stable.
 #[crate::stabby]
@@ -55,12 +55,12 @@ impl<T: PartialEq, Alloc: IAlloc> PartialEq for Box<T, Alloc> {
     }
 }
 impl<T: Hash, Alloc: IAlloc> Hash for Box<T, Alloc> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.as_ref().hash(state)
     }
 }
 impl<T: PartialOrd, Alloc: IAlloc> PartialOrd for Box<T, Alloc> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         self.as_ref().partial_cmp(other)
     }
     fn ge(&self, other: &Self) -> bool {
@@ -77,7 +77,7 @@ impl<T: PartialOrd, Alloc: IAlloc> PartialOrd for Box<T, Alloc> {
     }
 }
 impl<T: Ord, Alloc: IAlloc> Ord for Box<T, Alloc> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.as_ref().cmp(other)
     }
 }
@@ -210,6 +210,7 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
     ) -> Result<Self, Box<MaybeUninit<T>, Alloc>> {
         Self::try_make_in(constructor, alloc).map_err(|e| match e {
             Ok(uninit) => uninit,
+            #[expect(clippy::panic, reason = "documented")]
             Err(_) => panic!("Allocation failed"),
         })
     }

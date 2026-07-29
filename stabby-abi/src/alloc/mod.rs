@@ -29,8 +29,12 @@ impl core::fmt::Display for AllocationError {
         f.write_str("AllocationError")
     }
 }
+#[rustversion::before(1.81)]
 #[cfg(feature = "std")]
 impl std::error::Error for AllocationError {}
+
+#[rustversion::since(1.81)]
+impl core::error::Error for AllocationError {}
 
 /// [`alloc::boxed`](https://doc.rust-lang.org/stable/alloc/boxed/), but ABI-stable.
 pub mod boxed;

@@ -34,6 +34,13 @@ manual_is_multiple_of = "allow"
 indexing_slicing = "warn"
 arithmetic_side_effects = "warn"
 missing_panics_doc = "warn"
+panic = "warn"
+unwrap = "warn"
+expect = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+std_instead_of_core = "warn"
 
 
 [workspace.package]
@@ -42,7 +49,7 @@ license = " EPL-2.0 OR Apache-2.0"
 categories = ["development-tools::ffi", "no-std::no-alloc"]
 repository = "https://github.com/ZettaScaleLabs/stabby"
 readme = "stabby/README.md"
-version = "72.1.16"                                          # Track
+version = "72.1.16"                                         # Track
 
 [workspace.dependencies]
 stabby-macros = { path = "./stabby-macros/", version = "72.1.16", default-features = false } # Track

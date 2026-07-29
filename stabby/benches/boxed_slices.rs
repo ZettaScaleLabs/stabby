@@ -1,4 +1,4 @@
-use std::mem::MaybeUninit;
+use core::mem::MaybeUninit;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
@@ -64,7 +64,7 @@ fn bench_slices(c: &mut Criterion) {
         let stabby_vec = (0..n).collect::<stabby::vec::Vec<_>>();
         c.bench_function(&format!("arc_std_vec_{n}"), |b| {
             b.iter_custom(|it| {
-                let mut t = std::time::Duration::new(0, 0);
+                let mut t = core::time::Duration::new(0, 0);
                 for _ in 0..it {
                     let clone = std_vec.clone();
                     let start = std::time::Instant::now();
@@ -77,7 +77,7 @@ fn bench_slices(c: &mut Criterion) {
         });
         c.bench_function(&format!("arc_stabby_vec_{n}"), |b| {
             b.iter_custom(|it| {
-                let mut t = std::time::Duration::new(0, 0);
+                let mut t = core::time::Duration::new(0, 0);
                 for _ in 0..it {
                     let clone = stabby_vec.clone();
                     let start = std::time::Instant::now();
@@ -91,7 +91,7 @@ fn bench_slices(c: &mut Criterion) {
         if n == 100000 {
             c.bench_function(&format!("box_std_vec_{n}"), |b| {
                 b.iter_custom(|it| {
-                    let mut t = std::time::Duration::new(0, 0);
+                    let mut t = core::time::Duration::new(0, 0);
                     for _ in 0..it {
                         let clone = std_vec.clone();
                         let start = std::time::Instant::now();
@@ -104,7 +104,7 @@ fn bench_slices(c: &mut Criterion) {
             });
             c.bench_function(&format!("box_stabby_vec_{n}"), |b| {
                 b.iter_custom(|it| {
-                    let mut t = std::time::Duration::new(0, 0);
+                    let mut t = core::time::Duration::new(0, 0);
                     for _ in 0..it {
                         let clone = stabby_vec.clone();
                         let start = std::time::Instant::now();
