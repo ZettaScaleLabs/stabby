@@ -237,6 +237,13 @@ impl<Alloc: IAlloc> Hash for ArcStr<Alloc> {
         self.as_str().hash(state)
     }
 }
+impl<Alloc: IAlloc + Default> Default for ArcStr<Alloc> {
+    fn default() -> Self {
+        Self {
+            inner: Default::default(),
+        }
+    }
+}
 
 /// A weak reference counted boxed string.
 #[crate::stabby]

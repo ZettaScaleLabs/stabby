@@ -200,6 +200,22 @@ impl<'a, T> From<SliceMut<'a, T>> for &'a [T] {
     }
 }
 
+impl<'a, T> core::iter::IntoIterator for Slice<'a, T> {
+    type IntoIter = core::slice::Iter<'a, T>;
+    type Item = &'a T;
+    fn into_iter(self) -> Self::IntoIter {
+        self.as_slice().iter()
+    }
+}
+
+impl<'a, T> core::iter::IntoIterator for SliceMut<'a, T> {
+    type IntoIter = core::slice::IterMut<'a, T>;
+    type Item = &'a mut T;
+    fn into_iter(self) -> Self::IntoIter {
+        <&'a mut [T]>::from(self).iter_mut()
+    }
+}
+
 #[cfg(feature = "serde")]
 mod serde_impl {
     use super::*;
@@ -240,7 +256,7 @@ mod serde_impl {
             Ok(v.into())
         }
         fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
-            write!(formatter, "A borrowed_str")
+            write!(formatter, "A borrowed slice")
         }
     }
 }
