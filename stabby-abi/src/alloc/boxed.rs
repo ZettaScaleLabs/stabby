@@ -81,16 +81,21 @@ impl<T: Ord, Alloc: IAlloc> Ord for Box<T, Alloc> {
         self.as_ref().cmp(other)
     }
 }
-// impl<T: Default, Alloc: IAlloc + Default> Default for Box<T, Alloc> {
-//     fn default() -> Self {
-//         let constructor = |slot: &mut MaybeUninit<T>| {
-//             *slot = MaybeUninit::new(Default::default());
-//             // SAFETY: we've just assigned to that slot
-//             Ok(unsafe { slot.assume_init_mut() })
-//         };
-//         unsafe { Self::make_in(constructor, Default::default()).unwrap_unchecked() }
-//     }
-// }
+impl<T: Default, Alloc: IAlloc + Default> Default for Box<T, Alloc> {
+    fn default() -> Self {
+        unsafe {
+            Self::make_in(
+                |slot| {
+                    *slot = MaybeUninit::new(Default::default());
+                    // SAFETY: we've just assigned to that slot
+                    Ok(slot.assume_init_mut())
+                },
+                Default::default(),
+            )
+            .unwrap_unchecked()
+        }
+    }
+}
 
 #[cfg(not(stabby_default_alloc = "disabled"))]
 impl<T> Box<T> {
@@ -246,6 +251,16 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
     /// No other container must own (even partially) `this`.
     pub const unsafe fn from_raw(this: AllocPtr<T, Alloc>) -> Self {
         Self { ptr: this }
+    }
+}
+
+impl<T, Alloc: IAlloc> Box<MaybeUninit<T>, Alloc> {
+    /// Assumes the internals are initialized.
+    ///
+    /// # Safety
+    /// `self` must have been initialized.
+    pub const unsafe fn assume_init(self) -> Box<T, Alloc> {
+        core::mem::transmute(self)
     }
 }
 
@@ -439,6 +454,11 @@ impl<T: PartialOrd, Alloc: IAlloc> PartialOrd for BoxedSlice<T, Alloc> {
 impl<T: core::hash::Hash, Alloc: IAlloc> core::hash::Hash for BoxedSlice<T, Alloc> {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.as_slice().hash(state)
+    }
+}
+impl<T, Alloc: IAlloc + Default> Default for BoxedSlice<T, Alloc> {
+    fn default() -> Self {
+        Vec::default().into()
     }
 }
 impl<T, Alloc: IAlloc> From<Vec<T, Alloc>> for BoxedSlice<T, Alloc> {

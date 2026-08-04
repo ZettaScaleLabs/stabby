@@ -331,6 +331,60 @@ impl<T, Alloc: IAlloc> core::ops::Deref for Arc<T, Alloc> {
         unsafe { self.ptr.as_ref() }
     }
 }
+impl<T, Alloc: IAlloc> AsRef<T> for Arc<T, Alloc> {
+    fn as_ref(&self) -> &T {
+        self
+    }
+}
+
+impl<T: Eq, Alloc: IAlloc> Eq for Arc<T, Alloc> {}
+impl<T: PartialEq, Alloc: IAlloc> PartialEq for Arc<T, Alloc> {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+impl<T: Hash, Alloc: IAlloc> Hash for Arc<T, Alloc> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.as_ref().hash(state)
+    }
+}
+impl<T: PartialOrd, Alloc: IAlloc> PartialOrd for Arc<T, Alloc> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.as_ref().partial_cmp(other)
+    }
+    fn ge(&self, other: &Self) -> bool {
+        self.as_ref().ge(other)
+    }
+    fn gt(&self, other: &Self) -> bool {
+        self.as_ref().gt(other)
+    }
+    fn le(&self, other: &Self) -> bool {
+        self.as_ref().le(other)
+    }
+    fn lt(&self, other: &Self) -> bool {
+        self.as_ref().lt(other)
+    }
+}
+impl<T: Ord, Alloc: IAlloc> Ord for Arc<T, Alloc> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.as_ref().cmp(other)
+    }
+}
+impl<T: Default, Alloc: IAlloc + Default> Default for Arc<T, Alloc> {
+    fn default() -> Self {
+        unsafe {
+            Self::make_in(
+                |slot| {
+                    *slot = MaybeUninit::new(Default::default());
+                    // SAFETY: we've just assigned to that slot
+                    Ok(slot.assume_init_mut())
+                },
+                Default::default(),
+            )
+            .unwrap_unchecked()
+        }
+    }
+}
 
 /// [`alloc::sync::Weak`](https://doc.rust-lang.org/stable/alloc/sync/struct.Weak.html), but ABI-stable.
 #[crate::stabby]
@@ -512,6 +566,50 @@ impl<T, Alloc: IAlloc> From<Arc<T, Alloc>> for ArcSlice<T, Alloc> {
         }
     }
 }
+impl<T, Alloc: IAlloc> AsRef<[T]> for ArcSlice<T, Alloc> {
+    fn as_ref(&self) -> &[T] {
+        self
+    }
+}
+
+impl<T: Eq, Alloc: IAlloc> Eq for ArcSlice<T, Alloc> {}
+impl<T: PartialEq, Alloc: IAlloc> PartialEq for ArcSlice<T, Alloc> {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+impl<T: Hash, Alloc: IAlloc> Hash for ArcSlice<T, Alloc> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.as_ref().hash(state)
+    }
+}
+impl<T: PartialOrd, Alloc: IAlloc> PartialOrd for ArcSlice<T, Alloc> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.as_ref().partial_cmp(other.as_slice())
+    }
+    fn ge(&self, other: &Self) -> bool {
+        self.as_ref().ge(other.as_slice())
+    }
+    fn gt(&self, other: &Self) -> bool {
+        self.as_ref().gt(other.as_slice())
+    }
+    fn le(&self, other: &Self) -> bool {
+        self.as_ref().le(other.as_slice())
+    }
+    fn lt(&self, other: &Self) -> bool {
+        self.as_ref().lt(other.as_slice())
+    }
+}
+impl<T: Ord, Alloc: IAlloc> Ord for ArcSlice<T, Alloc> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.as_ref().cmp(other.as_slice())
+    }
+}
+impl<T: Default, Alloc: IAlloc + Default> Default for ArcSlice<T, Alloc> {
+    fn default() -> Self {
+        Vec::default().into()
+    }
+}
 impl<T: Copy, Alloc: IAlloc + Default> From<&[T]> for ArcSlice<T, Alloc> {
     fn from(value: &[T]) -> Self {
         Vec::from(value).into()
@@ -579,27 +677,6 @@ impl<T, Alloc: IAlloc> TryFrom<ArcSlice<T, Alloc>> for Vec<T, Alloc> {
                 Ok(ret)
             }
         }
-    }
-}
-impl<T: Eq, Alloc: IAlloc> Eq for ArcSlice<T, Alloc> {}
-impl<T: PartialEq, Alloc: IAlloc> PartialEq for ArcSlice<T, Alloc> {
-    fn eq(&self, other: &Self) -> bool {
-        self.as_slice() == other.as_slice()
-    }
-}
-impl<T: Ord, Alloc: IAlloc> Ord for ArcSlice<T, Alloc> {
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.as_slice().cmp(other.as_slice())
-    }
-}
-impl<T: PartialOrd, Alloc: IAlloc> PartialOrd for ArcSlice<T, Alloc> {
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        self.as_slice().partial_cmp(other.as_slice())
-    }
-}
-impl<T: Hash, Alloc: IAlloc> Hash for ArcSlice<T, Alloc> {
-    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.as_slice().hash(state)
     }
 }
 impl<T, Alloc: IAlloc> Drop for ArcSlice<T, Alloc> {
