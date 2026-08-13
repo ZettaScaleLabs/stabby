@@ -304,11 +304,12 @@ impl<T, Alloc: IAlloc> Drop for Arc<T, Alloc> {
     fn drop(&mut self) {
         if unsafe { self.ptr.prefix() }
             .strong
-            .fetch_sub(1, Ordering::Relaxed)
+            .fetch_sub(1, Ordering::Release)
             != 1
         {
             return;
         }
+        core::sync::atomic::fence(Ordering::Acquire);
         unsafe {
             core::ptr::drop_in_place(self.ptr.as_mut());
             _ = Weak::<T, Alloc>::from_raw(self.ptr);
@@ -401,11 +402,12 @@ impl<T, Alloc: IAlloc> Drop for Weak<T, Alloc> {
     fn drop(&mut self) {
         if unsafe { self.ptr.prefix() }
             .weak
-            .fetch_sub(1, Ordering::Relaxed)
+            .fetch_sub(1, Ordering::Release)
             != 1
         {
             return;
         }
+        core::sync::atomic::fence(Ordering::Acquire);
         unsafe {
             let mut alloc = self.ptr.prefix().alloc.assume_init_read();
             self.ptr.free(&mut alloc)
