@@ -213,7 +213,7 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     pub fn try_reserve(&mut self, additional: usize) -> Result<NonMaxUsize, AllocationError> {
         if self.remaining_capacity() < additional {
             let len = self.len();
-            let new_capacity = len.wrapping_add(additional);
+            let new_capacity = len.checked_add(additional).ok_or(AllocationError())?;
             let old_capacity = self.capacity();
             let start = if old_capacity != 0 {
                 unsafe {
