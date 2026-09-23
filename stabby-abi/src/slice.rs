@@ -21,11 +21,11 @@ use core::ops::{Deref, DerefMut};
 #[stabby::stabby]
 pub struct Slice<'a, T: 'a> {
     /// The start of the slice.
-    pub start: core::ptr::NonNull<T>,
+    pub(crate) start: core::ptr::NonNull<T>,
     /// The length of the slice.
-    pub len: usize,
+    pub(crate) len: usize,
     /// Ensures the slice has correct lifetime and variance.
-    pub marker: core::marker::PhantomData<&'a ()>,
+    pub(crate) marker: core::marker::PhantomData<&'a ()>,
 }
 // SAFETY: Slices are analogous to references.
 unsafe impl<'a, T: 'a> Send for Slice<'a, T> where &'a T: Send {}
@@ -116,9 +116,9 @@ where
 #[stabby::stabby]
 pub struct SliceMut<'a, T: 'a> {
     /// The start of the slice.
-    pub start: core::ptr::NonNull<T>,
+    pub(crate) start: core::ptr::NonNull<T>,
     /// The length of the slice.
-    pub len: usize,
+    pub(crate) len: usize,
     /// Ensures the slice has correct lifetime and variance.
     pub marker: core::marker::PhantomData<&'a mut ()>,
 }
