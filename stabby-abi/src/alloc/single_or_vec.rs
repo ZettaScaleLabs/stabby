@@ -191,8 +191,10 @@ where
     ///
     /// # Panics
     /// This function panics if the allocator failed to provide an appropriate allocation.
+    #[expect(clippy::expect_used, reason = "# Panics")]
     pub fn reserve(&mut self, additional: usize) {
-        self.try_reserve(additional).unwrap();
+        self.try_reserve(additional)
+            .expect("failed to reserve additional capacity");
     }
     /// Ensures that `additional` more elements can be pushed on `self` without reallocating.
     ///

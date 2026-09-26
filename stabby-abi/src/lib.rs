@@ -26,6 +26,7 @@
 )]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(stabby_nightly, feature(freeze))]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 #[cfg(feature = "alloc-rs")]
 extern crate alloc as alloc_rs;

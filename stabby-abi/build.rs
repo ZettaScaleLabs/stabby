@@ -12,6 +12,8 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+#![allow(clippy::panic, clippy::expect_used)]
+
 use core::fmt::Write as FmtWrite;
 use std::{
     fs::File,
@@ -37,8 +39,11 @@ fn u(mut i: u128) -> String {
 
 fn typenum_unsigned() -> std::io::Result<()> {
     const SEQ_MAX: u128 = 1000;
-    let filename = PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("unsigned.rs");
-    let mut file = BufWriter::new(File::create(filename).unwrap());
+    let filename = PathBuf::from(
+        std::env::var_os("OUT_DIR").expect("cargo should've provided the OUT_DIR env var"),
+    )
+    .join("unsigned.rs");
+    let mut file = BufWriter::new(File::create(filename).expect("couldn't create `unsigned.rs`"));
     for i in 0..=SEQ_MAX {
         let u = u(i);
         writeln!(file, "/// {i}\npub type U{i} = {u};")?;
@@ -67,8 +72,11 @@ fn typenum_unsigned() -> std::io::Result<()> {
 }
 
 fn tuples(max_tuple: usize) -> std::io::Result<()> {
-    let filename = PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("tuples.rs");
-    let mut file = BufWriter::new(File::create(filename).unwrap());
+    let filename = PathBuf::from(
+        std::env::var_os("OUT_DIR").expect("cargo should've provided the OUT_DIR env var"),
+    )
+    .join("tuples.rs");
+    let mut file = BufWriter::new(File::create(filename).expect("couldn't create `tuples.rs`"));
     for i in 0..=max_tuple {
         writeln!(
             file,
@@ -91,15 +99,15 @@ impl<{generics}> From<Tuple{i}<{generics}>> for ({generics}) {{
 }}
 "##,
             generics = (0..i).fold(String::new(), |mut acc, it| {
-                write!(acc, "T{it}, ").unwrap();
+                write!(acc, "T{it}, ").expect("String::write is infallible");
                 acc
             }),
             fields = (0..i).fold(String::new(), |mut acc, it| {
-                write!(acc, "pub T{it}, ").unwrap();
+                write!(acc, "pub T{it}, ").expect("String::write is infallible");
                 acc
             }),
             named_fields = (0..i).fold(String::new(), |mut acc, it| {
-                write!(acc, "field{it}, ").unwrap();
+                write!(acc, "field{it}, ").expect("String::write is infallible");
                 acc
             }),
         )?;
@@ -108,12 +116,12 @@ impl<{generics}> From<Tuple{i}<{generics}>> for ({generics}) {{
 }
 
 fn main() {
-    typenum_unsigned().unwrap();
+    typenum_unsigned().expect("Couldn't generate `unsigned.rs`");
     println!("cargo:rustc-check-cfg=cfg(stabby_max_tuple, values(any()))");
     let max_tuple = std::env::var("CARGO_CFG_STABBY_MAX_TUPLE")
         .map_or(32, |s| s.parse().unwrap_or(32))
         .max(10);
-    tuples(max_tuple).unwrap();
+    tuples(max_tuple).expect("Couldn't generate `tuples.rs`");
     println!("cargo:rustc-check-cfg=cfg(stabby_nightly, values(none()))");
     println!(
         r#"cargo:rustc-check-cfg=cfg(stabby_default_alloc, values("RustAlloc", "LibcAlloc", "disabled"))"#
@@ -134,7 +142,10 @@ fn main() {
             println!(r#"cargo:rustc-cfg=stabby_default_alloc="disabled""#);
         }
     }
-    if let Channel::Nightly = version_meta().unwrap().channel {
+    if let Channel::Nightly = version_meta()
+        .expect("Couldn't detect rustc channel")
+        .channel
+    {
         println!("cargo:rustc-cfg=stabby_nightly");
     }
 }

@@ -183,8 +183,13 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
         v @ 1..=8 => v,
         _ => 8,
     };
+    /// Grows the vector using its standard heuristic.
+    /// # Panics
+    /// On allocation failure.
+    #[expect(clippy::expect_used, reason = "# Panics")]
     fn grow(&mut self) {
-        self.try_grow().unwrap();
+        self.try_grow()
+            .expect("reserving addtional capacity failed");
     }
     fn try_grow(&mut self) -> Result<NonMaxUsize, AllocationError> {
         if self.capacity() == 0 {
@@ -200,8 +205,10 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     ///
     /// # Panics
     /// This function panics if the allocator failed to provide an appropriate allocation.
+    #[expect(clippy::expect_used, reason = "# Panics")]
     pub fn reserve(&mut self, additional: usize) {
-        self.try_reserve(additional).unwrap();
+        self.try_reserve(additional)
+            .expect("reserving addtional capacity failed");
     }
     /// Ensures that `additional` more elements can be pushed on `self` without reallocating.
     ///
@@ -285,11 +292,13 @@ impl<T, Alloc: IAlloc> Vec<T, Alloc> {
     /// This may be faster than extending through an iterator.
     /// # Panics
     /// If extending required an allocation that failed.
+    #[expect(clippy::expect_used, reason = "# Panics")]
     pub fn copy_extend(&mut self, slice: &[T])
     where
         T: Copy,
     {
-        self.try_copy_extend(slice).unwrap();
+        self.try_copy_extend(slice)
+            .expect("copy_extend required additional capacity, which couldn't be obtained");
     }
     /// Extends `self` using a `memcpy`.
     /// This may be faster than extending through an iterator.

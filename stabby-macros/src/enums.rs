@@ -149,7 +149,8 @@ pub fn stabby(
     stabby_attrs: &proc_macro::TokenStream,
 ) -> TokenStream {
     let st = crate::tl_mod();
-    let Args { version, module } = syn::parse(stabby_attrs.clone()).unwrap();
+    let Args { version, module } =
+        syn::parse(stabby_attrs.clone()).expect("couldn't parse stabby attribute args");
     let unbound_generics = &generics.params;
     let mut repr: Option<FullRepr> = None;
     let repr_ident = quote::format_ident!("repr");
@@ -157,7 +158,7 @@ pub fn stabby(
     for a in attrs {
         if a.path().is_ident(&repr_ident) {
             if repr.is_none() {
-                repr = Some(a.parse_args().unwrap())
+                repr = Some(a.parse_args().expect("stabby couldn't parse repr"))
             } else {
                 panic!("multiple reprs are forbidden")
             }
@@ -180,7 +181,8 @@ pub fn stabby(
     let mut layout = quote!(());
     let DataEnum { variants, .. } = &data;
     let mut has_non_empty_fields = false;
-    let unit: syn::Type = syn::parse2(quote!(())).unwrap();
+    let unit: syn::Type =
+        syn::parse2(quote!(())).expect("parse on known input that always succeeds");
     let mut report = crate::Report::r#enum(ident.to_string(), version, module.clone());
     for variant in variants {
         match &variant.fields {
@@ -192,7 +194,13 @@ pub fn stabby(
                 for f in &f.named {
                     let ty = f.ty.unself(&ident);
                     variant_layout = quote!(#st::FieldPair<#variant_layout, #ty>);
-                    variant_report.add_field(f.ident.as_ref().unwrap().to_string(), ty);
+                    variant_report.add_field(
+                        f.ident
+                            .as_ref()
+                            .expect("fields in `Named` iterator should all have identifiers")
+                            .to_string(),
+                        ty,
+                    );
                 }
                 variant_layout = quote!(#st::Struct<#variant_layout>);
                 layout = quote!(#st::Union<#layout, core::mem::ManuallyDrop<#variant_layout>>);
@@ -222,7 +230,10 @@ pub fn stabby(
                         "stabby only supports multiple fields per enum variant in #[repr(C, u*)] enums"
                     );
                     has_non_empty_fields = true;
-                    let f = f.unnamed.first().unwrap();
+                    let f = f
+                        .unnamed
+                        .first()
+                        .expect("unreachable: validated by the assert_eq above");
                     let ty = f.ty.unself(&ident);
                     layout = quote!(#st::Union<#layout, core::mem::ManuallyDrop<#ty>>);
                     report.add_field(variant.ident.to_string(), ty);

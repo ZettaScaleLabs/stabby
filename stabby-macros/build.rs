@@ -12,6 +12,8 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
+#![allow(clippy::panic, clippy::expect_used)]
+
 use std::process::Command;
 
 fn encode(value: String) -> String {
@@ -35,9 +37,13 @@ fn main() -> Result<(), std::io::Error> {
             .expect("Couldn't get rustc version")
             .stdout,
     )
-    .unwrap();
-    let env_vars = PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("env_vars.rs");
-    let mut env_vars = BufWriter::new(File::create(env_vars).unwrap());
+    .expect("Command output is expected to be ASCII and thus UTF8");
+    let env_vars = PathBuf::from(
+        std::env::var_os("OUT_DIR").expect("cargo should've provided OUT_DIR env var"),
+    )
+    .join("env_vars.rs");
+    let mut env_vars =
+        BufWriter::new(File::create(env_vars).expect("Failed to create `env_vars.rs`"));
     let mut rustc: [u16; 3] = [0; 3];
     let mut llvm: [u16; 3] = [0; 3];
     let mut commit = "";

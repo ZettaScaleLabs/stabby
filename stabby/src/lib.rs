@@ -19,6 +19,7 @@
     clippy::missing_safety_doc,
     clippy::missing_errors_doc
 )]
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 

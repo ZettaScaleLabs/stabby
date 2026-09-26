@@ -12,7 +12,7 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-#![allow(clippy::panic)]
+#![allow(clippy::panic, clippy::expect_used)]
 
 use std::collections::HashSet;
 
@@ -96,7 +96,10 @@ pub fn stabby(stabby_attrs: TokenStream, tokens: TokenStream) -> TokenStream {
             }
         }
     } else if let Ok(fn_spec) = syn::parse(tokens.clone()) {
-        functions::stabby(syn::parse(stabby_attrs).unwrap(), fn_spec)
+        functions::stabby(
+            syn::parse(stabby_attrs).expect("couldn't parse stabby attribute args"),
+            fn_spec,
+        )
     } else if let Ok(trait_spec) = syn::parse(tokens.clone()) {
         traits::stabby(trait_spec, &stabby_attrs)
     } else if let Ok(async_block) = syn::parse::<syn::ExprAsync>(tokens.clone()) {
@@ -120,7 +123,7 @@ pub fn vtable(tokens: TokenStream) -> TokenStream {
     let bounds =
         syn::punctuated::Punctuated::<TypeParamBound, syn::Token![+]>::parse_separated_nonempty
             .parse(tokens)
-            .unwrap();
+            .expect("couldn't parse arguments as type bounds");
     let mut vt = quote!(#st::vtable::VtDrop);
     for bound in bounds {
         match bound.into() {
@@ -160,14 +163,20 @@ impl syn::parse::Parse for DynPtr {
                             mut args,
                             ..
                         }),
-                } = segments.pop().unwrap().into_value()
+                } = segments
+                    .pop()
+                    .expect("paths always have at least one segment")
+                    .into_value()
                 else {
                     panic!()
                 };
                 if args.len() != 1 {
                     panic!("Pointer-type must have exactly one generic argument containing `dyn Bounds`")
                 }
-                let arg = args.pop().unwrap().into_value();
+                let arg = args
+                    .pop()
+                    .expect("unreachable: validated with the previous if statement")
+                    .into_value();
                 let syn::GenericArgument::Type(ty) = arg else {
                     panic!()
                 };
@@ -232,7 +241,7 @@ pub fn dynptr(tokens: TokenStream) -> TokenStream {
         ptr,
         bounds,
         lifetime,
-    } = syn::parse(tokens).unwrap();
+    } = syn::parse(tokens).expect("couldn't parse dynptr input");
     let mut vt = quote!(#st::vtable::VtDrop);
     let lifetime = lifetime.unwrap_or(syn::Lifetime::new("'static", Span::call_site()));
     for bound in bounds {
@@ -474,14 +483,22 @@ impl ToTokens for Report {
 /// If stabby doesn't support some of passed code
 #[proc_macro_attribute]
 pub fn export(attrs: TokenStream, fn_spec: TokenStream) -> TokenStream {
-    crate::functions::export(attrs, syn::parse(fn_spec).unwrap()).into()
+    crate::functions::export(
+        attrs,
+        syn::parse(fn_spec).expect("couldn't parse attribute args for `export`"),
+    )
+    .into()
 }
 
 /// # Panics
 /// If stabby doesn't support some of passed code
 #[proc_macro_attribute]
 pub fn import(attrs: TokenStream, fn_spec: TokenStream) -> TokenStream {
-    crate::functions::import(attrs, syn::parse(fn_spec).unwrap()).into()
+    crate::functions::import(
+        attrs,
+        syn::parse(fn_spec).expect("couldn't parse attribute args for `import`"),
+    )
+    .into()
 }
 
 #[proc_macro]
@@ -506,7 +523,8 @@ impl Unself for syn::Path {
         } = self;
         if self.is_ident("Self") || self.is_ident(this) {
             let st = crate::tl_mod();
-            return syn::parse2(quote! {#st::istable::_Self}).unwrap();
+            return syn::parse2(quote! {#st::istable::_Self})
+                .expect("parse on known input never fails");
         }
         syn::Path {
             leading_colon: *leading_colon,
