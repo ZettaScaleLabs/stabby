@@ -39,26 +39,26 @@ jobs:
           ]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e
 
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af
         with:
           components: rustfmt, clippy
 
       - name: Code format check
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: fmt
           args: -- --check
 
       - name: Clippy
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: clippy
           args: -p stabby  --features=${{ matrix.features }} -- -D warnings
       - name: Clean artifacts
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: clean
 
@@ -71,21 +71,21 @@ jobs:
         os: [ubuntu-latest]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e
 
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af
         with:
           toolchain: nightly
           components: clippy
 
       - name: Clippy
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: clippy
           args: --all-targets -- -D warnings
       - name: Clean artifacts
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: clean
 
@@ -98,9 +98,9 @@ jobs:
         os: [ubuntu-latest]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e
       - name: Install Rust toolchain 1.72
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af
         with:
           toolchain: 1.72.0
           components: clippy
@@ -109,14 +109,14 @@ jobs:
         run: mv Cargo-1_72_0.lock Cargo.lock
 
       - name: Clippy
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           toolchain: 1.72.0
           command: clippy
           args: --all-targets -- -D warnings
 
       - name: Clean artifacts
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: clean
 
@@ -128,19 +128,19 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af
         with:
           profile: minimal
           target: wasm32-unknown-unknown
       - name: Check
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: clippy
           args: --all-targets -- -D warnings
       - name: Clean artifacts
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: clean
 
@@ -152,19 +152,19 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af
         with:
           profile: minimal
           target: i686-unknown-linux-gnu
       - name: Check
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: clippy
           args: --all-targets -- -D warnings
       - name: Clean artifacts
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: clean
 
@@ -177,10 +177,10 @@ jobs:
         os: [ubuntu-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e
 
       - name: Install latest Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af
 
       - name: Set rustflags
         shell: bash
@@ -190,29 +190,29 @@ jobs:
           esac
 
       - name: Build
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: build
           args: --verbose --all-targets
 
       - name: Run tests
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: test
 
       - name: Test load-time linkage
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: run
           args: --bin dynlinkage
 
       - name: Test run-time linkage
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: run
           args: --bin libloader
 
       - name: Clean artifacts
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505
         with:
           command: clean
