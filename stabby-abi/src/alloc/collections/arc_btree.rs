@@ -456,10 +456,16 @@ mod seal {
                 greater,
             };
             for entry in entries {
-                this.entries
-                    .get_mut(this.len)
-                    .expect("Attempted to construct an node with too many entries")
-                    .write(entry);
+                #[expect(
+                    clippy::expect_used,
+                    reason = "this constructor isn't actually public (it's sealed)"
+                )]
+                {
+                    this.entries
+                        .get_mut(this.len)
+                        .expect("Attempted to construct an node with too many entries")
+                        .write(entry);
+                }
                 this.len = this.len.wrapping_add(1);
             }
             this

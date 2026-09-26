@@ -78,7 +78,7 @@ impl From<proc_macro2::TokenStream> for TyExpr {
                     match p.as_char() {
                         ':' => {
                             if p.spacing() == Spacing::Joint {
-                                let next = tokens.next().unwrap();
+                                let next = tokens.next().expect("incomplete expression: either a partial path, or a ternary without a second expression");
                                 assert!(matches!(next, TokenTree::Punct(p) if p.as_char() == ':'));
                                 path.extend(quote!(::));
                                 accept_ident = true;
@@ -109,7 +109,7 @@ impl From<proc_macro2::TokenStream> for TyExpr {
                         '&' => set_op(TyOps::BitAnd),
                         '=' => {
                             if p.spacing() == Spacing::Joint {
-                                let next = tokens.next().unwrap();
+                                let next = tokens.next().expect("incomplete expression: `==` is missing it's second `=` and a rhs expression");
                                 assert!(matches!(next, TokenTree::Punct(p) if p.as_char() == '='));
                                 set_op(TyOps::IsEqual)
                             } else {
@@ -151,56 +151,57 @@ impl From<proc_macro2::TokenStream> for TyExpr {
                 syn::parse2(path).expect("Failed to parse final type"),
             ));
         }
+        let already_asserted = "unreachable: validated by previous assert_eq";
         match operation {
             TyOps::Type => {
                 assert_eq!(types.len(), 1, "Type");
-                types.pop().unwrap()
+                types.pop().expect(already_asserted)
             }
             TyOps::Not => {
                 assert_eq!(types.len(), 1);
-                Self::Not(Box::new(types.pop().unwrap()))
+                Self::Not(Box::new(types.pop().expect(already_asserted)))
             }
             TyOps::Ternary => {
                 assert_eq!(types.len(), 3);
-                let f = Box::new(types.pop().unwrap());
-                let t = Box::new(types.pop().unwrap());
-                let cond = Box::new(types.pop().unwrap());
+                let f = Box::new(types.pop().expect(already_asserted));
+                let t = Box::new(types.pop().expect(already_asserted));
+                let cond = Box::new(types.pop().expect(already_asserted));
                 Self::Ternary(cond, t, f)
             }
             TyOps::Add => {
                 assert_eq!(types.len(), 2);
-                let r = Box::new(types.pop().unwrap());
-                let l = Box::new(types.pop().unwrap());
+                let r = Box::new(types.pop().expect(already_asserted));
+                let l = Box::new(types.pop().expect(already_asserted));
                 Self::Add(l, r)
             }
             TyOps::Sub => {
                 assert_eq!(types.len(), 2);
-                let r = Box::new(types.pop().unwrap());
-                let l = Box::new(types.pop().unwrap());
+                let r = Box::new(types.pop().expect(already_asserted));
+                let l = Box::new(types.pop().expect(already_asserted));
                 Self::Sub(l, r)
             }
             TyOps::Rem => {
                 assert_eq!(types.len(), 2);
-                let r = Box::new(types.pop().unwrap());
-                let l = Box::new(types.pop().unwrap());
+                let r = Box::new(types.pop().expect(already_asserted));
+                let l = Box::new(types.pop().expect(already_asserted));
                 Self::Rem(l, r)
             }
             TyOps::BitOr => {
                 assert_eq!(types.len(), 2);
-                let r = Box::new(types.pop().unwrap());
-                let l = Box::new(types.pop().unwrap());
+                let r = Box::new(types.pop().expect(already_asserted));
+                let l = Box::new(types.pop().expect(already_asserted));
                 Self::BitOr(l, r)
             }
             TyOps::BitAnd => {
                 assert_eq!(types.len(), 2);
-                let r = Box::new(types.pop().unwrap());
-                let l = Box::new(types.pop().unwrap());
+                let r = Box::new(types.pop().expect(already_asserted));
+                let l = Box::new(types.pop().expect(already_asserted));
                 Self::BitAnd(l, r)
             }
             TyOps::IsEqual => {
                 assert_eq!(types.len(), 2);
-                let r = Box::new(types.pop().unwrap());
-                let l = Box::new(types.pop().unwrap());
+                let r = Box::new(types.pop().expect(already_asserted));
+                let l = Box::new(types.pop().expect(already_asserted));
                 Self::IsEqual(l, r)
             }
         }

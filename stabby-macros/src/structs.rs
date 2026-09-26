@@ -36,7 +36,11 @@ impl syn::parse::Parse for Args {
                 "no_opt" => this.optimize = false,
                 "version" => {
                     input.parse::<syn::Token!(=)>()?;
-                    this.version = input.parse::<syn::LitInt>()?.to_string().parse().unwrap();
+                    this.version = input
+                        .parse::<syn::LitInt>()?
+                        .to_string()
+                        .parse()
+                        .expect("failed to parse LitInt stringification into a u32");
                 }
                 "module" => {
                     input.parse::<syn::Token!(=)>()?;
@@ -109,7 +113,7 @@ pub fn stabby(
         mut optimize,
         version,
         module,
-    } = syn::parse(stabby_attrs.clone()).unwrap();
+    } = syn::parse(stabby_attrs.clone()).expect("failed to parse stabby attribute args");
     optimize &= generics.params.is_empty();
     let st = crate::tl_mod();
     let unbound_generics = crate::utils::unbound_generics(&generics.params);
@@ -139,7 +143,14 @@ pub fn stabby(
                     || quote!(#ty),
                     |layout| quote!(#st::FieldPair<#layout, #ty>),
                 ));
-                report.add_field(field.ident.as_ref().unwrap().to_string(), ty);
+                report.add_field(
+                    field
+                        .ident
+                        .as_ref()
+                        .expect("fields in fields.named should all have an identifier")
+                        .to_string(),
+                    ty,
+                );
             }
             quote! {
                 #(#attrs)*

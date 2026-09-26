@@ -85,7 +85,8 @@ mod stable_waker {
             }
             unsafe fn drop(this: *const ()) {
                 let this = AllocPtr {
-                    ptr: NonNull::new(this as *mut _).unwrap(),
+                    // SAFETY: This invariant is guaranteed by [`RawWaker`]
+                    ptr: unsafe { NonNull::new(this as *mut _).unwrap_unchecked() },
                     marker: core::marker::PhantomData,
                 };
                 let this = Arc::from_raw(this);

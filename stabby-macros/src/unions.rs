@@ -33,7 +33,11 @@ impl syn::parse::Parse for Args {
             match ident.to_string().as_str() {
                 "version" => {
                     input.parse::<syn::Token!(=)>()?;
-                    this.version = input.parse::<syn::LitInt>()?.to_string().parse().unwrap();
+                    this.version = input
+                        .parse::<syn::LitInt>()?
+                        .to_string()
+                        .parse()
+                        .expect("failed to parse LitInt stringification into u32");
                 }
                 "module" => {
                     input.parse::<syn::Token!(=)>()?;
@@ -65,14 +69,22 @@ pub fn stabby(
         union_token: _,
         fields,
     } = &data;
-    let Args { version, module } = syn::parse(stabby_attrs.clone()).unwrap();
+    let Args { version, module } =
+        syn::parse(stabby_attrs.clone()).expect("Failed to parse stabby attribute args");
     let unbound_generics = &generics.params;
     let mut layout = quote!(());
     let mut report = crate::Report::r#union(ident.to_string(), version, module);
     for field in &fields.named {
         let ty = field.ty.unself(&ident);
         layout = quote!(#st::Union<#layout, #ty>);
-        report.add_field(field.ident.as_ref().unwrap().to_string(), ty);
+        report.add_field(
+            field
+                .ident
+                .as_ref()
+                .expect("fields in fields.named should always have an identifier")
+                .to_string(),
+            ty,
+        );
     }
     let report_bounds = report.bounds();
     let ctype = cfg!(feature = "experimental-ctypes").then(|| {

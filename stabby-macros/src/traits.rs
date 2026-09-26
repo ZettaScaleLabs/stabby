@@ -243,7 +243,8 @@ impl<'a> From<(&'a mut syn::ItemTrait, bool)> for DynTraitDescription<'a> {
             if path_segments.next().map_or(true, |s| s.ident != "vt_attr") {
                 return true;
             }
-            let vt_attr = syn::parse2::<SubAttr>(attr.meta.to_token_stream()).unwrap();
+            let vt_attr = syn::parse2::<SubAttr>(attr.meta.to_token_stream())
+                .expect("failed to parse args for sub-attribute");
             this.vt_attrs.push(vt_attr.inner);
             false
         });

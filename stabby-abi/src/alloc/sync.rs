@@ -615,7 +615,16 @@ impl<T: Copy, Alloc: IAlloc + Default> From<&[T]> for ArcSlice<T, Alloc> {
         Vec::from(value).into()
     }
 }
+
 impl<T, Alloc: IAlloc> From<Vec<T, Alloc>> for ArcSlice<T, Alloc> {
+    /// Converts a `Vec<T, Alloc>` into an `ArcSlice<T, Alloc>`.
+    ///
+    /// This only ever allocates if `value` was an empty `Vec` that didn't have an allocation yet.
+    ///
+    /// # Panics
+    ///
+    /// If `value` didn't have an allocation, and allocating the common [`AllocPtr`] failed.
+    #[expect(clippy::expect_used, reason = "# Panics")]
     fn from(value: Vec<T, Alloc>) -> Self {
         let (mut slice, capacity, mut alloc) = value.into_raw_components();
         if capacity != 0 {

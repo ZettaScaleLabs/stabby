@@ -1,4 +1,4 @@
-#![allow(clippy::arithmetic_side_effects)]
+#![allow(clippy::arithmetic_side_effects, clippy::expect_used)]
 
 use core::{hint::unreachable_unchecked, num::NonZeroU32};
 
@@ -309,7 +309,7 @@ fn bench_dynptr(c: &mut Criterion) {
             move |_| {
                 (
                     rng.gen_bool(0.7),
-                    NonZeroU32::new(rng.gen_range(1..=100u32)).unwrap(),
+                    NonZeroU32::new(rng.gen_range(1..=100u32)).expect("range guarantees non-zero"),
                 )
             }
         })
