@@ -12,7 +12,7 @@
 //   Pierre Avital, <pierre.avital@me.com>
 //
 
-#![allow(clippy::std_instead_of_core, reason = "libloading requires std anyway")]
+#![allow(clippy::std_instead_of_core)] //  reason = "libloading requires std anyway"
 
 /// An extension trait to load symbols from libraries while checking for ABI-compatibility.
 pub trait StabbyLibrary {

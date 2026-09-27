@@ -447,7 +447,7 @@ where
     where
         Err: core::fmt::Debug,
     {
-        #[expect(clippy::panic, reason = "documented")]
+        #[allow(clippy::panic)] // reason = "documented"
         self.unwrap_or_else(|e| panic!("Result::unwrap called on Err variant: {e:?}"))
     }
     /// Returns the `Err` variant if applicable, calling `f` on the `Ok` otherwise.
@@ -465,7 +465,7 @@ where
     where
         Ok: core::fmt::Debug,
     {
-        #[expect(clippy::panic, reason = "documented")]
+        #[allow(clippy::panic)] // reason = "documented"
         self.unwrap_err_or_else(|e| panic!("Result::unwrap_err called on Ok variant: {e:?}"))
     }
     const unsafe fn ok_unchecked(&self) -> &Ok {

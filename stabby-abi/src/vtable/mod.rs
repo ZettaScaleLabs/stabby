@@ -185,10 +185,8 @@ pub(crate) mod internal {
             if ret.is_none() {
                 let ret = &mut ret;
                 self.get(&vtable, move |vt| {
-                    #[expect(
-                        clippy::expect_used,
-                        reason = "Failing to insert a VT will lead to UB upon attempts at using it"
-                    )]
+                    #[allow(clippy::expect_used)]
+                    // reason = "Failing to insert a VT will lead to UB upon attempts at using it"
                     let start = unsafe {
                         NonNull::new_unchecked(
                             vt.expect("VTable should've been inserted by now")
