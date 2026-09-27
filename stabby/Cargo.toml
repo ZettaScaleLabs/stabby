@@ -28,7 +28,8 @@ workspace = true
 
 [features]
 default = ["std"]
-std = ["stabby-abi/std", "alloc-rs"]
+std = ["stabby-abi/std", "alloc", "alloc-rs"]
+alloc = ["stabby-abi/alloc"]
 alloc-rs = ["stabby-abi/alloc-rs"]
 experimental-ctypes = ["stabby-abi/experimental-ctypes"]
 libloading = ["dep:libloading", "std"]
