@@ -215,7 +215,7 @@ impl<T, Alloc: IAlloc> Box<T, Alloc> {
     ) -> Result<Self, Box<MaybeUninit<T>, Alloc>> {
         Self::try_make_in(constructor, alloc).map_err(|e| match e {
             Ok(uninit) => uninit,
-            #[expect(clippy::panic, reason = "documented")]
+            #[allow(clippy::panic)] // reason = "documented"
             Err(_) => panic!("Allocation failed"),
         })
     }

@@ -456,10 +456,8 @@ mod seal {
                 greater,
             };
             for entry in entries {
-                #[expect(
-                    clippy::expect_used,
-                    reason = "this constructor isn't actually public (it's sealed)"
-                )]
+                #[allow(clippy::expect_used)]
+                // reason = "this constructor isn't actually public (it's sealed)"
                 {
                     this.entries
                         .get_mut(this.len)

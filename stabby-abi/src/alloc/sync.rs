@@ -163,7 +163,7 @@ impl<T, Alloc: IAlloc> Arc<T, Alloc> {
     ) -> Result<Self, Arc<MaybeUninit<T>, Alloc>> {
         Self::try_make_in(constructor, alloc).map_err(|e| match e {
             Ok(uninit) => uninit,
-            #[expect(clippy::panic, reason = "documented")]
+            #[allow(clippy::panic)] // reason = "documented"
             Err(_) => panic!("Allocation failed"),
         })
     }
@@ -624,7 +624,7 @@ impl<T, Alloc: IAlloc> From<Vec<T, Alloc>> for ArcSlice<T, Alloc> {
     /// # Panics
     ///
     /// If `value` didn't have an allocation, and allocating the common [`AllocPtr`] failed.
-    #[expect(clippy::expect_used, reason = "# Panics")]
+    #[allow(clippy::expect_used)] // reason = "# Panics"
     fn from(value: Vec<T, Alloc>) -> Self {
         let (mut slice, capacity, mut alloc) = value.into_raw_components();
         if capacity != 0 {

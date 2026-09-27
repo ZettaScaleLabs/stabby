@@ -177,7 +177,7 @@ where
     /// # Panics
     /// If `!self.is_some()`
     pub fn unwrap(self) -> T {
-        #[expect(clippy::panic, reason = "documented")]
+        #[allow(clippy::panic)] // reason = "documented"
         self.unwrap_or_else(|| panic!("Option::unwrap called on None"))
     }
 }

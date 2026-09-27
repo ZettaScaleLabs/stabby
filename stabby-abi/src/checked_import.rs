@@ -148,7 +148,7 @@ impl<F> CheckedImport<F> {
 }
 impl<F> core::ops::Deref for CheckedImport<F> {
     type Target = F;
-    #[expect(clippy::expect_used, reason = "This signature is kinda evil")]
+    #[allow(clippy::expect_used)] // reason = "This signature is kinda evil"
     fn deref(&self) -> &Self::Target {
         self.as_ref()
             .expect("import type didn't match expectations")
