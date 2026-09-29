@@ -95,7 +95,10 @@ impl Layout {
     /// If the resulting size exceeds the capacity of `usize` (if `debug_assertions` are enabled)
     #[allow(clippy::arithmetic_side_effects)]
     pub const fn concat(mut self, other: Self) -> Self {
-        self.size += other.size;
+        self.size = match self.size.checked_add(other.size) {
+            Some(s) => s,
+            None => panic!("Layout::concat overflow"),
+        };
         self.realign(if self.align < other.align {
             other.align
         } else {
