@@ -185,6 +185,20 @@ fn dyn_ref_traits() {
     let value = 6u8;
     let dyn_ref = <stabby::dynptr!(&'_ dyn MyTrait2)>::from(&value);
     assert_eq!(dyn_ref.do_stuff2(), 6);
+
+    let dyn_ref = <stabby::dynptr!(&'_ (dyn MyTrait2 + Send + Sync))>::from(&value);
+    assert_eq!(dyn_ref.do_stuff2(), 6);
+    fn trait_assertions<T: Send + Sync + stabby::abi::IStable>(_t: T) {}
+    trait_assertions(dyn_ref);
+
+    macro_rules! via_ty {
+        ($t:ty) => {
+            stabby::dynptr!($t)
+        };
+    }
+    let dyn_ref = <via_ty!(&'_ (dyn MyTrait2 + Send + Sync))>::from(&value);
+    assert_eq!(dyn_ref.do_stuff2(), 6);
+    trait_assertions(dyn_ref);
 }
 
 #[test]

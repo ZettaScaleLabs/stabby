@@ -139,6 +139,16 @@ enum PtrType {
     Ref,
     RefMut,
 }
+/// Strips `(...)` and invisible `macro_rules!` groups surrounding a type.
+fn unwrap_type(mut ty: syn::Type) -> syn::Type {
+    loop {
+        ty = match ty {
+            syn::Type::Paren(syn::TypeParen { elem, .. })
+            | syn::Type::Group(syn::TypeGroup { elem, .. }) => *elem,
+            other => return other,
+        };
+    }
+}
 struct DynPtr {
     ptr: PtrType,
     bounds: Vec<syn::TraitBound>,
@@ -146,7 +156,7 @@ struct DynPtr {
 }
 impl syn::parse::Parse for DynPtr {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let (mut this, elem) = match input.parse::<syn::Type>()? {
+        let (mut this, elem) = match unwrap_type(input.parse::<syn::Type>()?) {
             syn::Type::Path(syn::TypePath {
                 path:
                     syn::Path {
@@ -208,7 +218,7 @@ impl syn::parse::Parse for DynPtr {
             ),
             _ => panic!("Only references and paths are supported by this macro"),
         };
-        let syn::Type::TraitObject(syn::TypeTraitObject { bounds, .. }) = elem else {
+        let syn::Type::TraitObject(syn::TypeTraitObject { bounds, .. }) = unwrap_type(elem) else {
             panic!("expected `dyn` not found")
         };
         for bound in bounds {
