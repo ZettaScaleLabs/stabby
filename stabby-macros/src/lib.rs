@@ -17,7 +17,9 @@
 use std::collections::HashSet;
 
 use proc_macro::TokenStream;
-use proc_macro2::{Ident, Span};
+#[cfg(feature = "proc-macro-crate")]
+use proc_macro2::Ident;
+use proc_macro2::Span;
 use quote::{quote, ToTokens};
 use syn::{parse::Parser, DeriveInput, TypeParamBound};
 
@@ -52,22 +54,32 @@ macro_rules! log {
 }
 
 pub(crate) fn tl_mod() -> proc_macro2::TokenStream {
-    match proc_macro_crate::crate_name("stabby-abi") {
-        Ok(proc_macro_crate::FoundCrate::Itself) => return quote!(crate),
-        Ok(proc_macro_crate::FoundCrate::Name(crate_name)) => {
-            let crate_name = Ident::new(&crate_name, Span::call_site());
-            return quote!(#crate_name);
-        }
-        _ => {}
-    }
-    match proc_macro_crate::crate_name("stabby")
-        .expect("Couldn't find `stabby` in your dependencies")
+    #[cfg(feature = "proc-macro-crate")]
     {
-        proc_macro_crate::FoundCrate::Itself => quote!(crate::abi),
-        proc_macro_crate::FoundCrate::Name(crate_name) => {
-            let crate_name = Ident::new(&crate_name, Span::call_site());
-            quote!(#crate_name::abi)
+        match proc_macro_crate::crate_name("stabby-abi") {
+            Ok(proc_macro_crate::FoundCrate::Itself) => return quote!(crate),
+            Ok(proc_macro_crate::FoundCrate::Name(crate_name)) => {
+                let crate_name = Ident::new(&crate_name, Span::call_site());
+                return quote!(#crate_name);
+            }
+            _ => {}
         }
+        match proc_macro_crate::crate_name("stabby")
+            .expect("Couldn't find `stabby` in your dependencies")
+        {
+            proc_macro_crate::FoundCrate::Itself => quote!(crate::abi),
+            proc_macro_crate::FoundCrate::Name(crate_name) => {
+                let crate_name = Ident::new(&crate_name, Span::call_site());
+                quote!(#crate_name::abi)
+            }
+        }
+    }
+
+    // Build systems without a Cargo manifest per crate (Buck, Bazel) cannot use
+    // `proc-macro-crate`; `stabby` and `stabby-abi` alias themselves as `stabby` instead.
+    #[cfg(not(feature = "proc-macro-crate"))]
+    {
+        quote!(stabby::abi)
     }
 }
 
