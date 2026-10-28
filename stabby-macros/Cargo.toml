@@ -28,10 +28,11 @@ workspace = true
 
 [features]
 experimental-ctypes = []
+proc-macro-crate = ["dep:proc-macro-crate"]
 
 [dependencies]
 proc-macro2 = { workspace = true }
-proc-macro-crate = { workspace = true }
+proc-macro-crate = { workspace = true, optional = true }
 quote = { workspace = true }
 syn = { workspace = true, features = ["full", "extra-traits"] }
 

@@ -71,6 +71,10 @@ pub mod libloading;
 /// ABI-stable representations of durations and instants.
 pub mod time;
 
+// Without `proc-macro-crate`, the macros always emit `stabby::abi::...` paths.
+#[cfg(not(feature = "proc-macro-crate"))]
+extern crate self as stabby;
+
 /// Like [`std::format`], but returning an ABI-stable [`String`](crate::string::String)
 #[macro_export]
 macro_rules! format {

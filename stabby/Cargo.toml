@@ -27,10 +27,11 @@ description = "A Stable ABI for Rust with compact sum-types."
 workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "proc-macro-crate"]
 std = ["stabby-abi/std", "alloc-rs"]
 alloc-rs = ["stabby-abi/alloc-rs"]
 experimental-ctypes = ["stabby-abi/experimental-ctypes"]
+proc-macro-crate = ["stabby-abi/proc-macro-crate"]
 libloading = ["dep:libloading", "std"]
 libc = ["stabby-abi/libc"]
 serde = ["stabby-abi/serde"]

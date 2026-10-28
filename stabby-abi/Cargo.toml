@@ -27,10 +27,11 @@ description = "stabby's core ABI, you shouldn't add this crate to your dependenc
 workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "proc-macro-crate"]
 std = ["alloc-rs"]
 alloc-rs = []
 experimental-ctypes = ["stabby-macros/experimental-ctypes"]
+proc-macro-crate = ["stabby-macros/proc-macro-crate"]
 libc = ["dep:libc"]
 test = []
 serde = ["dep:serde"]
